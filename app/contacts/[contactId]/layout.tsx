@@ -33,10 +33,12 @@ export default function SettingsLayout({
           <div className="border-b">
             <nav className="flex space-x-8">
               <TabLink href={`/contacts/${contactId}`} exact>
-                General
+                Contact Info
               </TabLink>
-              <TabLink href="/settings/billing">Billing & Usage</TabLink>
-              <TabLink href="/settings/users">Users</TabLink>
+              <TabLink href={`/contacts/${contactId}/pledges`}>Pledges</TabLink>
+              <TabLink href={`/contacts/${contactId}/payments`}>
+                Payments
+              </TabLink>
             </nav>
           </div>
           <div className="py-6">{children}</div>
