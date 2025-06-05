@@ -1,22 +1,35 @@
 "use client";
+
 import { Contact, SortField, SortOrder } from "@/types/contact";
-import {
-  Table,
-  TableBody,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { useRef, useEffect, useCallback } from "react";
-import { ContactTableRow } from "./contact-table-row";
-import { ContactTableToolbar } from "./contact-table-toolbar";
-import { ContactTableEmpty } from "./contact-table-empty";
-import { ContactColumnHeader } from "./contact-column-header";
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import { useContacts } from "@/lib/query/useContacts";
+import { useEffect, useMemo, useCallback } from "react";
+import { DataTable } from "@/components/data-table/data-table";
+import { DataTableToolbar } from "@/components/data-table/data-table-toolbar";
+import { DataTableSkeleton } from "../data-table/data-table-skeleton";
+import { DataTableColumnHeader } from "../data-table/data-table-column-header";
 import { parseAsString, parseAsStringEnum, parseAsArrayOf } from "nuqs";
 import { useQueryState } from "nuqs";
+import { useContacts } from "@/lib/query/useContacts";
+import {
+  createColumnHelper,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+  getFilteredRowModel,
+} from "@tanstack/react-table";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
+
+import { MoreHorizontal } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
+
+const columnHelper = createColumnHelper<Contact>();
 
 export function ContactTable() {
   const [search, setSearch] = useQueryState(
@@ -26,6 +39,7 @@ export function ContactTable() {
   const [sortBy, setSortBy] = useQueryState(
     "sortBy",
     parseAsStringEnum<SortField>([
+      "firstName",
       "lastName",
       "updatedAt",
       "totalPledgedUsd",
@@ -39,6 +53,14 @@ export function ContactTable() {
     "selected",
     parseAsArrayOf(parseAsString, ",").withDefault([])
   );
+  const [page, setPage] = useQueryState("page", parseAsString.withDefault("1"));
+  const [pageSize, setPageSize] = useQueryState(
+    "pageSize",
+    parseAsString.withDefault("20")
+  );
+
+  const router = useRouter();
+  const queryClient = useQueryClient();
 
   const {
     data,
@@ -48,200 +70,309 @@ export function ContactTable() {
     isLoading,
     isError,
   } = useContacts({
-    limit: 20,
+    limit: Number(pageSize),
     search,
     sortBy,
     sortOrder,
   });
 
-  const observerRef = useRef<IntersectionObserver | null>(null);
-  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const deleteMutation = useMutation({
+    mutationFn: async (contactId: number) => {
+      await axios.delete(`/api/contacts/${contactId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+    },
+  });
 
-  const contacts = data?.pages.flatMap((page) => page.contacts) || [];
-  const totalCount = data?.pages[0]?.pagination.totalCount || 0;
+  const handleEdit = useCallback(
+    (contactId: number) => {
+      router.push(`/contact/${contactId}/edit`);
+    },
+    [router]
+  );
 
-  const toggleContactSelection = (contactId: number) => {
-    setSelectedContacts((prev) => {
-      const newSet = new Set(prev.map(Number));
-      if (newSet.has(contactId)) {
-        newSet.delete(contactId);
-      } else {
-        newSet.add(contactId);
-      }
-      return Array.from(newSet).map(String);
-    });
-  };
+  const handleDelete = useCallback(
+    (contactId: number) => {
+      deleteMutation.mutate(contactId);
+    },
+    [deleteMutation]
+  );
 
-  const clearSelectedContacts = () => {
-    setSelectedContacts([]);
-  };
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor("id", {
+        id: "select",
+        header: () => <span className="sr-only">Select</span>,
+        cell: ({ row }) => (
+          <input
+            type="checkbox"
+            checked={row.getIsSelected()}
+            onChange={row.getToggleSelectedHandler()}
+            className="cursor-pointer"
+          />
+        ),
+        enableSorting: false,
+        enableHiding: false,
+        size: 40,
+      }),
+      columnHelper.accessor("lastName", {
+        id: "lastName",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Name" />
+        ),
+        cell: (info) => (
+          <span>{`${info.row.original.lastName}, ${info.row.original.firstName}`}</span>
+        ),
+        enableSorting: true,
+        enableHiding: true,
+        meta: {
+          variant: "text",
+          label: "Name",
+          placeholder: "Search names...",
+        },
+        enableColumnFilter: true,
+      }),
+      columnHelper.accessor("email", {
+        id: "email",
+        header: () => <span className="text-sm font-medium">Email</span>,
+        cell: (info) => <span>{info.getValue() ?? "N/A"}</span>,
+        enableSorting: false,
+        enableHiding: false,
+      }),
+      columnHelper.accessor("phone", {
+        id: "phone",
+        header: () => <span className="text-sm font-medium">Phone</span>,
+        cell: (info) => <span>{info.getValue() ?? "N/A"}</span>,
+        enableSorting: false,
+        enableHiding: false,
+      }),
+      columnHelper.accessor("roleName", {
+        id: "roleName",
+        header: () => <span className="text-sm font-medium">Role</span>,
+        cell: (info) => <span>{info.getValue() ?? "N/A"}</span>,
+        enableSorting: false,
+        enableHiding: false,
+      }),
+      columnHelper.accessor("updatedAt", {
+        id: "updatedAt",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Updated" />
+        ),
+        cell: (info) => (
+          <span>{new Date(info.getValue()).toLocaleDateString()}</span>
+        ),
+        enableSorting: true,
+        enableHiding: true,
+      }),
+      columnHelper.accessor("totalPledgedUsd", {
+        id: "totalPledgedUsd",
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title="Pledged"
+            className="justify-end"
+          />
+        ),
+        cell: (info) => (
+          <span className="text-right">
+            {info.getValue() != null
+              ? `${Number(info.getValue()).toFixed(2)}`
+              : "N/A"}
+          </span>
+        ),
+        enableSorting: true,
+        enableHiding: true,
+      }),
+      columnHelper.accessor("totalPaidUsd", {
+        id: "totalPaidUsd",
+        header: () => (
+          <span className="text-sm font-medium text-right">Paid</span>
+        ),
+        cell: (info) => (
+          <span className="text-right">
+            {info.getValue() != null
+              ? `${Number(info.getValue()).toFixed(2)}`
+              : "N/A"}
+          </span>
+        ),
+        enableSorting: false,
+        enableHiding: false,
+      }),
+      columnHelper.accessor("currentBalanceUsd", {
+        id: "currentBalanceUsd",
+        header: () => (
+          <span className="text-sm font-medium text-right">Balance</span>
+        ),
+        cell: (info) => (
+          <span className="text-right">
+            {info.getValue() != null
+              ? `${Number(info.getValue()).toFixed(2)}`
+              : "N/A"}
+          </span>
+        ),
+        enableSorting: false,
+        enableHiding: false,
+      }),
+      columnHelper.display({
+        id: "actions",
+        header: () => (
+          <span className="text-sm font-medium text-right">Actions</span>
+        ),
+        cell: ({ row }) => {
+          const contact = row.original;
 
-  const handleSort = (field: SortField) => {
-    if (field === sortBy) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      setSortBy(field);
-      setSortOrder("asc");
-    }
-  };
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <MoreHorizontal className="h-4 w-4" />
+                  <span className="sr-only">Open menu</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleEdit(contact.id)}>
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => handleDelete(contact.id)}
+                >
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        },
+        enableSorting: false,
+        enableHiding: false,
+        size: 80,
+      }),
+    ],
+    [handleEdit, handleDelete]
+  );
 
-  const handleSortChange = (field: SortField, order: SortOrder) => {
-    setSortBy(field);
-    setSortOrder(order);
-  };
+  const contacts = useMemo(
+    () =>
+      data?.pages.flatMap((page) =>
+        page.contacts.map((contact) => ({
+          ...contact,
+        }))
+      ) || [],
+    [data]
+  );
+  const totalPages = data?.pages[0]?.pagination.totalPages || 1;
 
-  const setupObserver = useCallback(() => {
-    if (observerRef.current) {
-      observerRef.current.disconnect();
-    }
-
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-          fetchNextPage();
-        }
+  const table = useReactTable({
+    data: isLoading ? [] : contacts,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    manualSorting: true,
+    manualFiltering: true,
+    manualPagination: true,
+    pageCount: totalPages,
+    state: {
+      sorting: [{ id: sortBy, desc: sortOrder === "desc" }],
+      columnFilters: search ? [{ id: "lastName", value: search }] : [],
+      pagination: {
+        pageIndex: Number(page) - 1,
+        pageSize: Number(pageSize),
       },
-      { threshold: 0.5 }
-    );
-
-    if (loadMoreRef.current) {
-      observerRef.current.observe(loadMoreRef.current);
-    }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+      rowSelection: Object.fromEntries(
+        selectedContacts.map((id) => [id, true])
+      ),
+    },
+    onSortingChange: (updater) => {
+      const newSort =
+        typeof updater === "function"
+          ? updater([{ id: sortBy, desc: sortOrder === "desc" }])[0]
+          : updater[0];
+      if (newSort) {
+        setSortBy(newSort.id as SortField);
+        setSortOrder(newSort.desc ? "desc" : "asc");
+      } else {
+        setSortBy("lastName");
+        setSortOrder("asc");
+      }
+      setPage("1"); // Reset to first page on sort change
+    },
+    onColumnFiltersChange: (updater) => {
+      const newFilters =
+        typeof updater === "function"
+          ? updater([{ id: "lastName", value: search }])
+          : updater;
+      const searchFilter = newFilters.find((f) => f.id === "lastName")
+        ?.value as string | undefined;
+      setSearch(searchFilter ?? "");
+      setPage("1"); // Reset to first page on filter change
+    },
+    onPaginationChange: (updater) => {
+      const newPagination =
+        typeof updater === "function"
+          ? updater({ pageIndex: Number(page) - 1, pageSize: Number(pageSize) })
+          : updater;
+      setPage(String(newPagination.pageIndex + 1));
+      setPageSize(String(newPagination.pageSize));
+    },
+    onRowSelectionChange: (updater) => {
+      const newSelection =
+        typeof updater === "function"
+          ? updater(
+              Object.fromEntries(selectedContacts.map((id) => [id, true]))
+            )
+          : updater;
+      const selectedIds = Object.keys(newSelection).map(String);
+      setSelectedContacts(selectedIds);
+    },
+  });
 
   useEffect(() => {
-    setupObserver();
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
-    };
-  }, [setupObserver]);
+    if (Number(page) <= totalPages && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [page, totalPages, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return (
     <div className="w-full space-y-4">
-      <ContactTableToolbar
-        selectedCount={selectedContacts.length}
-        onSearchChange={setSearch}
-        onSortChange={handleSortChange}
-        onClearSelected={clearSelectedContacts}
-        sortField={sortBy}
-        sortOrder={sortOrder}
-      />
-
-      <div className="rounded-md border">
-        <div className="max-h-[600px] overflow-auto">
-          <Table>
-            <TableHeader className="sticky top-0 z-10 bg-background">
-              <TableRow>
-                <TableHead className="w-10">
-                  <span className="sr-only">Select</span>
-                </TableHead>
-                <TableHead>
-                  <ContactColumnHeader
-                    title="Name"
-                    field="lastName"
-                    sortable
-                    currentSortField={sortBy}
-                    currentSortOrder={sortOrder}
-                    onSort={handleSort}
-                  />
-                </TableHead>
-                <TableHead>
-                  <span className="text-sm font-medium">Email</span>
-                </TableHead>
-                <TableHead>
-                  <span className="text-sm font-medium">Phone</span>
-                </TableHead>
-                <TableHead>
-                  <span className="text-sm font-medium">Role</span>
-                </TableHead>
-                <TableHead>
-                  <ContactColumnHeader
-                    title="Updated"
-                    field="updatedAt"
-                    sortable
-                    currentSortField={sortBy}
-                    currentSortOrder={sortOrder}
-                    onSort={handleSort}
-                  />
-                </TableHead>
-                <TableHead className="text-right">
-                  <ContactColumnHeader
-                    title="Pledged"
-                    field="totalPledgedUsd"
-                    sortable
-                    currentSortField={sortBy}
-                    currentSortOrder={sortOrder}
-                    onSort={handleSort}
-                    className="justify-end"
-                  />
-                </TableHead>
-                <TableHead className="text-right">
-                  <span className="text-sm font-medium">Paid</span>
-                </TableHead>
-                <TableHead className="text-right">
-                  <span className="text-sm font-medium">Balance</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading || isError || contacts.length === 0 ? (
-                <ContactTableEmpty
-                  colSpan={9}
-                  isLoading={isLoading}
-                  isError={isError}
-                  message={
-                    isLoading
-                      ? "Loading contacts..."
-                      : isError
-                      ? "Error loading contacts."
-                      : "No contacts found."
-                  }
-                />
-              ) : (
-                contacts.map((contact: Contact) => (
-                  <ContactTableRow
-                    key={contact.id}
-                    contact={contact}
-                    isSelected={selectedContacts
-                      .map(Number)
-                      .includes(contact.id)}
-                    onSelect={toggleContactSelection}
-                  />
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-
-      {!isLoading && !isError && contacts.length > 0 && (
-        <div className="flex items-center justify-between py-4">
-          <div className="text-sm text-muted-foreground">
-            Showing <span className="font-medium">{contacts.length}</span> of{" "}
-            <span className="font-medium">{totalCount}</span> contacts
-          </div>
-
-          {hasNextPage && (
-            <div ref={loadMoreRef} className="flex justify-center">
+      {isLoading || isError ? (
+        <DataTableSkeleton
+          columnCount={10}
+          rowCount={10}
+          filterCount={1}
+          cellWidths={[
+            "40px",
+            "auto",
+            "auto",
+            "auto",
+            "auto",
+            "auto",
+            "auto",
+            "auto",
+            "auto",
+            "80px",
+          ]}
+          withViewOptions={true}
+          withPagination={true}
+        />
+      ) : (
+        <DataTable
+          table={table}
+          actionBar={
+            selectedContacts.length > 0 && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => fetchNextPage()}
-                disabled={isFetchingNextPage}
+                onClick={() => setSelectedContacts([])}
               >
-                {isFetchingNextPage ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...
-                  </>
-                ) : (
-                  "Load more"
-                )}
+                Clear {selectedContacts.length} selected
               </Button>
-            </div>
-          )}
-        </div>
+            )
+          }
+        >
+          <DataTableToolbar table={table} />
+        </DataTable>
       )}
     </div>
   );
