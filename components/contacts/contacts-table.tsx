@@ -1,7 +1,7 @@
 "use client";
 
 import { Contact, SortField, SortOrder } from "@/types/contact";
-import { useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo, useCallback, useState } from "react";
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableToolbar } from "@/components/data-table/data-table-toolbar";
 import { DataTableSkeleton } from "../data-table/data-table-skeleton";
@@ -31,6 +31,22 @@ import {
 
 const columnHelper = createColumnHelper<Contact>();
 
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
 export function ContactTable() {
   const [search, setSearch] = useQueryState(
     "search",
@@ -59,6 +75,8 @@ export function ContactTable() {
     parseAsString.withDefault("20")
   );
 
+  const debouncedSearch = useDebounce(search, 500);
+
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -71,7 +89,7 @@ export function ContactTable() {
     isError,
   } = useContacts({
     limit: Number(pageSize),
-    search,
+    search: debouncedSearch,
     sortBy,
     sortOrder,
   });
@@ -296,7 +314,7 @@ export function ContactTable() {
         setSortBy("lastName");
         setSortOrder("asc");
       }
-      setPage("1"); // Reset to first page on sort change
+      setPage("1");
     },
     onColumnFiltersChange: (updater) => {
       const newFilters =
@@ -306,7 +324,7 @@ export function ContactTable() {
       const searchFilter = newFilters.find((f) => f.id === "lastName")
         ?.value as string | undefined;
       setSearch(searchFilter ?? "");
-      setPage("1"); // Reset to first page on filter change
+      setPage("1");
     },
     onPaginationChange: (updater) => {
       const newPagination =
@@ -327,6 +345,10 @@ export function ContactTable() {
       setSelectedContacts(selectedIds);
     },
   });
+
+  useEffect(() => {
+    setPage("1");
+  }, [debouncedSearch, setPage]);
 
   useEffect(() => {
     if (Number(page) <= totalPages && hasNextPage && !isFetchingNextPage) {
