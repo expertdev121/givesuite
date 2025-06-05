@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { Progress } from "@/components/ui/progress";
-import { User, MapPin, DollarSign } from "lucide-react";
+import { User, MapPin, Grid2x2 } from "lucide-react";
 import { Contact, ContactRole, StudentRole } from "@/lib/db/schema";
 import ContactCategoriesCard from "./Contact-Category";
 import { Category } from "@/lib/query/useContactCategories";
@@ -88,7 +88,7 @@ const ContactOverviewTab: React.FC<ContactOverviewTabProps> = ({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5" />
+            <Grid2x2 className="h-5 w-5" />
             General Overview
           </CardTitle>
         </CardHeader>
