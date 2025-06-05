@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/table";
 import { Category } from "@/lib/query/useContactCategories";
 import { DollarSign } from "lucide-react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 
 interface ContactCategoriesCardProps {
   categories: Category[];
@@ -19,6 +21,7 @@ interface ContactCategoriesCardProps {
 export default function ContactCategoriesCard({
   categories,
 }: ContactCategoriesCardProps) {
+  const { contactId } = useParams<{ contactId: string }>();
   return (
     <Card className="w-full lg:col-span-2">
       <CardHeader>
@@ -27,7 +30,6 @@ export default function ContactCategoriesCard({
           Financial Summary
         </CardTitle>
       </CardHeader>
-
       <CardContent>
         {categories.length > 0 ? (
           <Table>
@@ -45,7 +47,12 @@ export default function ContactCategoriesCard({
               {categories.map((category) => (
                 <TableRow key={category.categoryId}>
                   <TableCell className="font-medium">
-                    {category.categoryName}
+                    <Link
+                      href={`/contacts/${contactId}/`}
+                      className="font-medium text-primary hover:underline hover:text-primary-dark transition-colors duration-200"
+                    >
+                      {category.categoryName}
+                    </Link>
                   </TableCell>
                   <TableCell>{category.categoryDescription || "N/A"}</TableCell>
                   <TableCell className="text-right">
