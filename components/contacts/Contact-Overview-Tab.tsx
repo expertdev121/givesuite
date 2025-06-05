@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
+import ContactCategoriesCard from "./Contact-Category";
 
 interface ContactWithRoles extends Contact {
   contactRoles: ContactRole[];
@@ -52,7 +53,7 @@ const ContactOverviewTab: React.FC<ContactOverviewTabProps> = ({
           <dl className="space-y-4 divide-y">
             <div className="grid grid-cols-2 gap-1 py-2">
               <dt className="text-muted-foreground font-medium">Full Name</dt>
-              <dd className="text-right">
+              <dd className="text-right capitalize">
                 {contact.title ? `${contact.title}. ` : ""}
                 {contact.firstName} {contact.lastName}
               </dd>
@@ -89,7 +90,7 @@ const ContactOverviewTab: React.FC<ContactOverviewTabProps> = ({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <DollarSign className="h-5 w-5" />
-            Financial Overview
+            General Overview
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -129,6 +130,20 @@ const ContactOverviewTab: React.FC<ContactOverviewTabProps> = ({
           </dl>
         </CardContent>
       </Card>
+
+      <ContactCategoriesCard
+        categories={[
+          {
+            categoryId: 3,
+            categoryName: "Tuition",
+            categoryDescription: "Educational tuition fees",
+            totalPledgedUsd: "36000.00",
+            totalPaidUsd: "18000.00",
+            currentBalanceUsd: "18000.00",
+            pledgeCount: "2",
+          },
+        ]}
+      />
 
       {/* Roles Section */}
       <Card className="lg:col-span-2">

@@ -1,0 +1,97 @@
+"use client";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { DollarSign } from "lucide-react";
+
+interface Category {
+  categoryId: number;
+  categoryName: string;
+  categoryDescription: string | null;
+  totalPledgedUsd: string;
+  totalPaidUsd: string;
+  currentBalanceUsd: string;
+  pledgeCount: string;
+}
+
+interface ContactCategoriesCardProps {
+  categories: Category[];
+}
+
+export default function ContactCategoriesCard({
+  categories,
+}: ContactCategoriesCardProps) {
+  return (
+    <Card className="w-full lg:col-span-2">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <DollarSign className="h-5 w-5" />
+          Financial Summary
+        </CardTitle>
+      </CardHeader>
+
+      <CardContent>
+        {categories.length > 0 ? (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Category</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead className="text-right">Pledged ($)</TableHead>
+                <TableHead className="text-right">Paid ($)</TableHead>
+                <TableHead className="text-right">Balance ($)</TableHead>
+                <TableHead className="text-right">Pledges</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {categories.map((category) => (
+                <TableRow key={category.categoryId}>
+                  <TableCell className="font-medium">
+                    {category.categoryName}
+                  </TableCell>
+                  <TableCell>{category.categoryDescription || "N/A"}</TableCell>
+                  <TableCell className="text-right">
+                    {parseFloat(category.totalPledgedUsd).toLocaleString(
+                      "en-US",
+                      {
+                        style: "currency",
+                        currency: "USD",
+                      }
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {parseFloat(category.totalPaidUsd).toLocaleString("en-US", {
+                      style: "currency",
+                      currency: "USD",
+                    })}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {parseFloat(category.currentBalanceUsd).toLocaleString(
+                      "en-US",
+                      {
+                        style: "currency",
+                        currency: "USD",
+                      }
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {category.pledgeCount}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <p className="text-muted-foreground">No categories found.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
