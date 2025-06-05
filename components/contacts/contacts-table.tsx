@@ -1,7 +1,7 @@
 "use client";
 
 import { Contact, SortField, SortOrder } from "@/types/contact";
-import { useEffect, useMemo, useCallback, useState } from "react";
+import { useEffect, useMemo, useCallback } from "react";
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableToolbar } from "@/components/data-table/data-table-toolbar";
 import { DataTableSkeleton } from "../data-table/data-table-skeleton";
@@ -28,24 +28,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
+import { useDebounce } from "@/lib/utils";
+import Link from "next/link";
 
 const columnHelper = createColumnHelper<Contact>();
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
 
 export function ContactTable() {
   const [search, setSearch] = useQueryState(
@@ -123,12 +109,14 @@ export function ContactTable() {
         id: "select",
         header: () => <span className="sr-only">Select</span>,
         cell: ({ row }) => (
-          <input
-            type="checkbox"
-            checked={row.getIsSelected()}
-            onChange={row.getToggleSelectedHandler()}
-            className="cursor-pointer"
-          />
+          <div className="flex justify-center">
+            <input
+              type="checkbox"
+              checked={row.getIsSelected()}
+              onChange={row.getToggleSelectedHandler()}
+              className="cursor-pointer accent-primary"
+            />
+          </div>
         ),
         enableSorting: false,
         enableHiding: false,
@@ -137,10 +125,19 @@ export function ContactTable() {
       columnHelper.accessor("lastName", {
         id: "lastName",
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Name" />
+          <DataTableColumnHeader
+            column={column}
+            title="Name"
+            className="text-sm font-semibold text-gray-700 dark:text-gray-300"
+          />
         ),
         cell: (info) => (
-          <span>{`${info.row.original.lastName}, ${info.row.original.firstName}`}</span>
+          <Link
+            href={`/contacts/${info.row.original.id}`}
+            className="font-medium text-primary hover:underline hover:text-primary-dark transition-colors duration-200"
+          >
+            <span>{`${info.row.original.lastName}, ${info.row.original.firstName}`}</span>
+          </Link>
         ),
         enableSorting: true,
         enableHiding: true,
@@ -153,32 +150,85 @@ export function ContactTable() {
       }),
       columnHelper.accessor("email", {
         id: "email",
-        header: () => <span className="text-sm font-medium">Email</span>,
-        cell: (info) => <span>{info.getValue() ?? "N/A"}</span>,
+        header: () => (
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            Email
+          </span>
+        ),
+        cell: (info) => (
+          <Link
+            href={`/contacts/${info.row.original.id}`}
+            className="text-primary hover:underline transition-colors duration-200"
+          >
+            <span
+              className={
+                info.getValue()
+                  ? "text-gray-900 dark:text-gray-100"
+                  : "text-gray-500 dark:text-gray-400 italic"
+              }
+            >
+              {info.getValue() ?? "N/A"}
+            </span>
+          </Link>
+        ),
         enableSorting: false,
         enableHiding: false,
       }),
       columnHelper.accessor("phone", {
         id: "phone",
-        header: () => <span className="text-sm font-medium">Phone</span>,
-        cell: (info) => <span>{info.getValue() ?? "N/A"}</span>,
+        header: () => (
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            Phone
+          </span>
+        ),
+        cell: (info) => (
+          <span
+            className={
+              info.getValue()
+                ? "text-gray-900 dark:text-gray-100"
+                : "text-gray-500 dark:text-gray-400 italic"
+            }
+          >
+            {info.getValue() ?? "N/A"}
+          </span>
+        ),
         enableSorting: false,
         enableHiding: false,
       }),
       columnHelper.accessor("roleName", {
         id: "roleName",
-        header: () => <span className="text-sm font-medium">Role</span>,
-        cell: (info) => <span>{info.getValue() ?? "N/A"}</span>,
+        header: () => (
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            Role
+          </span>
+        ),
+        cell: (info) => (
+          <span
+            className={
+              info.getValue()
+                ? "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                : "text-gray-500 dark:text-gray-400 italic"
+            }
+          >
+            {info.getValue() ?? "N/A"}
+          </span>
+        ),
         enableSorting: false,
         enableHiding: false,
       }),
       columnHelper.accessor("updatedAt", {
         id: "updatedAt",
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Updated" />
+          <DataTableColumnHeader
+            column={column}
+            title="Updated"
+            className="text-sm font-semibold text-gray-700 dark:text-gray-300"
+          />
         ),
         cell: (info) => (
-          <span>{new Date(info.getValue()).toLocaleDateString()}</span>
+          <span className="text-sm text-gray-600 dark:text-gray-400">
+            {new Date(info.getValue()).toLocaleDateString()}
+          </span>
         ),
         enableSorting: true,
         enableHiding: true,
@@ -189,14 +239,12 @@ export function ContactTable() {
           <DataTableColumnHeader
             column={column}
             title="Pledged"
-            className="justify-end"
+            className="text-sm font-semibold text-gray-700 dark:text-gray-300 justify-end"
           />
         ),
         cell: (info) => (
-          <span className="text-right">
-            {info.getValue() != null
-              ? `${Number(info.getValue()).toFixed(2)}`
-              : "N/A"}
+          <span className="text-right font-mono text-gray-900 dark:text-gray-100">
+            {info.getValue() != null ? `$${Number(info.getValue())}` : "N/A"}
           </span>
         ),
         enableSorting: true,
@@ -204,14 +252,16 @@ export function ContactTable() {
       }),
       columnHelper.accessor("totalPaidUsd", {
         id: "totalPaidUsd",
-        header: () => (
-          <span className="text-sm font-medium text-right">Paid</span>
-        ),
+        header: () => <span>Paid</span>,
         cell: (info) => (
-          <span className="text-right">
-            {info.getValue() != null
-              ? `${Number(info.getValue()).toFixed(2)}`
-              : "N/A"}
+          <span
+            className={`text-right font-mono ${
+              info.getValue() != null && Number(info.getValue()) > 0
+                ? "text-green-600 dark:text-green-400"
+                : "text-gray-500 dark:text-gray-400"
+            }`}
+          >
+            {info.getValue() != null ? `$${Number(info.getValue())}` : "N/A"}
           </span>
         ),
         enableSorting: false,
@@ -219,42 +269,59 @@ export function ContactTable() {
       }),
       columnHelper.accessor("currentBalanceUsd", {
         id: "currentBalanceUsd",
-        header: () => (
-          <span className="text-sm font-medium text-right">Balance</span>
-        ),
-        cell: (info) => (
-          <span className="text-right">
-            {info.getValue() != null
-              ? `${Number(info.getValue()).toFixed(2)}`
-              : "N/A"}
-          </span>
-        ),
+        header: () => <span>Balance</span>,
+        cell: (info) => {
+          const value = info.getValue();
+          let colorClass = "text-gray-500 dark:text-gray-400";
+          if (value != null) {
+            const numValue = Number(value);
+            if (numValue < 0) {
+              colorClass = "text-red-600 dark:text-red-400";
+            } else if (numValue > 0) {
+              colorClass = "text-red-600 dark:text-red-400";
+            }
+          }
+          return (
+            <span className={`text-right font-mono ${colorClass}`}>
+              {value != null ? `$${Number(value)}` : "N/A"}
+            </span>
+          );
+        },
         enableSorting: false,
         enableHiding: false,
       }),
       columnHelper.display({
         id: "actions",
         header: () => (
-          <span className="text-sm font-medium text-right">Actions</span>
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 text-right">
+            Actions
+          </span>
         ),
         cell: ({ row }) => {
           const contact = row.original;
-
           return (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200"
+                >
                   <MoreHorizontal className="h-4 w-4" />
                   <span className="sr-only">Open menu</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleEdit(contact.id)}>
+                <DropdownMenuItem
+                  onClick={() => handleEdit(contact.id)}
+                  className="text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
                   Edit
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   variant="destructive"
                   onClick={() => handleDelete(contact.id)}
+                  className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                 >
                   Delete
                 </DropdownMenuItem>
