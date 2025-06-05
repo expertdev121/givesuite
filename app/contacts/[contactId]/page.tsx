@@ -19,6 +19,14 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { AnimatedTabs } from "@/components/Animated-Tabs";
+
+const tabs = [
+  { label: "Home", value: "home" },
+  { label: "About", value: "about" },
+  { label: "Contact", value: "contact" },
+  { label: "Danger Zone", value: "danger-zone" },
+];
 
 export default function ContactDetailsPage() {
   const contactId = 2;
@@ -160,6 +168,8 @@ export default function ContactDetailsPage() {
 
       {/* Main Content */}
       <div className="container max-w-7xl mx-auto py-8 px-4">
+        <AnimatedTabs tabs={tabs} />
+
         <Tabs defaultValue="overview">
           <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
             <TabsTrigger
