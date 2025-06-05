@@ -252,7 +252,7 @@ export type NewRelationship = typeof relationships.$inferInsert;
 export const category = pgTable("category", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
-  itemDescription: text("description"),
+  description: text("description"),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
