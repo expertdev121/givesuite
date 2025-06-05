@@ -1,5 +1,4 @@
 "use client";
-
 import { useContactQuery } from "@/lib/query/useContactDetails";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -11,6 +10,7 @@ import { Tab, useTabs } from "@/hooks/useTabs";
 import { AnimatePresence } from "motion/react";
 import { Tabs } from "@/components/contacts/Contact-Details-Tabs";
 import TabContent from "@/components/contacts/Tab-Content";
+import { useContactCategories } from "@/lib/query/useContactCategories";
 
 const tabs = [
   { label: "Contact Overview", value: "contact-overview" },
@@ -28,6 +28,12 @@ export default function ContactDetailsClient({
     limit: 10,
   });
 
+  const {
+    data: categories,
+    isLoading: isLoadingCategory,
+    isError: isCategoryError,
+  } = useContactCategories(contactId);
+
   const [hookProps] = React.useState(() => {
     const initialTabId = tabs[0].value;
 
@@ -43,7 +49,7 @@ export default function ContactDetailsClient({
 
   const framer = useTabs(hookProps);
 
-  if (isLoading) {
+  if (isLoading || isLoadingCategory) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
         <div className="space-y-4 max-w-md w-full">
@@ -61,7 +67,7 @@ export default function ContactDetailsClient({
     );
   }
 
-  if (isError) {
+  if (isError || isCategoryError) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Card className="max-w-md w-full">
@@ -124,6 +130,7 @@ export default function ContactDetailsClient({
               tab={framer.selectedTab}
               contact={contact}
               financialSummary={financialSummary}
+              categories={categories || []}
             />
           </AnimatePresence>
         </div>

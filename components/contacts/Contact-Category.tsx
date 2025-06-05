@@ -9,17 +9,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Category } from "@/lib/query/useContactCategories";
 import { DollarSign } from "lucide-react";
-
-interface Category {
-  categoryId: number;
-  categoryName: string;
-  categoryDescription: string | null;
-  totalPledgedUsd: string;
-  totalPaidUsd: string;
-  currentBalanceUsd: string;
-  pledgeCount: string;
-}
 
 interface ContactCategoriesCardProps {
   categories: Category[];
@@ -58,28 +49,13 @@ export default function ContactCategoriesCard({
                   </TableCell>
                   <TableCell>{category.categoryDescription || "N/A"}</TableCell>
                   <TableCell className="text-right">
-                    {parseFloat(category.totalPledgedUsd).toLocaleString(
-                      "en-US",
-                      {
-                        style: "currency",
-                        currency: "USD",
-                      }
-                    )}
+                    $ {category.totalPledgedUsd}
                   </TableCell>
                   <TableCell className="text-right">
-                    {parseFloat(category.totalPaidUsd).toLocaleString("en-US", {
-                      style: "currency",
-                      currency: "USD",
-                    })}
+                    $ {category.totalPaidUsd}
                   </TableCell>
                   <TableCell className="text-right">
-                    {parseFloat(category.currentBalanceUsd).toLocaleString(
-                      "en-US",
-                      {
-                        style: "currency",
-                        currency: "USD",
-                      }
-                    )}
+                    $ {category.currentBalanceUsd}
                   </TableCell>
                   <TableCell className="text-right">
                     {category.pledgeCount}

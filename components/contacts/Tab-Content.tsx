@@ -1,8 +1,10 @@
-import { Tab } from "@/hooks/useTabs";
+"use client";
 import { motion } from "motion/react";
-import ContactOverviewTab from "./Contact-Overview-Tab";
-import { Contact, ContactRole, StudentRole } from "@/lib/db/schema";
+import { Tab } from "@/hooks/useTabs";
 import FinancialSummaryTab from "./Financial-Summary-Tab";
+import { Contact, ContactRole, StudentRole } from "@/lib/db/schema";
+import ContactOverviewTab from "./Contact-Overview-Tab";
+import { Category } from "@/lib/query/useContactCategories";
 
 interface ContactWithRoles extends Contact {
   contactRoles: ContactRole[];
@@ -15,21 +17,24 @@ interface FinancialSummary {
   currentBalanceUsd: number;
 }
 
+interface TabContentProps {
+  tab: Tab;
+  contact: ContactWithRoles;
+  financialSummary: FinancialSummary;
+  categories: Category[];
+}
+
 const transition = {
   type: "tween",
   ease: "easeOut",
   duration: 0.15,
 };
 
-interface TabContentProps {
-  tab: Tab;
-  contact: ContactWithRoles;
-  financialSummary: FinancialSummary;
-}
 const TabContent: React.FC<TabContentProps> = ({
   tab,
   contact,
   financialSummary,
+  categories,
 }) => {
   return (
     <motion.div
@@ -43,6 +48,7 @@ const TabContent: React.FC<TabContentProps> = ({
         <ContactOverviewTab
           contact={contact}
           financialSummary={financialSummary}
+          categories={categories}
         />
       )}
       {tab.value === "financial-summary" && (
