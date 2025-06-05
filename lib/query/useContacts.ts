@@ -1,47 +1,6 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import axios, { AxiosError } from "axios";
-
-// Define types based on the API response
-interface Contact {
-  id: number;
-  firstName: string;
-  lastName: string;
-  email: string | null;
-  phone: string | null;
-  title: string | null;
-  gender: string | null;
-  address: string | null;
-  createdAt: string;
-  updatedAt: string;
-  totalPledgedUsd: number;
-  totalPaidUsd: number;
-  currentBalanceUsd: number;
-  studentProgram: string | null;
-  studentStatus: string | null;
-  roleName: string | null;
-  lastPaymentDate: string | null;
-}
-
-interface Pagination {
-  page: number;
-  limit: number;
-  totalCount: number;
-  totalPages: number;
-  hasNextPage: boolean;
-  hasPreviousPage: boolean;
-}
-
-interface ContactsResponse {
-  contacts: Contact[];
-  pagination: Pagination;
-}
-
-interface QueryParams {
-  limit?: number;
-  search?: string;
-  sortBy?: "updatedAt" | "firstName" | "lastName" | "totalPledgedUsd";
-  sortOrder?: "asc" | "desc";
-}
+import { ContactsResponse, SortField, SortOrder } from "@/types/contact";
 
 interface ApiError {
   error: string;
@@ -56,6 +15,13 @@ interface ApiError {
     name: string;
   };
   message?: string;
+}
+
+interface QueryParams {
+  limit?: number;
+  search?: string;
+  sortBy?: SortField;
+  sortOrder?: SortOrder;
 }
 
 export const useContacts = (params: QueryParams) => {

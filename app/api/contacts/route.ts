@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { eq, sql, desc, asc, like, or, ilike } from "drizzle-orm";
+import type { Column, SQL } from "drizzle-orm";
 import {
   contact,
   pledge,
@@ -11,7 +12,6 @@ import {
 import { z } from "zod";
 import { unstable_cache } from "next/cache";
 
-// Define the response type
 interface ContactResponse {
   id: number;
   firstName: string;
@@ -76,21 +76,10 @@ export async function GET(request: NextRequest) {
 
     const cachedQuery = unstable_cache(
       async () => {
-        const totalPledgedUsd =
-          sql<number>`COALESCE(SUM(${pledge.originalAmount}), 0)`.as(
-            "totalPledgedUsd"
-          );
-        const totalPaidUsd =
-          sql<number>`COALESCE(SUM(${pledge.totalPaidUsd}), 0)`.as(
-            "totalPaidUsd"
-          );
-        const currentBalanceUsd =
-          sql<number>`COALESCE(SUM(${pledge.balanceUsd}), 0)`.as(
-            "currentBalanceUsd"
-          );
-        const lastPaymentDate = sql<Date>`MAX(${payment.paymentDate})`.as(
-          "lastPaymentDate"
-        );
+        const totalPledgedExpr = sql<number>`COALESCE(SUM(${pledge.originalAmount}), 0)`;
+        const totalPaidExpr = sql<number>`COALESCE(SUM(${pledge.totalPaidUsd}), 0)`;
+        const currentBalanceExpr = sql<number>`COALESCE(SUM(${pledge.balanceUsd}), 0)`;
+        const lastPaymentExpr = sql<Date>`MAX(${payment.paymentDate})`;
 
         let query = db
           .select({
@@ -104,13 +93,13 @@ export async function GET(request: NextRequest) {
             address: contact.address,
             createdAt: contact.createdAt,
             updatedAt: contact.updatedAt,
-            totalPledgedUsd,
-            totalPaidUsd,
-            currentBalanceUsd,
+            totalPledgedUsd: totalPledgedExpr.as("totalPledgedUsd"),
+            totalPaidUsd: totalPaidExpr.as("totalPaidUsd"),
+            currentBalanceUsd: currentBalanceExpr.as("currentBalanceUsd"),
             studentProgram: studentRoles.program,
             studentStatus: studentRoles.status,
             roleName: contactRoles.roleName,
-            lastPaymentDate,
+            lastPaymentDate: lastPaymentExpr.as("lastPaymentDate"),
           })
           .from(contact)
           .leftJoin(pledge, eq(contact.id, pledge.contactId))
@@ -133,7 +122,6 @@ export async function GET(request: NextRequest) {
             contactRoles.roleName
           );
 
-        // Add search conditions
         if (search) {
           query = query.where(
             or(
@@ -145,42 +133,46 @@ export async function GET(request: NextRequest) {
           );
         }
 
-        // Add sorting
+        let orderByField: Column | SQL;
         switch (sortBy) {
           case "updatedAt":
-            query = query.orderBy(
-              sortOrder === "asc"
-                ? asc(contact.updatedAt)
-                : desc(contact.updatedAt)
-            );
+            orderByField = contact.updatedAt;
             break;
           case "firstName":
-            query = query.orderBy(
-              sortOrder === "asc"
-                ? asc(contact.firstName)
-                : desc(contact.firstName)
-            );
+            orderByField = contact.firstName;
             break;
           case "lastName":
-            query = query.orderBy(
-              sortOrder === "asc"
-                ? asc(contact.lastName)
-                : desc(contact.lastName)
-            );
+            orderByField = contact.lastName;
             break;
           case "totalPledgedUsd":
-            query = query.orderBy(
-              sortOrder === "asc" ? asc(totalPledgedUsd) : desc(totalPledgedUsd)
-            );
+            orderByField = totalPledgedExpr;
             break;
+          default:
+            orderByField = contact.updatedAt;
+        }
+
+        const contactsQuery = query
+          .orderBy(sortOrder === "asc" ? asc(orderByField) : desc(orderByField))
+          .limit(limit)
+          .offset(offset);
+
+        let countQuery = db
+          .select({ count: sql<number>`count(distinct ${contact.id})` })
+          .from(contact);
+        if (search) {
+          countQuery = countQuery.where(
+            or(
+              ilike(contact.firstName, `%${search}%`),
+              ilike(contact.lastName, `%${search}%`),
+              ilike(contact.email, `%${search}%`),
+              like(contact.phone, `%${search}%`)
+            )
+          );
         }
 
         const [contacts, totalCountResult] = await Promise.all([
-          query.limit(limit).offset(offset).execute(),
-          db
-            .select({ count: sql<number>`count(*)` })
-            .from(contact)
-            .execute(),
+          contactsQuery.execute(),
+          countQuery.execute(),
         ]);
 
         const totalCount = Number(totalCountResult[0]?.count || 0);
