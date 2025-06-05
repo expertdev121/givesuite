@@ -7,7 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import { ContactTableRow } from "./contact-table-row";
 import { ContactTableToolbar } from "./contact-table-toolbar";
 import { ContactTableEmpty } from "./contact-table-empty";
@@ -15,13 +15,29 @@ import { ContactColumnHeader } from "./contact-column-header";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { useContacts } from "@/lib/query/useContacts";
+import { parseAsString, parseAsStringEnum, parseAsArrayOf } from "nuqs";
+import { useQueryState } from "nuqs";
 
 export function ContactTable() {
-  const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState<SortField>("lastName");
-  const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
-  const [selectedContacts, setSelectedContacts] = useState<Set<number>>(
-    new Set()
+  const [search, setSearch] = useQueryState(
+    "search",
+    parseAsString.withDefault("")
+  );
+  const [sortBy, setSortBy] = useQueryState(
+    "sortBy",
+    parseAsStringEnum<SortField>([
+      "lastName",
+      "updatedAt",
+      "totalPledgedUsd",
+    ]).withDefault("lastName")
+  );
+  const [sortOrder, setSortOrder] = useQueryState(
+    "sortOrder",
+    parseAsStringEnum<SortOrder>(["asc", "desc"]).withDefault("asc")
+  );
+  const [selectedContacts, setSelectedContacts] = useQueryState(
+    "selected",
+    parseAsArrayOf(parseAsString, ",").withDefault([])
   );
 
   const {
@@ -46,18 +62,18 @@ export function ContactTable() {
 
   const toggleContactSelection = (contactId: number) => {
     setSelectedContacts((prev) => {
-      const newSet = new Set(prev);
+      const newSet = new Set(prev.map(Number));
       if (newSet.has(contactId)) {
         newSet.delete(contactId);
       } else {
         newSet.add(contactId);
       }
-      return newSet;
+      return Array.from(newSet).map(String);
     });
   };
 
   const clearSelectedContacts = () => {
-    setSelectedContacts(new Set());
+    setSelectedContacts([]);
   };
 
   const handleSort = (field: SortField) => {
@@ -105,7 +121,7 @@ export function ContactTable() {
   return (
     <div className="w-full space-y-4">
       <ContactTableToolbar
-        selectedCount={selectedContacts.size}
+        selectedCount={selectedContacts.length}
         onSearchChange={setSearch}
         onSortChange={handleSortChange}
         onClearSelected={clearSelectedContacts}
@@ -188,7 +204,9 @@ export function ContactTable() {
                   <ContactTableRow
                     key={contact.id}
                     contact={contact}
-                    isSelected={selectedContacts.has(contact.id)}
+                    isSelected={selectedContacts
+                      .map(Number)
+                      .includes(contact.id)}
                     onSelect={toggleContactSelection}
                   />
                 ))
