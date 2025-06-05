@@ -1,7 +1,11 @@
+import { PledgesTable } from "@/components/pledges/Pledges-Client";
 import React from "react";
 
-const Pledges = () => {
-  return <div>Pledges</div>;
-};
-
-export default Pledges;
+export default async function ContactDetailsPage({
+  params,
+}: {
+  params: Promise<{ contactId: number }>;
+}) {
+  const { contactId } = await params;
+  return <PledgesTable contactId={Number(contactId)} categoryId={1} />;
+}
