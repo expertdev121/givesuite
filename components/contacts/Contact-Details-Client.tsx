@@ -78,12 +78,10 @@ export default function ContactDetailsClient({
   const { contact, financialSummary } = data;
 
   return (
-    <React.Fragment>
-      <ContactOverviewTab
-        contact={contact}
-        financialSummary={financialSummary}
-        categories={categories || []}
-      />
-    </React.Fragment>
+    <ContactOverviewTab
+      contact={contact}
+      financialSummary={financialSummary}
+      categories={categories || []}
+    />
   );
 }
