@@ -1,9 +1,9 @@
 import { Contact, ContactRole, StudentRole } from "@/lib/db/schema";
-// import { Progress } from "@radix-ui/react-progress";
+import { Progress } from "@radix-ui/react-progress";
 import {
   User,
   MapPin,
-  // DollarSign,
+  DollarSign,
   Briefcase,
   School,
   Calendar,
@@ -38,12 +38,10 @@ const ContactOverviewTab: React.FC<ContactOverviewTabProps> = ({
         )
       : 0;
 
-  console.log(paymentPercentage);
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Contact Information Card */}
-      <Card className="lg:col-span-2">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <User className="h-5 w-5" />
@@ -87,7 +85,7 @@ const ContactOverviewTab: React.FC<ContactOverviewTabProps> = ({
       </Card>
 
       {/* Quick Financial Summary */}
-      {/* <Card>
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <DollarSign className="h-5 w-5" />
@@ -130,7 +128,7 @@ const ContactOverviewTab: React.FC<ContactOverviewTabProps> = ({
             </div>
           </dl>
         </CardContent>
-      </Card> */}
+      </Card>
 
       {/* Roles Section */}
       <Card className="lg:col-span-2">
