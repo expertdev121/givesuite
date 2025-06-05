@@ -1,24 +1,28 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-"use client";
+import * as React from "react";
 
-import { useCallback, useRef } from "react";
+import { useCallbackRef } from "@/hooks/use-callback-ref";
 
-export function useDebouncedCallback<T extends (...args: any[]) => any>(
+export function useDebouncedCallback<T extends (...args: never[]) => unknown>(
   callback: T,
-  delay: number
-): (...args: Parameters<T>) => void {
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  return useCallback(
-    (...args: Parameters<T>) => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-
-      timeoutRef.current = setTimeout(() => {
-        callback(...args);
-      }, delay);
-    },
-    [callback, delay]
+  delay: number,
+) {
+  const handleCallback = useCallbackRef(callback);
+  const debounceTimerRef = React.useRef(0);
+  React.useEffect(
+    () => () => window.clearTimeout(debounceTimerRef.current),
+    [],
   );
+
+  const setValue = React.useCallback(
+    (...args: Parameters<T>) => {
+      window.clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = window.setTimeout(
+        () => handleCallback(...args),
+        delay,
+      );
+    },
+    [handleCallback, delay],
+  );
+
+  return setValue;
 }
