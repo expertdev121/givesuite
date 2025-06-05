@@ -23,7 +23,7 @@ import { Contact, ContactRole, StudentRole } from "@/lib/db/schema";
 import React from "react";
 import { Tab, useTabs } from "@/hooks/useTabs";
 import { AnimatePresence, motion } from "motion/react";
-import { Tabs } from "@/components/Contact-Details-Tabs";
+import { Tabs } from "@/components/contacts/Contact-Details-Tabs";
 
 interface ContactWithRoles extends Contact {
   contactRoles: ContactRole[];
