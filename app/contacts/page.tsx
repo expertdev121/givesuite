@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { ContactTable } from "@/components/contacts/contacts-table";
 
 export default function ContactsPage() {
@@ -9,7 +10,11 @@ export default function ContactsPage() {
           View and manage your contacts
         </p>
       </div>
-      <ContactTable />
+      <Suspense
+        fallback={<div className="text-center py-8">Loading contacts...</div>}
+      >
+        <ContactTable />
+      </Suspense>
     </main>
   );
 }
