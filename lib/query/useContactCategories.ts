@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 
-interface Category {
+export interface Category {
   categoryId: number;
   categoryName: string;
   categoryDescription: string | null;

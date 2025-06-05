@@ -1,21 +1,12 @@
 "use client";
 import { useContactQuery } from "@/lib/query/useContactDetails";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle } from "lucide-react";
 
 import React from "react";
-import { Tab, useTabs } from "@/hooks/useTabs";
-import { AnimatePresence } from "motion/react";
-import { Tabs } from "@/components/contacts/Contact-Details-Tabs";
-import TabContent from "@/components/contacts/Tab-Content";
 import { useContactCategories } from "@/lib/query/useContactCategories";
-
-const tabs = [
-  { label: "Contact Overview", value: "contact-overview" },
-  { label: "Financial Summary", value: "financial-summary" },
-];
+import ContactOverviewTab from "./Contact-Overview-Tab";
 
 export default function ContactDetailsClient({
   contactId,
@@ -33,21 +24,6 @@ export default function ContactDetailsClient({
     isLoading: isLoadingCategory,
     isError: isCategoryError,
   } = useContactCategories(contactId);
-
-  const [hookProps] = React.useState(() => {
-    const initialTabId = tabs[0].value;
-
-    return {
-      tabs: tabs.map(({ label, value, subRoutes }: Tab) => ({
-        label,
-        value,
-        subRoutes,
-      })),
-      initialTabId,
-    };
-  });
-
-  const framer = useTabs(hookProps);
 
   if (isLoading || isLoadingCategory) {
     return (
@@ -102,39 +78,12 @@ export default function ContactDetailsClient({
   const { contact, financialSummary } = data;
 
   return (
-    <div className="min-h-screen">
-      <div className="container max-w-7xl mx-auto py-8 px-4">
-        <nav className="sticky top-4 z-50 mb-3 flex px-4">
-          <div className="flex items-center gap-6 px-8 py-4 bg-white/20 backdrop-blur-md border border-white/30 rounded-full shadow-lg shadow-black/5">
-            <Avatar className="h-12 w-12 border-2 border-white/50">
-              <AvatarImage
-                src={`https://api.dicebear.com/7.x/initials/svg?seed=${contact.firstName} ${contact.lastName}`}
-                alt={`${contact.firstName} ${contact.lastName}`}
-              />
-              <AvatarFallback className="text-sm font-medium bg-gradient-to-br from-purple-500 to-blue-500 text-white">
-                {contact.firstName[0]}
-                {contact.lastName[0]}
-              </AvatarFallback>
-            </Avatar>
-            <span className="text-lg font-medium text-gray-800 dark:text-gray-200">
-              {contact.firstName} {contact.lastName}
-            </span>
-          </div>
-        </nav>
-        <div className="w-full">
-          <div className="relative flex w-full items-center justify-between border-b dark:border-dark-4 overflow-x-auto overflow-y-hidden">
-            <Tabs {...framer.tabProps} />
-          </div>
-          <AnimatePresence mode="wait">
-            <TabContent
-              tab={framer.selectedTab}
-              contact={contact}
-              financialSummary={financialSummary}
-              categories={categories || []}
-            />
-          </AnimatePresence>
-        </div>
-      </div>
-    </div>
+    <React.Fragment>
+      <ContactOverviewTab
+        contact={contact}
+        financialSummary={financialSummary}
+        categories={categories || []}
+      />
+    </React.Fragment>
   );
 }
