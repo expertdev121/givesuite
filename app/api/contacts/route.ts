@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { eq, sql, desc, like, or, ilike } from "drizzle-orm";
+import { eq, sql, desc, asc, like, or, ilike } from "drizzle-orm";
 import {
   contact,
   pledge,
@@ -11,16 +11,7 @@ import {
 import { z } from "zod";
 import { unstable_cache } from "next/cache";
 
-const querySchema = z.object({
-  page: z.coerce.number().min(1).default(1),
-  limit: z.coerce.number().min(1).max(100).default(10),
-  search: z.string().optional(),
-  sortBy: z
-    .enum(["updatedAt", "firstName", "lastName", "totalPledgedUsd"])
-    .default("updatedAt"),
-  sortOrder: z.enum(["asc", "desc"]).default("desc"),
-});
-
+// Define the response type
 interface ContactResponse {
   id: number;
   firstName: string;
@@ -41,19 +32,27 @@ interface ContactResponse {
   lastPaymentDate: Date | null;
 }
 
-// Cache configuration
-const CACHE_TTL_SECONDS = 60; // 1 minute cache
+const querySchema = z.object({
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(100).default(10),
+  search: z.string().optional(),
+  sortBy: z
+    .enum(["updatedAt", "firstName", "lastName", "totalPledgedUsd"])
+    .default("updatedAt"),
+  sortOrder: z.enum(["asc", "desc"]).default("desc"),
+});
+
+const CACHE_TTL_SECONDS = 60;
 
 export async function GET(request: NextRequest) {
   try {
-    // Parse and validate query parameters
     const { searchParams } = new URL(request.url);
     const parsedParams = querySchema.safeParse({
-      page: searchParams.get("page"),
-      limit: searchParams.get("limit"),
-      search: searchParams.get("search"),
-      sortBy: searchParams.get("sortBy"),
-      sortOrder: searchParams.get("sortOrder"),
+      page: searchParams.get("page") ?? undefined,
+      limit: searchParams.get("limit") ?? undefined,
+      search: searchParams.get("search") ?? undefined,
+      sortBy: searchParams.get("sortBy") ?? undefined,
+      sortOrder: searchParams.get("sortOrder") ?? undefined,
     });
 
     if (!parsedParams.success) {
@@ -66,7 +65,6 @@ export async function GET(request: NextRequest) {
     const { page, limit, search, sortBy, sortOrder } = parsedParams.data;
     const offset = (page - 1) * limit;
 
-    // Generate cache key and tags
     const cacheKey = `contacts:${page}:${limit}:${
       search || ""
     }:${sortBy}:${sortOrder}`;
@@ -76,12 +74,10 @@ export async function GET(request: NextRequest) {
       `contacts:search:${search || "all"}`,
     ];
 
-    // Wrap database query in unstable_cache
     const cachedQuery = unstable_cache(
       async () => {
-        // Aliases for aggregated fields to ensure type safety
         const totalPledgedUsd =
-          sql<number>`COALESCE(SUM(${pledge.originalAmountUsd}), 0)`.as(
+          sql<number>`COALESCE(SUM(${pledge.originalAmount}), 0)`.as(
             "totalPledgedUsd"
           );
         const totalPaidUsd =
@@ -95,7 +91,8 @@ export async function GET(request: NextRequest) {
         const lastPaymentDate = sql<Date>`MAX(${payment.paymentDate})`.as(
           "lastPaymentDate"
         );
-        const baseQuery = db
+
+        let query = db
           .select({
             id: contact.id,
             firstName: contact.firstName,
@@ -122,14 +119,21 @@ export async function GET(request: NextRequest) {
           .leftJoin(payment, eq(pledge.id, payment.pledgeId))
           .groupBy(
             contact.id,
+            contact.firstName,
+            contact.lastName,
+            contact.email,
+            contact.phone,
+            contact.title,
+            contact.gender,
+            contact.address,
+            contact.createdAt,
+            contact.updatedAt,
             studentRoles.program,
             studentRoles.status,
             contactRoles.roleName
-          )
-          .$returnType<ContactResponse[]>();
+          );
 
         // Add search conditions
-        let query = baseQuery;
         if (search) {
           query = query.where(
             or(
@@ -142,30 +146,48 @@ export async function GET(request: NextRequest) {
         }
 
         // Add sorting
-        const sortColumn = {
-          updatedAt: contact.updatedAt,
-          firstName: contact.firstName,
-          lastName: contact.lastName,
-          totalPledgedUsd,
-        }[sortBy];
+        switch (sortBy) {
+          case "updatedAt":
+            query = query.orderBy(
+              sortOrder === "asc"
+                ? asc(contact.updatedAt)
+                : desc(contact.updatedAt)
+            );
+            break;
+          case "firstName":
+            query = query.orderBy(
+              sortOrder === "asc"
+                ? asc(contact.firstName)
+                : desc(contact.firstName)
+            );
+            break;
+          case "lastName":
+            query = query.orderBy(
+              sortOrder === "asc"
+                ? asc(contact.lastName)
+                : desc(contact.lastName)
+            );
+            break;
+          case "totalPledgedUsd":
+            query = query.orderBy(
+              sortOrder === "asc" ? asc(totalPledgedUsd) : desc(totalPledgedUsd)
+            );
+            break;
+        }
 
-        query = query.orderBy(
-          sortOrder === "asc" ? sortColumn : desc(sortColumn)
-        );
-
-        // Execute queries in parallel
-        const [contacts, totalCount] = await Promise.all([
-          query.limit(limit).offset(offset),
+        const [contacts, totalCountResult] = await Promise.all([
+          query.limit(limit).offset(offset).execute(),
           db
-            .select({ count: sql<number>`count(*)`.mapWith(Number) })
+            .select({ count: sql<number>`count(*)` })
             .from(contact)
-            .then((result) => result[0].count),
+            .execute(),
         ]);
 
-        // Calculate pagination metadata
+        const totalCount = Number(totalCountResult[0]?.count || 0);
         const totalPages = Math.ceil(totalCount / limit);
+
         return {
-          contacts,
+          contacts: contacts as ContactResponse[],
           pagination: {
             page,
             limit,
