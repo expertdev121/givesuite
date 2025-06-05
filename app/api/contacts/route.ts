@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { eq, sql, desc, asc, like, or, ilike } from "drizzle-orm";
-import type { Column, SQL } from "drizzle-orm";
+import type {
+  Column,
+  ColumnBaseConfig,
+  ColumnDataType,
+  SQL,
+} from "drizzle-orm";
 import {
   contact,
   pledge,
@@ -76,36 +81,54 @@ export async function GET(request: NextRequest) {
 
     const cachedQuery = unstable_cache(
       async () => {
-        const totalPledgedExpr = sql<number>`COALESCE(SUM(${pledge.originalAmount}), 0)`;
-        const totalPaidExpr = sql<number>`COALESCE(SUM(${pledge.totalPaidUsd}), 0)`;
-        const currentBalanceExpr = sql<number>`COALESCE(SUM(${pledge.balanceUsd}), 0)`;
-        const lastPaymentExpr = sql<Date>`MAX(${payment.paymentDate})`;
+        const selectedFields = {
+          id: contact.id,
+          firstName: contact.firstName,
+          lastName: contact.lastName,
+          email: contact.email,
+          phone: contact.phone,
+          title: contact.title,
+          gender: contact.gender,
+          address: contact.address,
+          createdAt: contact.createdAt,
+          updatedAt: contact.updatedAt,
+          totalPledgedUsd:
+            sql<number>`COALESCE(SUM(${pledge.originalAmount}), 0)`.as(
+              "totalPledgedUsd"
+            ),
+          totalPaidUsd:
+            sql<number>`COALESCE(SUM(${pledge.totalPaidUsd}), 0)`.as(
+              "totalPaidUsd"
+            ),
+          currentBalanceUsd:
+            sql<number>`COALESCE(SUM(${pledge.balanceUsd}), 0)`.as(
+              "currentBalanceUsd"
+            ),
+          studentProgram: studentRoles.program,
+          studentStatus: studentRoles.status,
+          roleName: contactRoles.roleName,
+          lastPaymentDate: sql<Date>`MAX(${payment.paymentDate})`.as(
+            "lastPaymentDate"
+          ),
+        };
 
-        let query = db
-          .select({
-            id: contact.id,
-            firstName: contact.firstName,
-            lastName: contact.lastName,
-            email: contact.email,
-            phone: contact.phone,
-            title: contact.title,
-            gender: contact.gender,
-            address: contact.address,
-            createdAt: contact.createdAt,
-            updatedAt: contact.updatedAt,
-            totalPledgedUsd: totalPledgedExpr.as("totalPledgedUsd"),
-            totalPaidUsd: totalPaidExpr.as("totalPaidUsd"),
-            currentBalanceUsd: currentBalanceExpr.as("currentBalanceUsd"),
-            studentProgram: studentRoles.program,
-            studentStatus: studentRoles.status,
-            roleName: contactRoles.roleName,
-            lastPaymentDate: lastPaymentExpr.as("lastPaymentDate"),
-          })
+        const whereClause = search
+          ? or(
+              ilike(contact.firstName, `%${search}%`),
+              ilike(contact.lastName, `%${search}%`),
+              ilike(contact.email, `%${search}%`),
+              like(contact.phone, `%${search}%`)
+            )
+          : undefined;
+
+        const query = db
+          .select(selectedFields)
           .from(contact)
           .leftJoin(pledge, eq(contact.id, pledge.contactId))
           .leftJoin(studentRoles, eq(contact.id, studentRoles.contactId))
           .leftJoin(contactRoles, eq(contact.id, contactRoles.contactId))
           .leftJoin(payment, eq(pledge.id, payment.pledgeId))
+          .where(whereClause)
           .groupBy(
             contact.id,
             contact.firstName,
@@ -122,33 +145,28 @@ export async function GET(request: NextRequest) {
             contactRoles.roleName
           );
 
-        if (search) {
-          query = query.where(
-            or(
-              ilike(contact.firstName, `%${search}%`),
-              ilike(contact.lastName, `%${search}%`),
-              ilike(contact.email, `%${search}%`),
-              like(contact.phone, `%${search}%`)
-            )
-          );
-        }
-
         let orderByField: Column | SQL;
         switch (sortBy) {
           case "updatedAt":
-            orderByField = contact.updatedAt;
+            orderByField = selectedFields.updatedAt;
             break;
           case "firstName":
-            orderByField = contact.firstName;
+            orderByField = selectedFields.firstName;
             break;
           case "lastName":
-            orderByField = contact.lastName;
+            orderByField = selectedFields.lastName;
             break;
           case "totalPledgedUsd":
-            orderByField = totalPledgedExpr;
+            orderByField = selectedFields.totalPledgedUsd as unknown as
+              | SQL<unknown>
+              | Column<
+                  ColumnBaseConfig<ColumnDataType, string>,
+                  object,
+                  object
+                >;
             break;
           default:
-            orderByField = contact.updatedAt;
+            orderByField = selectedFields.updatedAt;
         }
 
         const contactsQuery = query
@@ -156,19 +174,12 @@ export async function GET(request: NextRequest) {
           .limit(limit)
           .offset(offset);
 
-        let countQuery = db
-          .select({ count: sql<number>`count(distinct ${contact.id})` })
-          .from(contact);
-        if (search) {
-          countQuery = countQuery.where(
-            or(
-              ilike(contact.firstName, `%${search}%`),
-              ilike(contact.lastName, `%${search}%`),
-              ilike(contact.email, `%${search}%`),
-              like(contact.phone, `%${search}%`)
-            )
-          );
-        }
+        const countQuery = db
+          .select({
+            count: sql<number>`count(distinct ${contact.id})`.as("count"),
+          })
+          .from(contact)
+          .where(whereClause);
 
         const [contacts, totalCountResult] = await Promise.all([
           contactsQuery.execute(),
