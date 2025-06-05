@@ -2,10 +2,9 @@
 
 import { useContactQuery } from "@/lib/query/useContactDetails";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Phone, Mail, MessageCircle, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
 import React from "react";
 import { Tab, useTabs } from "@/hooks/useTabs";
@@ -98,77 +97,24 @@ export default function ContactDetailsClient({
 
   return (
     <div className="min-h-screen">
-      {/* Header Section */}
-      <div className="sticky top-0 z-10 bg-background border-b">
-        <div className="container max-w-7xl mx-auto py-6">
-          <div className="flex flex-col md:flex-row md:items-center gap-6">
-            <Avatar className="h-20 w-20 border">
+      <div className="container max-w-7xl mx-auto py-8 px-4">
+        <nav className="sticky top-4 z-50 mb-3 flex px-4">
+          <div className="flex items-center gap-6 px-8 py-4 bg-white/20 backdrop-blur-md border border-white/30 rounded-full shadow-lg shadow-black/5">
+            <Avatar className="h-12 w-12 border-2 border-white/50">
               <AvatarImage
                 src={`https://api.dicebear.com/7.x/initials/svg?seed=${contact.firstName} ${contact.lastName}`}
                 alt={`${contact.firstName} ${contact.lastName}`}
               />
-              <AvatarFallback className="text-xl">
+              <AvatarFallback className="text-sm font-medium bg-gradient-to-br from-purple-500 to-blue-500 text-white">
                 {contact.firstName[0]}
                 {contact.lastName[0]}
               </AvatarFallback>
             </Avatar>
-
-            <div className="flex-1">
-              <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
-                <h1 className="text-3xl font-bold">
-                  {contact.title ? `${contact.title}. ` : ""}
-                  {contact.firstName} {contact.lastName}
-                </h1>
-
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">Active</Badge>
-                  {contact.contactRoles.some(
-                    (role) => role.roleName === "Donor"
-                  ) && <Badge>Donor</Badge>}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
-                <div className="flex items-center gap-2">
-                  <div className="bg-muted p-2 rounded-full">
-                    <Mail className="h-4 w-4" />
-                  </div>
-                  <span className="text-sm">{contact.email ?? "N/A"}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="bg-muted p-2 rounded-full">
-                    <Phone className="h-4 w-4" />
-                  </div>
-                  <span className="text-sm">{contact.phone ?? "N/A"}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="bg-muted p-2 rounded-full">
-                    <MessageCircle className="h-4 w-4" />
-                  </div>
-                  <span className="text-sm">
-                    WhatsApp: {contact.phone ?? "N/A"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="hidden md:flex flex-col items-end gap-2">
-              <div className="text-sm text-muted-foreground">
-                Financial Status
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-bold">
-                  ${financialSummary.currentBalanceUsd}
-                </span>
-                <span className="text-sm text-muted-foreground">balance</span>
-              </div>
-            </div>
+            <span className="text-lg font-medium text-gray-800 dark:text-gray-200">
+              {contact.firstName} {contact.lastName}
+            </span>
           </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="container max-w-7xl mx-auto py-8 px-4">
+        </nav>
         <div className="w-full">
           <div className="relative flex w-full items-center justify-between border-b dark:border-dark-4 overflow-x-auto overflow-y-hidden">
             <Tabs {...framer.tabProps} />

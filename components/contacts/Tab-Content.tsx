@@ -37,7 +37,7 @@ const TabContent: React.FC<TabContentProps> = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       transition={transition}
-      className="p-6 bg-zinc-50 dark:bg-zinc-900 rounded-lg mt-4 min-h-[55vh]"
+      className="p-6 rounded-lg mt-4 min-h-[55vh]"
     >
       {tab.value === "contact-overview" && (
         <ContactOverviewTab
