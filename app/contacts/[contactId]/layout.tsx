@@ -2,6 +2,9 @@
 
 import TabLink from "@/components/next-link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import { useContactQuery } from "@/lib/query/useContactDetails";
 import { useParams } from "next/navigation";
 import type React from "react";
@@ -18,7 +21,12 @@ export default function SettingsLayout({
   return (
     <div className="container mx-auto py-8 max-w-5xl">
       {!isValidId ? (
-        <div>Invalid contact ID</div>
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Invalid contact ID provided. Please check the URL and try again.
+          </AlertDescription>
+        </Alert>
       ) : (
         <>
           <ContactDetails contactId={contactIdNum} />
@@ -39,31 +47,85 @@ export default function SettingsLayout({
 }
 
 function ContactDetails({ contactId }: { contactId: number }) {
-  const { data, isLoading, isError, error } = useContactQuery({
+  const { data, isLoading, isError, error, refetch } = useContactQuery({
     contactId,
     page: 1,
     limit: 10,
   });
 
-  if (isLoading) return <div>Loading contact...</div>;
-  if (isError) return <div>Error loading contact: {error.message}</div>;
-  if (!data || !data.contact) return <div>No contact data available</div>;
+  if (isLoading) {
+    return (
+      <nav className="sticky top-4 z-50 mb-3 flex px-4">
+        <div className="flex items-center gap-6 px-8 py-4 bg-white/20 backdrop-blur-md border border-white/30 rounded-full shadow-lg shadow-black/5">
+          <Skeleton className="h-12 w-12 rounded-full" />
+          <Skeleton className="h-6 w-32" />
+        </div>
+      </nav>
+    );
+  }
+
+  if (isError) {
+    const errorMessage =
+      error?.message ||
+      (typeof error === "string" ? error : "An unexpected error occurred");
+
+    return (
+      <div className="mb-6">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>Error loading contact: {errorMessage}</span>
+            <button
+              onClick={() => refetch?.()}
+              className="ml-2 p-1 hover:bg-red-100 rounded-sm transition-colors"
+              aria-label="Retry loading contact"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (!data?.contact) {
+    return (
+      <div className="mb-6">
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>No contact data available</span>
+            <button
+              onClick={() => refetch?.()}
+              className="ml-2 p-1 hover:bg-gray-100 rounded-sm transition-colors"
+              aria-label="Retry loading contact"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  const { firstName = "", lastName = "" } = data.contact;
+  const fullName = `${firstName} ${lastName}`.trim();
+  const initials = `${firstName?.[0] || ""}${lastName?.[0] || ""}` || "?";
 
   return (
     <nav className="sticky top-4 z-50 mb-3 flex px-4">
       <div className="flex items-center gap-6 px-8 py-4 bg-white/20 backdrop-blur-md border border-white/30 rounded-full shadow-lg shadow-black/5">
         <Avatar className="h-12 w-12 border-2 border-white/50">
           <AvatarImage
-            src={`https://api.dicebear.com/7.x/initials/svg?seed=${data.contact.firstName} ${data.contact.lastName}`}
-            alt={`${data.contact.firstName} ${data.contact.lastName}`}
+            src={`https://api.dicebear.com/7.x/initials/svg?seed=${fullName}`}
+            alt={fullName || "Contact"}
           />
           <AvatarFallback className="text-sm font-medium bg-gradient-to-br from-purple-500 to-blue-500 text-white">
-            {data.contact.firstName[0]}
-            {data.contact.lastName[0]}
+            {initials}
           </AvatarFallback>
         </Avatar>
         <span className="text-lg font-medium text-gray-800 dark:text-gray-200">
-          {data.contact.firstName} {data.contact.lastName}
+          {fullName || "Unknown Contact"}
         </span>
       </div>
     </nav>
