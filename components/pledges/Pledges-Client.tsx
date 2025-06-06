@@ -28,10 +28,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
+  BadgeDollarSign,
   ChevronDown,
   ChevronRight,
   MoreHorizontal,
@@ -121,7 +121,12 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
   };
 
   const formatCurrency = (amount: string, currency: string) => {
-    return `${currency} ${parseFloat(amount).toLocaleString()}`;
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(parseFloat(amount));
   };
 
   const formatDate = (dateString: string) => {
@@ -196,13 +201,24 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-12"></TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Paid</TableHead>
-                  <TableHead>Balance</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Progress</TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Pledge Date
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Pledge Detail
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Pledge Amount
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Paid
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Balance
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Progress
+                  </TableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -270,7 +286,11 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                         <TableCell className="font-medium">
                           {formatDate(pledge.pledgeDate)}
                         </TableCell>
-                        <TableCell>{pledge.description || "-"}</TableCell>
+                        <TableCell>
+                          {pledge.categoryName?.split(" ")[0]} {">"}{" "}
+                          {pledge.description || "-"}
+                        </TableCell>
+
                         <TableCell>
                           {formatCurrency(
                             pledge.originalAmount,
@@ -282,15 +302,6 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                         </TableCell>
                         <TableCell>
                           {formatCurrency(pledge.balance, pledge.currency)}
-                        </TableCell>
-                        <TableCell>
-                          {pledge.categoryName ? (
-                            <Badge variant="secondary">
-                              {pledge.categoryName}
-                            </Badge>
-                          ) : (
-                            "-"
-                          )}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -343,7 +354,7 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                                 <div className="space-y-2 text-sm">
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Original Amount (USD):
+                                      Pledge Amount (USD):
                                     </span>
                                     <span className="font-medium">
                                       {pledge.originalAmountUsd
@@ -355,7 +366,7 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Total Paid (USD):
+                                      Paid (USD):
                                     </span>
                                     <span className="font-medium">
                                       {pledge.totalPaidUsd
@@ -408,10 +419,17 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                             </div>
 
                             {/* Action Button */}
-                            <div className="mt-6 pt-4 border-t">
+                            <div className="mt-6 pt-4 flex gap-2 border-t">
                               <Button className="flex items-center gap-2">
                                 <Plus className="h-4 w-4" />
                                 Add New Payment
+                              </Button>
+                              <Button
+                                variant="outline"
+                                className="flex items-center gap-2"
+                              >
+                                <BadgeDollarSign className="h-4 w-4" />
+                                View Payments
                               </Button>
                             </div>
                           </TableCell>
