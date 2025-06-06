@@ -5,8 +5,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { useContactQuery } from "@/lib/query/useContactDetails";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import type React from "react";
 
 export default function SettingsLayout({
@@ -15,11 +16,16 @@ export default function SettingsLayout({
   children: React.ReactNode;
 }) {
   const { contactId } = useParams<{ contactId: string }>();
+  const pathname = usePathname();
   const contactIdNum = parseInt(contactId, 10);
   const isValidId = !isNaN(contactIdNum);
 
+  const handlePaymentsClick = () => {
+    toast.warning("Payments can be accessed from pledges!");
+  };
+
   return (
-    <div className="container mx-auto py-8 max-w-5xl">
+    <div className="container mx-auto py-8 max-w-7xl">
       {!isValidId ? (
         <Alert variant="destructive" className="mb-6">
           <AlertCircle className="h-4 w-4" />
@@ -36,7 +42,11 @@ export default function SettingsLayout({
                 Contact Info
               </TabLink>
               <TabLink href={`/contacts/${contactId}/pledges`}>Pledges</TabLink>
-              <TabLink href={`/contacts/${contactId}/payments`}>
+              <TabLink
+                asButton
+                isActive={pathname.includes("/payments")}
+                onClick={handlePaymentsClick}
+              >
                 Payments
               </TabLink>
             </nav>
