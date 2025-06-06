@@ -13,9 +13,11 @@ import {
   studentRoles,
   contactRoles,
   payment,
+  NewContact,
 } from "@/lib/db/schema";
 import { z } from "zod";
 import { unstable_cache } from "next/cache";
+import { contactFormSchema } from "@/lib/form-schemas/contact";
 
 interface ContactResponse {
   id: number;
@@ -222,6 +224,56 @@ export async function GET(request: NextRequest) {
       {
         error: "Failed to fetch contacts",
         message: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const validatedData = contactFormSchema.parse(body);
+    const newContact: NewContact = {
+      firstName: validatedData.firstName,
+      lastName: validatedData.lastName,
+      email: validatedData.email,
+      phone: validatedData.phone,
+      title: validatedData.title,
+      gender: validatedData.gender,
+      address: validatedData.address,
+    };
+    const result = await db.insert(contact).values(newContact).returning();
+
+    return NextResponse.json(
+      {
+        message: "Contact created successfully",
+        contact: result[0],
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        {
+          message: "Validation error",
+          errors: error.errors,
+        },
+        { status: 400 }
+      );
+    }
+    if (error instanceof Error && error.message.includes("unique constraint")) {
+      return NextResponse.json(
+        {
+          message: "Email already exists",
+        },
+        { status: 409 }
+      );
+    }
+    console.error("Error creating contact:", error);
+    return NextResponse.json(
+      {
+        message: "Internal server error",
       },
       { status: 500 }
     );

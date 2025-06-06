@@ -15,8 +15,8 @@ export const contactFormSchema = z.object({
     .min(7, { message: "Phone number must be at least 7 characters" })
     .max(15, { message: "Phone number must be at most 15 characters" })
     .optional(),
-  title: z.enum(["Mr", "Ms", "Mrs", "Dr", "Prof"]).optional(),
-  gender: z.enum(["Male", "Female", "Other"]).optional(),
+  title: z.enum(["mr", "mrs", "ms", "dr", "prof", "eng", "other"]).optional(),
+  gender: z.enum(["male", "female"]).optional(),
   address: z
     .string()
     .min(5, { message: "Address must be at least 5 characters" })
