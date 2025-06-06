@@ -5,6 +5,7 @@ import { z } from "zod";
 import { unstable_cache } from "next/cache";
 import { ErrorHandler } from "@/lib/error-handler";
 import { category, NewCategory } from "@/lib/db/schema";
+import { categorySchema } from "@/lib/form-schemas/category";
 
 const CACHE_TTL_SECONDS = 60;
 
@@ -15,12 +16,6 @@ const querySchema = z.object({
   sortBy: z.string().default("updatedAt"),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
   isActive: z.coerce.boolean().optional(),
-});
-
-const categorySchema = z.object({
-  name: z.string().min(1, "Category name is required"),
-  description: z.string().optional(),
-  isActive: z.boolean().default(true),
 });
 
 export async function GET(request: NextRequest) {

@@ -11,12 +11,10 @@ async function createContact(data: ContactFormValues) {
     },
     body: JSON.stringify(data),
   });
-
   if (!response.ok) {
     const error: ApiError = await response.json();
     throw error;
   }
-
   return response.json();
 }
 
