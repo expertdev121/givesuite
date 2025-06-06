@@ -1,6 +1,7 @@
 import { ContactFormValues } from "@/components/forms/contact-form";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ClientErrorHandler, ApiError } from "@/lib/error-handler";
 
 async function createContact(data: ContactFormValues) {
   const response = await fetch("/api/contacts", {
@@ -12,22 +13,24 @@ async function createContact(data: ContactFormValues) {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Failed to create contact");
+    const error: ApiError = await response.json();
+    throw error;
   }
 
   return response.json();
 }
 
-export function useCreateContact() {
+export function useCreateContact(
+  setFieldError?: (field: string, message: string) => void
+) {
   return useMutation({
     mutationFn: createContact,
-    onSuccess: (data) => {
-      console.log(data);
+    onSuccess: () => {
       toast.success("Contact created successfully!");
     },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to create contact");
+    onError: (error: ApiError) => {
+      const errorMessage = ClientErrorHandler.handle(error, setFieldError);
+      toast.error(errorMessage);
     },
   });
 }

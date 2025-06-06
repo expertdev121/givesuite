@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { z } from "zod";
@@ -50,7 +51,9 @@ export default function ContactFormDialog() {
     },
   });
 
-  const { mutate: createContact, isPending } = useCreateContact();
+  const { mutate: createContact, isPending } = useCreateContact(
+    form.setError as any
+  );
 
   const onSubmit = (values: ContactFormValues) => {
     createContact(values, {
