@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Search } from "lucide-react";
@@ -94,175 +93,170 @@ export default function ContactsTable() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Contacts</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          {/* Search */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
-              placeholder="Search contacts..."
-              value={search || ""}
-              onChange={(e) => setSearch(e.target.value || null)}
-              className="pl-10"
-            />
-          </div>
-
-          <Select
-            value={sortBy as string | undefined}
-            onValueChange={(value) => setSortBy(value === "" ? null : value)}
-          >
-            <SelectTrigger className="w-full sm:w-36">
-              <SelectValue placeholder="Sort By" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="updatedAt">Updated At</SelectItem>
-                <SelectItem value="firstName">First Name</SelectItem>
-                <SelectItem value="lastName">Last Name</SelectItem>
-                <SelectItem value="totalPledgedUsd">Total Pledged</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={sortOrder as string | undefined}
-            onValueChange={(value) => setSortOrder(value as "asc" | "desc")}
-            defaultValue="asc"
-          >
-            <SelectTrigger className="w-full sm:w-36">
-              <SelectValue placeholder="Sort Order" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="asc">Ascending</SelectItem>
-                <SelectItem value="desc">Descending</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-
-          <ContactFormDialog />
+    <div className="p-4">
+      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+        {/* Search */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <Input
+            placeholder="Search contacts..."
+            value={search || ""}
+            onChange={(e) => setSearch(e.target.value || null)}
+            className="pl-10"
+          />
         </div>
 
-        {/* Table */}
-        <div className="border rounded-lg overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="font-semibold text-gray-900">
-                  Full Name
-                </TableHead>
-                <TableHead className="font-semibold text-gray-900">
-                  Email
-                </TableHead>
-                <TableHead className="font-semibold text-gray-900">
-                  Phone
-                </TableHead>
-                <TableHead className="font-semibold text-gray-900">
-                  Total Pledged (USD)
-                </TableHead>
-                <TableHead className="font-semibold text-gray-900">
-                  Action
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: currentLimit }).map((_, index) => (
-                  <TableRow key={index}>
-                    <TableCell>
-                      <Skeleton className="h-4 w-20" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-20" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-32" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-24" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-24" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-16" />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : data?.contacts.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="text-center py-8 text-gray-500"
-                  >
-                    No contacts found
+        <Select
+          value={sortBy as string | undefined}
+          onValueChange={(value) => setSortBy(value === "" ? null : value)}
+        >
+          <SelectTrigger className="w-full sm:w-36">
+            <SelectValue placeholder="Sort By" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="updatedAt">Updated At</SelectItem>
+              <SelectItem value="firstName">First Name</SelectItem>
+              <SelectItem value="lastName">Last Name</SelectItem>
+              <SelectItem value="totalPledgedUsd">Total Pledged</SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={sortOrder as string | undefined}
+          onValueChange={(value) => setSortOrder(value as "asc" | "desc")}
+          defaultValue="asc"
+        >
+          <SelectTrigger className="w-full sm:w-36">
+            <SelectValue placeholder="Sort Order" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="asc">Ascending</SelectItem>
+              <SelectItem value="desc">Descending</SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+
+        <ContactFormDialog />
+      </div>
+
+      {/* Table */}
+      <div className="border rounded-lg overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="font-semibold text-gray-900">
+                Full Name
+              </TableHead>
+              <TableHead className="font-semibold text-gray-900">
+                Email
+              </TableHead>
+              <TableHead className="font-semibold text-gray-900">
+                Phone
+              </TableHead>
+              <TableHead className="font-semibold text-gray-900">
+                Total Pledged (USD)
+              </TableHead>
+              <TableHead className="font-semibold text-gray-900">
+                Action
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              Array.from({ length: currentLimit }).map((_, index) => (
+                <TableRow key={index}>
+                  <TableCell>
+                    <Skeleton className="h-4 w-20" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-20" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-32" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-24" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-24" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-16" />
                   </TableCell>
                 </TableRow>
-              ) : (
-                data?.contacts.map((contact) => (
-                  <TableRow key={contact.id} className="hover:bg-gray-50">
-                    <TableCell className="font-medium">
-                      {contact.lastName}
-                      {","} {contact.firstName}
-                    </TableCell>
-                    <TableCell>{contact.email || "N/A"}</TableCell>
-                    <TableCell>{contact.phone || "N/A"}</TableCell>
-                    <TableCell>
-                      {formatCurrency(contact.totalPledgedUsd)}
-                    </TableCell>
-                    <TableCell>
-                      <LinkButton
-                        variant="secondary"
-                        href={`/contacts/${contact.id}`}
-                        className="p-2 text-primary underline"
-                      >
-                        View
-                      </LinkButton>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+              ))
+            ) : data?.contacts.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={6}
+                  className="text-center py-8 text-gray-500"
+                >
+                  No contacts found
+                </TableCell>
+              </TableRow>
+            ) : (
+              data?.contacts.map((contact) => (
+                <TableRow key={contact.id} className="hover:bg-gray-50">
+                  <TableCell className="font-medium">
+                    {contact.lastName}
+                    {","} {contact.firstName}
+                  </TableCell>
+                  <TableCell>{contact.email || "N/A"}</TableCell>
+                  <TableCell>{contact.phone || "N/A"}</TableCell>
+                  <TableCell>
+                    {formatCurrency(contact.totalPledgedUsd)}
+                  </TableCell>
+                  <TableCell>
+                    <LinkButton
+                      variant="secondary"
+                      href={`/contacts/${contact.id}`}
+                      className="p-2 text-primary underline"
+                    >
+                      View
+                    </LinkButton>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
-        {data && data.contacts.length > 0 && (
-          <div className="flex items-center justify-between mt-6">
-            <div className="text-sm text-gray-600">
-              Showing {(currentPage - 1) * currentLimit + 1} to{" "}
-              {Math.min(currentPage * currentLimit, data.pagination.totalCount)}{" "}
-              of {data.pagination.totalCount} contacts
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage(currentPage - 1)}
-                disabled={!data.pagination.hasPreviousPage}
-              >
-                Previous
-              </Button>
-              <div className="flex items-center gap-1">
-                <span className="text-sm text-gray-600">
-                  Page {currentPage} of {data.pagination.totalPages}
-                </span>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage(currentPage + 1)}
-                disabled={!data.pagination.hasNextPage}
-              >
-                Next
-              </Button>
-            </div>
+      {data && data.contacts.length > 0 && (
+        <div className="flex items-center justify-between mt-6">
+          <div className="text-sm text-gray-600">
+            Showing {(currentPage - 1) * currentLimit + 1} to{" "}
+            {Math.min(currentPage * currentLimit, data.pagination.totalCount)}{" "}
+            of {data.pagination.totalCount} contacts
           </div>
-        )}
-      </CardContent>
-    </Card>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(currentPage - 1)}
+              disabled={!data.pagination.hasPreviousPage}
+            >
+              Previous
+            </Button>
+            <div className="flex items-center gap-1">
+              <span className="text-sm text-gray-600">
+                Page {currentPage} of {data.pagination.totalPages}
+              </span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(currentPage + 1)}
+              disabled={!data.pagination.hasNextPage}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
