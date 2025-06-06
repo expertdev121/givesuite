@@ -28,6 +28,7 @@ const querySchema = z.object({
     .optional(),
   year: z.string().optional(),
   isActive: z.coerce.boolean().optional(),
+  contactId: z.coerce.number().positive().optional(),
 });
 
 const studentRoleSchema = z
@@ -82,6 +83,7 @@ export async function GET(request: NextRequest) {
       status: searchParams.get("status") ?? undefined,
       year: searchParams.get("year") ?? undefined,
       isActive: searchParams.get("isActive") ?? undefined,
+      contactId: searchParams.get("contactId") ?? undefined,
     });
 
     if (!parsedParams.success) {
@@ -107,6 +109,7 @@ export async function GET(request: NextRequest) {
       status,
       year,
       isActive,
+      contactId,
     } = parsedParams.data;
     const offset = (page - 1) * limit;
 
@@ -114,7 +117,7 @@ export async function GET(request: NextRequest) {
       search || ""
     }:${sortBy}:${sortOrder}:${program || ""}:${status || ""}:${year || ""}:${
       isActive ?? ""
-    }`;
+    }:${contactId || ""}`;
     const cacheTags = [
       `studentRoles`,
       `studentRoles:page:${page}`,
@@ -122,6 +125,7 @@ export async function GET(request: NextRequest) {
       program && `studentRoles:program:${program}`,
       status && `studentRoles:status:${status}`,
       year && `studentRoles:year:${year}`,
+      contactId && `studentRoles:contactId:${contactId}`,
     ].filter(Boolean) as string[];
 
     const cachedQuery = unstable_cache(
@@ -144,6 +148,7 @@ export async function GET(request: NextRequest) {
         if (year) conditions.push(eq(studentRoles.year, year));
         if (isActive !== undefined)
           conditions.push(eq(studentRoles.isActive, isActive));
+        if (contactId) conditions.push(eq(studentRoles.contactId, contactId));
 
         const whereClause =
           conditions.length > 0 ? and(...conditions) : undefined;
@@ -263,6 +268,7 @@ export async function GET(request: NextRequest) {
             status,
             year,
             isActive,
+            contactId,
             sortBy: sortBy,
             sortOrder,
           },
