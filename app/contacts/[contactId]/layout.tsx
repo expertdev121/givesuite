@@ -24,6 +24,10 @@ export default function SettingsLayout({
     toast.warning("Payments can be accessed from pledges!");
   };
 
+  const handlePaymentsPlansClick = () => {
+    toast.warning("Payments can be accessed from payments!");
+  };
+
   return (
     <div className="container mx-auto py-8 max-w-7xl">
       {!isValidId ? (
@@ -48,6 +52,13 @@ export default function SettingsLayout({
                 onClick={handlePaymentsClick}
               >
                 Payments
+              </TabLink>
+              <TabLink
+                asButton
+                isActive={pathname.includes("/payment-plans")}
+                onClick={handlePaymentsPlansClick}
+              >
+                Payment Plans
               </TabLink>
             </nav>
           </div>

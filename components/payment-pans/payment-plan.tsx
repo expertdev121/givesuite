@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import React, { useState } from "react";
@@ -19,25 +18,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Search, Plus, BadgeDollarSignIcon } from "lucide-react";
-import { usePaymentsQuery } from "@/lib/query/usePayments";
-import { LinkButton } from "../ui/next-link";
-import FactsDialog from "../facts-iframe";
-import Link from "next/link";
+import {
+  MoreHorizontal,
+  Search,
+  Plus,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
+import { usePaymentPlans } from "@/lib/query/usePaymentPlan";
 
-const PaymentStatusEnum = z.enum([
-  "pending",
+const PlanStatusEnum = z.enum([
+  "active",
   "completed",
-  "failed",
   "cancelled",
-  "refunded",
-  "processing",
+  "paused",
+  "overdue",
 ]);
 
 const QueryParamsSchema = z.object({
@@ -45,12 +51,12 @@ const QueryParamsSchema = z.object({
   page: z.number().min(1).default(1),
   limit: z.number().min(1).max(100).default(10),
   search: z.string().optional(),
-  paymentStatus: PaymentStatusEnum.optional(),
+  planStatus: PlanStatusEnum.optional(),
 });
 
-type PaymentStatusType = z.infer<typeof PaymentStatusEnum>;
+type PlanStatusType = z.infer<typeof PlanStatusEnum>;
 
-export default function PaymentsTable() {
+export default function PaymentPlansTable() {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [pledgeId] = useQueryState("pledgeId", {
     parse: (value) => {
@@ -71,23 +77,24 @@ export default function PaymentsTable() {
     serialize: (value) => value.toString(),
   });
   const [search, setSearch] = useQueryState("search");
-  const [paymentStatus, setPaymentStatus] =
-    useQueryState<PaymentStatusType | null>("paymentStatus", {
+  const [planStatus, setPlanStatus] = useQueryState<PlanStatusType | null>(
+    "planStatus",
+    {
       parse: (value) => {
         if (
-          value === "pending" ||
+          value === "active" ||
           value === "completed" ||
-          value === "failed" ||
           value === "cancelled" ||
-          value === "refunded" ||
-          value === "processing"
+          value === "paused" ||
+          value === "overdue"
         ) {
-          return value as PaymentStatusType;
+          return value as PlanStatusType;
         }
         return null;
       },
       serialize: (value) => value ?? "",
-    });
+    }
+  );
 
   const currentPage = page ?? 1;
   const currentLimit = limit ?? 10;
@@ -97,17 +104,17 @@ export default function PaymentsTable() {
     page: currentPage,
     limit: currentLimit,
     search: search || undefined,
-    paymentStatus: paymentStatus || undefined,
+    planStatus: planStatus || undefined,
   });
 
-  const { data, isLoading, error } = usePaymentsQuery(queryParams);
+  const { data, isLoading, error } = usePaymentPlans(queryParams);
 
-  const toggleRowExpansion = (paymentId: number) => {
+  const toggleRowExpansion = (planId: number) => {
     const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(paymentId)) {
-      newExpanded.delete(paymentId);
+    if (newExpanded.has(planId)) {
+      newExpanded.delete(planId);
     } else {
-      newExpanded.add(paymentId);
+      newExpanded.add(planId);
     }
     setExpandedRows(newExpanded);
   };
@@ -125,16 +132,15 @@ export default function PaymentsTable() {
     return dateString ? new Date(dateString).toLocaleDateString() : "N/A";
   };
 
-  const getStatusColor = (status: PaymentStatusType | null) => {
+  const getStatusColor = (status: PlanStatusType | null) => {
     switch (status) {
+      case "active":
       case "completed":
         return "bg-green-100 text-green-800";
-      case "pending":
-      case "processing":
+      case "paused":
+      case "overdue":
         return "bg-yellow-100 text-yellow-800";
-      case "failed":
       case "cancelled":
-      case "refunded":
         return "bg-red-100 text-red-800";
       default:
         return "bg-gray-100 text-gray-800";
@@ -145,7 +151,7 @@ export default function PaymentsTable() {
     return (
       <Alert className="mx-4 my-6">
         <AlertDescription>
-          Failed to load payments data. Please try again later.
+          Failed to load payment plans data. Please try again later.
         </AlertDescription>
       </Alert>
     );
@@ -156,7 +162,7 @@ export default function PaymentsTable() {
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle>Payments</CardTitle>
+          <CardTitle>Payment Plans</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -164,7 +170,7 @@ export default function PaymentsTable() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Search payments..."
+                placeholder="Search payment plans..."
                 value={search || ""}
                 onChange={(e) => setSearch(e.target.value || null)}
                 className="pl-10"
@@ -172,19 +178,18 @@ export default function PaymentsTable() {
             </div>
 
             <Select
-              value={paymentStatus ?? ""}
+              value={planStatus ?? ""}
               onValueChange={(value) => {
                 if (
-                  value === "pending" ||
+                  value === "active" ||
                   value === "completed" ||
-                  value === "failed" ||
                   value === "cancelled" ||
-                  value === "refunded" ||
-                  value === "processing"
+                  value === "paused" ||
+                  value === "overdue"
                 ) {
-                  setPaymentStatus(value as PaymentStatusType);
+                  setPlanStatus(value as PlanStatusType);
                 } else {
-                  setPaymentStatus(null);
+                  setPlanStatus(null);
                 }
               }}
             >
@@ -192,23 +197,13 @@ export default function PaymentsTable() {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="failed">Failed</SelectItem>
                 <SelectItem value="cancelled">Cancelled</SelectItem>
-                <SelectItem value="refunded">Refunded</SelectItem>
-                <SelectItem value="processing">Processing</SelectItem>
+                <SelectItem value="paused">Paused</SelectItem>
+                <SelectItem value="overdue">Overdue</SelectItem>
               </SelectContent>
             </Select>
-            <LinkButton
-              variant="outline"
-              href="/new-payment"
-              className="flex items-center gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              New Payment
-            </LinkButton>
-            <FactsDialog />
           </div>
 
           {/* Table */}
@@ -216,23 +211,21 @@ export default function PaymentsTable() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12"></TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Scheduled
+                    Plan Name
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Effective
+                    Total Planned
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Total
+                    Status
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Applied
+                    Frequency
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Method Detail
-                  </TableHead>
-                  <TableHead className="font-semibold text-gray-900">
-                    Receipt Number
+                    Start Date
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
                     Notes
@@ -271,78 +264,124 @@ export default function PaymentsTable() {
                       </TableCell>
                     </TableRow>
                   ))
-                ) : data?.payments.length === 0 ? (
+                ) : data?.paymentPlans.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={8}
                       className="text-center py-8 text-gray-500"
                     >
-                      No payments found
+                      No payment plans found
                     </TableCell>
                   </TableRow>
                 ) : (
-                  data?.payments.map((payment) => (
-                    <React.Fragment key={payment.id}>
+                  data?.paymentPlans.map((plan) => (
+                    <React.Fragment key={plan.id}>
                       <TableRow className="hover:bg-gray-50">
-                        <TableCell className="font-medium">
-                          {formatDate(payment.receiptIssuedDate)}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {formatDate(payment.paymentDate)}
-                        </TableCell>
                         <TableCell>
-                          {formatCurrency(payment.amount, payment.currency)}
-                        </TableCell>
-                        <TableCell>
-                          {formatCurrency(payment.amount, payment.currency)}
-                        </TableCell>
-                        <TableCell>{payment.paymentMethod || "-"}</TableCell>
-                        <TableCell>{payment.referenceNumber || "-"}</TableCell>
-                        <TableCell>{payment.notes || "-"}</TableCell>
-
-                        <TableCell>
-                          <Link
-                            className="font-medium text-primary hover:underline hover:text-primary-dark transition-colors duration-200"
-                            href="/"
-                          >
-                            View
-                          </Link>
-                          {/* <Button
+                          <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => toggleRowExpansion(payment.id)}
+                            onClick={() => toggleRowExpansion(plan.id)}
                             className="p-1"
                           >
-                            {expandedRows.has(payment.id) ? (
+                            {expandedRows.has(plan.id) ? (
                               <ChevronDown className="h-4 w-4" />
                             ) : (
                               <ChevronRight className="h-4 w-4" />
                             )}
-                          </Button> */}
+                          </Button>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {plan.planName || "N/A"}
+                        </TableCell>
+                        <TableCell>
+                          {formatCurrency(
+                            plan.totalPlannedAmount,
+                            plan.currency
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(
+                              plan.planStatus
+                            )}`}
+                          >
+                            {plan.planStatus || "N/A"}
+                          </span>
+                        </TableCell>
+                        <TableCell>{plan.frequency || "-"}</TableCell>
+                        <TableCell>{formatDate(plan.startDate)}</TableCell>
+                        <TableCell>{plan.notes || "-"}</TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="p-1">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem>
+                                Edit Payment Plan
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>View Details</DropdownMenuItem>
+                              <DropdownMenuItem className="text-red-600">
+                                Delete Payment Plan
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
 
                       {/* Expanded Row Content */}
-                      {expandedRows.has(payment.id) && (
+                      {expandedRows.has(plan.id) && (
                         <TableRow>
                           <TableCell colSpan={8} className="bg-gray-50 p-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              {/* USD Amounts */}
+                              {/* Financial Details */}
                               <div className="space-y-3">
                                 <h4 className="font-semibold text-gray-900">
-                                  USD Amounts
+                                  Financial Details
                                 </h4>
                                 <div className="space-y-2 text-sm">
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Amount (USD):
+                                      Installment Amount:
                                     </span>
                                     <span className="font-medium">
-                                      {payment.amountUsd
-                                        ? `$${parseFloat(
-                                            payment.amountUsd
-                                          ).toLocaleString()}`
-                                        : "N/A"}
+                                      {formatCurrency(
+                                        plan.installmentAmount,
+                                        plan.currency
+                                      )}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
+                                      Total Paid:
+                                    </span>
+                                    <span className="font-medium">
+                                      {formatCurrency(
+                                        plan.totalPaid,
+                                        plan.currency
+                                      )}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
+                                      Total Paid (USD):
+                                    </span>
+                                    <span className="font-medium">
+                                      {plan.totalPaidUsd}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
+                                      Remaining Amount:
+                                    </span>
+                                    <span className="font-medium">
+                                      {formatCurrency(
+                                        plan.remainingAmount,
+                                        plan.currency
+                                      )}
                                     </span>
                                   </div>
                                 </div>
@@ -356,58 +395,66 @@ export default function PaymentsTable() {
                                 <div className="space-y-2 text-sm">
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Received Date:
+                                      Number of Installments:
                                     </span>
                                     <span className="font-medium">
-                                      {formatDate(payment.receivedDate)}
+                                      {plan.numberOfInstallments}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Processed Date:
+                                      Installments Paid:
                                     </span>
                                     <span className="font-medium">
-                                      {formatDate(payment.processedDate)}
+                                      {plan.installmentsPaid}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Check Number:
+                                      End Date:
                                     </span>
                                     <span className="font-medium">
-                                      {payment.checkNumber || "N/A"}
+                                      {formatDate(plan.endDate)}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Receipt Number:
+                                      Next Payment Date:
                                     </span>
                                     <span className="font-medium">
-                                      {payment.receiptNumber || "N/A"}
+                                      {formatDate(plan.nextPaymentDate)}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Receipt Issued:
+                                      Auto Renew:
                                     </span>
                                     <span className="font-medium">
-                                      {payment.receiptIssued ? "Yes" : "No"}
+                                      {plan.autoRenew ? "Yes" : "No"}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Receipt Issued Date:
+                                      Reminders Sent:
                                     </span>
                                     <span className="font-medium">
-                                      {formatDate(payment.receiptIssuedDate)}
+                                      {plan.remindersSent}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Payment Plan ID:
+                                      Last Reminder Date:
                                     </span>
                                     <span className="font-medium">
-                                      {payment.paymentPlanId || "N/A"}
+                                      {formatDate(plan.lastReminderDate)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray600">
+                                      Internal Notes:
+                                    </span>
+                                    <span className="font-medium">
+                                      {plan.internalNotes || "N/A"}
                                     </span>
                                   </div>
                                 </div>
@@ -416,14 +463,10 @@ export default function PaymentsTable() {
 
                             {/* Action Button */}
                             <div className="mt-6 pt-4 flex justify-end gap-2 border-t">
-                              <LinkButton
-                                variant="secondary"
-                                href={`/contacts/1/payment-plans?pledgeId=${pledgeId}`}
-                                className="flex items-center gap-2"
-                              >
-                                <BadgeDollarSignIcon className="h-4 w-4" />
-                                Payment Plans
-                              </LinkButton>
+                              <Button className="flex items-center gap-2">
+                                <Plus className="h-4 w-4" />
+                                Add From Facts
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -436,12 +479,12 @@ export default function PaymentsTable() {
           </div>
 
           {/* Pagination with safe values */}
-          {data && data.payments.length > 0 && (
+          {data && data.paymentPlans.length > 0 && (
             <div className="flex items-center justify-between mt-6">
               <div className="text-sm text-gray-600">
                 Showing {(currentPage - 1) * currentLimit + 1} to{" "}
-                {Math.min(currentPage * currentLimit, data.payments.length)} of{" "}
-                {data.payments.length} payments
+                {Math.min(currentPage * currentLimit, data.paymentPlans.length)}{" "}
+                of {data.paymentPlans.length} payment plans
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -461,7 +504,7 @@ export default function PaymentsTable() {
                   variant="outline"
                   size="sm"
                   onClick={() => setPage(currentPage + 1)}
-                  disabled={data.payments.length < currentLimit}
+                  disabled={data.paymentPlans.length < currentLimit}
                 >
                   Next
                 </Button>
