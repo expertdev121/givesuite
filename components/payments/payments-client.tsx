@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useState } from "react";
@@ -31,37 +30,36 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  BadgeDollarSign,
+  MoreHorizontal,
+  Search,
+  Plus,
   ChevronDown,
   ChevronRight,
-  MoreHorizontal,
-  Plus,
-  Search,
 } from "lucide-react";
-import { usePledgesQuery } from "@/lib/query/usePledgeData";
-import { LinkButton } from "../ui/next-link";
+import { usePaymentsQuery } from "@/lib/query/usePayments";
 
-interface PledgesTableProps {
-  contactId: number;
-}
+const PaymentStatusEnum = z.enum([
+  "pending",
+  "completed",
+  "failed",
+  "cancelled",
+  "refunded",
+  "processing",
+]);
 
 const QueryParamsSchema = z.object({
-  contactId: z.number().positive(),
-  categoryId: z.number().positive().nullable().optional(),
+  pledgeId: z.number().positive(),
   page: z.number().min(1).default(1),
   limit: z.number().min(1).max(100).default(10),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  status: z.enum(["fullyPaid", "partiallyPaid", "unpaid"]).optional(),
   search: z.string().optional(),
+  paymentStatus: PaymentStatusEnum.optional(),
 });
 
-type StatusType = "fullyPaid" | "partiallyPaid" | "unpaid";
+type PaymentStatusType = z.infer<typeof PaymentStatusEnum>;
 
-export default function PledgesTable({ contactId }: PledgesTableProps) {
+export default function PaymentsTable() {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
-
-  const [categoryId] = useQueryState("categoryId", {
+  const [pledgeId] = useQueryState("pledgeId", {
     parse: (value) => {
       if (!value) return null;
       const parsed = parseInt(value);
@@ -70,6 +68,7 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
     serialize: (value) =>
       value !== null && value !== undefined ? value.toString() : "",
   });
+
   const [page, setPage] = useQueryState("page", {
     parse: (value) => parseInt(value) || 1,
     serialize: (value) => value.toString(),
@@ -79,44 +78,43 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
     serialize: (value) => value.toString(),
   });
   const [search, setSearch] = useQueryState("search");
-  const [status, setStatus] = useQueryState<StatusType | null>("status", {
-    parse: (value) => {
-      if (
-        value === "fullyPaid" ||
-        value === "partiallyPaid" ||
-        value === "unpaid"
-      ) {
-        return value as StatusType;
-      }
-      return null;
-    },
-    serialize: (value) => value ?? "",
-  });
-  const [startDate] = useQueryState("startDate");
-  const [endDate] = useQueryState("endDate");
+  const [paymentStatus, setPaymentStatus] =
+    useQueryState<PaymentStatusType | null>("paymentStatus", {
+      parse: (value) => {
+        if (
+          value === "pending" ||
+          value === "completed" ||
+          value === "failed" ||
+          value === "cancelled" ||
+          value === "refunded" ||
+          value === "processing"
+        ) {
+          return value as PaymentStatusType;
+        }
+        return null;
+      },
+      serialize: (value) => value ?? "",
+    });
 
   const currentPage = page ?? 1;
   const currentLimit = limit ?? 10;
 
   const queryParams = QueryParamsSchema.parse({
-    contactId,
-    categoryId: categoryId !== null ? categoryId : undefined,
+    pledgeId,
     page: currentPage,
     limit: currentLimit,
     search: search || undefined,
-    status: status || undefined,
-    startDate: startDate || undefined,
-    endDate: endDate || undefined,
+    paymentStatus: paymentStatus || undefined,
   });
 
-  const { data, isLoading, error } = usePledgesQuery(queryParams as any);
+  const { data, isLoading, error } = usePaymentsQuery(queryParams);
 
-  const toggleRowExpansion = (pledgeId: number) => {
+  const toggleRowExpansion = (paymentId: number) => {
     const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(pledgeId)) {
-      newExpanded.delete(pledgeId);
+    if (newExpanded.has(paymentId)) {
+      newExpanded.delete(paymentId);
     } else {
-      newExpanded.add(pledgeId);
+      newExpanded.add(paymentId);
     }
     setExpandedRows(newExpanded);
   };
@@ -130,22 +128,31 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
     }).format(parseFloat(amount));
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
+  const formatDate = (dateString: string | null) => {
+    return dateString ? new Date(dateString).toLocaleDateString() : "N/A";
   };
 
-  const getProgressColor = (percentage: number) => {
-    if (percentage >= 100) return "bg-green-500";
-    if (percentage >= 75) return "bg-blue-500";
-    if (percentage >= 50) return "bg-yellow-500";
-    return "bg-red-500";
+  const getStatusColor = (status: PaymentStatusType | null) => {
+    switch (status) {
+      case "completed":
+        return "bg-green-100 text-green-800";
+      case "pending":
+      case "processing":
+        return "bg-yellow-100 text-yellow-800";
+      case "failed":
+      case "cancelled":
+      case "refunded":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
   };
 
   if (error) {
     return (
       <Alert className="mx-4 my-6">
         <AlertDescription>
-          Failed to load pledges data. Please try again later.
+          Failed to load payments data. Please try again later.
         </AlertDescription>
       </Alert>
     );
@@ -156,7 +163,7 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle>Pledges</CardTitle>
+          <CardTitle>Payments</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -164,7 +171,7 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Search pledges..."
+                placeholder="Search payments..."
                 value={search || ""}
                 onChange={(e) => setSearch(e.target.value || null)}
                 className="pl-10"
@@ -172,16 +179,19 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
             </div>
 
             <Select
-              value={status as string}
+              value={paymentStatus ?? ""}
               onValueChange={(value) => {
                 if (
-                  value === "fullyPaid" ||
-                  value === "partiallyPaid" ||
-                  value === "unpaid"
+                  value === "pending" ||
+                  value === "completed" ||
+                  value === "failed" ||
+                  value === "cancelled" ||
+                  value === "refunded" ||
+                  value === "processing"
                 ) {
-                  setStatus(value as StatusType);
+                  setPaymentStatus(value as PaymentStatusType);
                 } else {
-                  setStatus(null);
+                  setPaymentStatus(null);
                 }
               }}
             >
@@ -189,9 +199,12 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="fullyPaid">Fully Paid</SelectItem>
-                <SelectItem value="partiallyPaid">Partially Paid</SelectItem>
-                <SelectItem value="unpaid">Unpaid</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="failed">Failed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+                <SelectItem value="refunded">Refunded</SelectItem>
+                <SelectItem value="processing">Processing</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -203,22 +216,22 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                 <TableRow>
                   <TableHead className="w-12"></TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Pledge Date
+                    Payment Date
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Pledge Detail
+                    Amount
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Pledge Amount
+                    Status
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Paid
+                    Reference Number
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Balance
+                    Payment Method
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Progress
+                    Notes
                   </TableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
@@ -235,13 +248,10 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                         <Skeleton className="h-4 w-20" />
                       </TableCell>
                       <TableCell>
-                        <Skeleton className="h-4 w-32" />
-                      </TableCell>
-                      <TableCell>
                         <Skeleton className="h-4 w-24" />
                       </TableCell>
                       <TableCell>
-                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-4 w-16" />
                       </TableCell>
                       <TableCell>
                         <Skeleton className="h-4 w-24" />
@@ -250,34 +260,34 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                         <Skeleton className="h-4 w-20" />
                       </TableCell>
                       <TableCell>
-                        <Skeleton className="h-4 w-16" />
+                        <Skeleton className="h-4 w-32" />
                       </TableCell>
                       <TableCell>
                         <Skeleton className="h-4 w-4" />
                       </TableCell>
                     </TableRow>
                   ))
-                ) : data?.pledges.length === 0 ? (
+                ) : data?.payments.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={9}
+                      colSpan={8}
                       className="text-center py-8 text-gray-500"
                     >
-                      No pledges found
+                      No payments found
                     </TableCell>
                   </TableRow>
                 ) : (
-                  data?.pledges.map((pledge) => (
-                    <React.Fragment key={pledge.id}>
+                  data?.payments.map((payment) => (
+                    <React.Fragment key={payment.id}>
                       <TableRow className="hover:bg-gray-50">
                         <TableCell>
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => toggleRowExpansion(pledge.id)}
+                            onClick={() => toggleRowExpansion(payment.id)}
                             className="p-1"
                           >
-                            {expandedRows.has(pledge.id) ? (
+                            {expandedRows.has(payment.id) ? (
                               <ChevronDown className="h-4 w-4" />
                             ) : (
                               <ChevronRight className="h-4 w-4" />
@@ -285,45 +295,23 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                           </Button>
                         </TableCell>
                         <TableCell className="font-medium">
-                          {formatDate(pledge.pledgeDate)}
+                          {formatDate(payment.paymentDate)}
                         </TableCell>
                         <TableCell>
-                          {pledge.categoryName?.split(" ")[0]} {">"}{" "}
-                          {pledge.description || "-"}
-                        </TableCell>
-
-                        <TableCell>
-                          {formatCurrency(
-                            pledge.originalAmount,
-                            pledge.currency
-                          )}
+                          {formatCurrency(payment.amount, payment.currency)}
                         </TableCell>
                         <TableCell>
-                          {formatCurrency(pledge.totalPaid, pledge.currency)}
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(
+                              payment.paymentStatus
+                            )}`}
+                          >
+                            {payment.paymentStatus || "N/A"}
+                          </span>
                         </TableCell>
-                        <TableCell>
-                          {formatCurrency(pledge.balance, pledge.currency)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className="w-16 bg-gray-200 rounded-full h-2">
-                              <div
-                                className={`h-2 rounded-full ${getProgressColor(
-                                  pledge.progressPercentage
-                                )}`}
-                                style={{
-                                  width: `${Math.min(
-                                    pledge.progressPercentage,
-                                    100
-                                  )}%`,
-                                }}
-                              />
-                            </div>
-                            <span className="text-sm text-gray-600">
-                              {pledge.progressPercentage}%
-                            </span>
-                          </div>
-                        </TableCell>
+                        <TableCell>{payment.referenceNumber || "-"}</TableCell>
+                        <TableCell>{payment.paymentMethod || "-"}</TableCell>
+                        <TableCell>{payment.notes || "-"}</TableCell>
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -332,10 +320,10 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem>Edit Pledge</DropdownMenuItem>
-                              <DropdownMenuItem>View History</DropdownMenuItem>
+                              <DropdownMenuItem>Edit Payment</DropdownMenuItem>
+                              <DropdownMenuItem>View Details</DropdownMenuItem>
                               <DropdownMenuItem className="text-red-600">
-                                Delete Pledge
+                                Delete Payment
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -343,9 +331,9 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                       </TableRow>
 
                       {/* Expanded Row Content */}
-                      {expandedRows.has(pledge.id) && (
+                      {expandedRows.has(payment.id) && (
                         <TableRow>
-                          <TableCell colSpan={9} className="bg-gray-50 p-6">
+                          <TableCell colSpan={8} className="bg-gray-50 p-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               {/* USD Amounts */}
                               <div className="space-y-3">
@@ -355,36 +343,12 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                                 <div className="space-y-2 text-sm">
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Pledge Amount (USD):
+                                      Amount (USD):
                                     </span>
                                     <span className="font-medium">
-                                      {pledge.originalAmountUsd
+                                      {payment.amountUsd
                                         ? `$${parseFloat(
-                                            pledge.originalAmountUsd
-                                          ).toLocaleString()}`
-                                        : "N/A"}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      Paid (USD):
-                                    </span>
-                                    <span className="font-medium">
-                                      {pledge.totalPaidUsd
-                                        ? `$${parseFloat(
-                                            pledge.totalPaidUsd
-                                          ).toLocaleString()}`
-                                        : "N/A"}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      Balance (USD):
-                                    </span>
-                                    <span className="font-medium">
-                                      {pledge.balanceUsd
-                                        ? `$${parseFloat(
-                                            pledge.balanceUsd
+                                            payment.amountUsd
                                           ).toLocaleString()}`
                                         : "N/A"}
                                     </span>
@@ -398,42 +362,72 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                                   Additional Details
                                 </h4>
                                 <div className="space-y-2 text-sm">
-                                  <div>
+                                  <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Category Description:
+                                      Received Date:
                                     </span>
-                                    <p className="mt-1 text-gray-900">
-                                      {pledge.categoryDescription ||
-                                        "No description available"}
-                                    </p>
+                                    <span className="font-medium">
+                                      {formatDate(payment.receivedDate)}
+                                    </span>
                                   </div>
-                                  <div>
+                                  <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Notes:
+                                      Processed Date:
                                     </span>
-                                    <p className="mt-1 text-gray-900">
-                                      {pledge.notes || "No notes available"}
-                                    </p>
+                                    <span className="font-medium">
+                                      {formatDate(payment.processedDate)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
+                                      Check Number:
+                                    </span>
+                                    <span className="font-medium">
+                                      {payment.checkNumber || "N/A"}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
+                                      Receipt Number:
+                                    </span>
+                                    <span className="font-medium">
+                                      {payment.receiptNumber || "N/A"}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
+                                      Receipt Issued:
+                                    </span>
+                                    <span className="font-medium">
+                                      {payment.receiptIssued ? "Yes" : "No"}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
+                                      Receipt Issued Date:
+                                    </span>
+                                    <span className="font-medium">
+                                      {formatDate(payment.receiptIssuedDate)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
+                                      Payment Plan ID:
+                                    </span>
+                                    <span className="font-medium">
+                                      {payment.paymentPlanId || "N/A"}
+                                    </span>
                                   </div>
                                 </div>
                               </div>
                             </div>
 
                             {/* Action Button */}
-                            <div className="mt-6 pt-4 flex gap-2 border-t">
+                            <div className="mt-6 pt-4 flex justify-end gap-2 border-t">
                               <Button className="flex items-center gap-2">
                                 <Plus className="h-4 w-4" />
-                                Add New Payment
+                                Add From Facts
                               </Button>
-
-                              <LinkButton
-                                href={`/contacts/${contactId}/payments?pledgeId=${pledge.id}`}
-                                variant="outline"
-                                className="flex items-center gap-2"
-                              >
-                                <BadgeDollarSign className="h-4 w-4" />
-                                View Payments
-                              </LinkButton>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -446,12 +440,12 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
           </div>
 
           {/* Pagination with safe values */}
-          {data && data.pledges.length > 0 && (
+          {data && data.payments.length > 0 && (
             <div className="flex items-center justify-between mt-6">
               <div className="text-sm text-gray-600">
                 Showing {(currentPage - 1) * currentLimit + 1} to{" "}
-                {Math.min(currentPage * currentLimit, data.pledges.length)} of{" "}
-                {data.pledges.length} pledges
+                {Math.min(currentPage * currentLimit, data.payments.length)} of{" "}
+                {data.payments.length} payments
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -471,7 +465,7 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                   variant="outline"
                   size="sm"
                   onClick={() => setPage(currentPage + 1)}
-                  disabled={data.pledges.length < currentLimit}
+                  disabled={data.payments.length < currentLimit}
                 >
                   Next
                 </Button>

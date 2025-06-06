@@ -1,7 +1,6 @@
+import PaymentsTable from "@/components/payments/payments-client";
 import React from "react";
 
-const Payments = () => {
-  return <div>Payments</div>;
-};
-
-export default Payments;
+export default async function PaymentDetailsPage() {
+  return <PaymentsTable />;
+}
