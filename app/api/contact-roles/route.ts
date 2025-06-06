@@ -5,6 +5,7 @@ import { z } from "zod";
 import { unstable_cache } from "next/cache";
 import { ErrorHandler } from "@/lib/error-handler";
 import { contactRoles, NewContactRole } from "@/lib/db/schema";
+import { contactRoleSchema } from "@/lib/form-schemas/contact-role";
 
 const CACHE_TTL_SECONDS = 60;
 
@@ -18,30 +19,6 @@ const querySchema = z.object({
   isActive: z.coerce.boolean().optional(),
   contactId: z.coerce.number().positive().optional(),
 });
-
-const contactRoleSchema = z
-  .object({
-    contactId: z.number().positive(),
-    roleName: z.string().min(1, "Role name is required"),
-    isActive: z.boolean().default(true),
-    startDate: z.string().datetime().optional().or(z.date().optional()),
-    endDate: z.string().datetime().optional().or(z.date().optional()),
-    notes: z.string().optional(),
-  })
-  .refine(
-    (data) => {
-      if (data.startDate && data.endDate) {
-        const start = new Date(data.startDate);
-        const end = new Date(data.endDate);
-        return end > start;
-      }
-      return true;
-    },
-    {
-      message: "End date must be after start date",
-      path: ["endDate"],
-    }
-  );
 
 export async function GET(request: NextRequest) {
   try {
