@@ -24,7 +24,7 @@ interface ApiResponse {
 }
 
 const QueryParamsSchema = z.object({
-  contactId: z.number().positive(),
+  contactId: z.number().positive().optional(),
   categoryId: z.number().positive().optional(),
   page: z.number().min(1).default(1),
   limit: z.number().min(1).max(100).default(10),
@@ -51,12 +51,10 @@ const fetchPledges = async (params: QueryParams): Promise<ApiResponse> => {
   };
 
   try {
-    const response = await axios.get<ApiResponse>(
-      `/api/contacts/${validatedParams.contactId}/pledges`,
-      {
-        params: queryParams,
-      }
-    );
+    const url = `/api/contacts/${validatedParams.contactId}/pledges`;
+    const response = await axios.get<ApiResponse>(url, {
+      params: queryParams,
+    });
     return response.data;
   } catch (error) {
     throw new Error(
@@ -71,6 +69,5 @@ export const usePledgesQuery = (params: QueryParams) => {
   return useQuery<ApiResponse, Error>({
     queryKey: ["pledges", params],
     queryFn: () => fetchPledges(params),
-    enabled: !!params.contactId && !isNaN(params.contactId),
   });
 };
