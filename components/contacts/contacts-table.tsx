@@ -147,10 +147,7 @@ export default function ContactsTable() {
             <TableHeader>
               <TableRow>
                 <TableHead className="font-semibold text-gray-900">
-                  First Name
-                </TableHead>
-                <TableHead className="font-semibold text-gray-900">
-                  Last Name
+                  Full Name
                 </TableHead>
                 <TableHead className="font-semibold text-gray-900">
                   Email
@@ -203,10 +200,7 @@ export default function ContactsTable() {
                 data?.contacts.map((contact) => (
                   <TableRow key={contact.id} className="hover:bg-gray-50">
                     <TableCell className="font-medium">
-                      {contact.firstName}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {contact.lastName}
+                      {contact.lastName} {contact.firstName}
                     </TableCell>
                     <TableCell>{contact.email || "N/A"}</TableCell>
                     <TableCell>{contact.phone || "N/A"}</TableCell>
