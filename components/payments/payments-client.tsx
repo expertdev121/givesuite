@@ -303,7 +303,7 @@ export default function PaymentsTable() {
                         <TableCell>
                           <Link
                             className="font-medium text-primary hover:underline hover:text-primary-dark transition-colors duration-200"
-                            href="/"
+                            href={`/contacts/1/payment-plans?pledgeId=${pledgeId}`}
                           >
                             View
                           </Link>
