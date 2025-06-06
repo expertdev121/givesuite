@@ -1,0 +1,235 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { sql, desc, asc, or, ilike, and, eq } from "drizzle-orm";
+import { z } from "zod";
+import { unstable_cache } from "next/cache";
+import { ErrorHandler } from "@/lib/error-handler";
+import { category, NewCategory } from "@/lib/db/schema";
+
+const CACHE_TTL_SECONDS = 60;
+
+const querySchema = z.object({
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(100).default(10),
+  search: z.string().optional(),
+  sortBy: z.string().default("updatedAt"),
+  sortOrder: z.enum(["asc", "desc"]).default("desc"),
+  isActive: z.coerce.boolean().optional(),
+});
+
+const categorySchema = z.object({
+  name: z.string().min(1, "Category name is required"),
+  description: z.string().optional(),
+  isActive: z.boolean().default(true),
+});
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const parsedParams = querySchema.safeParse({
+      page: searchParams.get("page") ?? undefined,
+      limit: searchParams.get("limit") ?? undefined,
+      search: searchParams.get("search") ?? undefined,
+      sortBy: searchParams.get("sortBy") ?? undefined,
+      sortOrder: searchParams.get("sortOrder") ?? undefined,
+      isActive: searchParams.get("isActive") ?? undefined,
+    });
+
+    if (!parsedParams.success) {
+      return NextResponse.json(
+        {
+          error: "Invalid query parameters",
+          details: parsedParams.error.issues.map((issue) => ({
+            field: issue.path.join("."),
+            message: issue.message,
+          })),
+        },
+        { status: 400 }
+      );
+    }
+
+    const { page, limit, search, sortBy, sortOrder, isActive } =
+      parsedParams.data;
+    const offset = (page - 1) * limit;
+
+    const cacheKey = `categories:${page}:${limit}:${
+      search || ""
+    }:${sortBy}:${sortOrder}:${isActive ?? ""}`;
+    const cacheTags = [
+      `categories`,
+      `categories:page:${page}`,
+      search && `categories:search:${search}`,
+      isActive !== undefined && `categories:isActive:${isActive}`,
+    ].filter(Boolean) as string[];
+
+    const cachedQuery = unstable_cache(
+      async () => {
+        const conditions = [];
+
+        if (search) {
+          conditions.push(
+            or(
+              ilike(category.name, `%${search}%`),
+              ilike(category.description, `%${search}%`)
+            )
+          );
+        }
+        if (isActive !== undefined)
+          conditions.push(eq(category.isActive, isActive));
+
+        const whereClause =
+          conditions.length > 0 ? and(...conditions) : undefined;
+        let orderByClause;
+        switch (sortBy) {
+          case "id":
+            orderByClause =
+              sortOrder === "asc" ? asc(category.id) : desc(category.id);
+            break;
+          case "name":
+            orderByClause =
+              sortOrder === "asc" ? asc(category.name) : desc(category.name);
+            break;
+          case "isActive":
+            orderByClause =
+              sortOrder === "asc"
+                ? asc(category.isActive)
+                : desc(category.isActive);
+            break;
+          case "createdAt":
+            orderByClause =
+              sortOrder === "asc"
+                ? asc(category.createdAt)
+                : desc(category.createdAt);
+            break;
+          case "updatedAt":
+          default:
+            orderByClause =
+              sortOrder === "asc"
+                ? asc(category.updatedAt)
+                : desc(category.updatedAt);
+            break;
+        }
+
+        const query = db
+          .select()
+          .from(category)
+          .where(whereClause)
+          .orderBy(orderByClause)
+          .limit(limit)
+          .offset(offset);
+
+        const countQuery = db
+          .select({
+            count: sql<number>`count(*)`.as("count"),
+          })
+          .from(category)
+          .where(whereClause);
+
+        const [categories, totalCountResult] = await Promise.all([
+          query.execute(),
+          countQuery.execute(),
+        ]);
+
+        const totalCount = Number(totalCountResult[0]?.count || 0);
+        const totalPages = Math.ceil(totalCount / limit);
+
+        return {
+          categories,
+          pagination: {
+            page,
+            limit,
+            totalCount,
+            totalPages,
+            hasNextPage: page < totalPages,
+            hasPreviousPage: page > 1,
+          },
+          filters: {
+            search,
+            isActive,
+            sortBy,
+            sortOrder,
+          },
+        };
+      },
+      [cacheKey],
+      {
+        tags: cacheTags,
+        revalidate: CACHE_TTL_SECONDS,
+      }
+    );
+
+    const response = await cachedQuery();
+
+    return NextResponse.json(response, {
+      headers: {
+        "Cache-Control": `public, s-maxage=${CACHE_TTL_SECONDS}`,
+        Vary: "Origin, Accept-Encoding",
+        "X-Total-Count": response.pagination.totalCount.toString(),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching categories:", error);
+    return NextResponse.json(
+      {
+        error: "Failed to fetch categories",
+        message: error instanceof Error ? error.message : "Unknown error",
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const validatedData = categorySchema.parse(body);
+
+    const existingCategory = await db
+      .select()
+      .from(category)
+      .where(
+        and(eq(category.name, validatedData.name), eq(category.isActive, true))
+      )
+      .limit(1);
+
+    if (existingCategory.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Duplicate category",
+          message: `Category with name '${validatedData.name}' already exists`,
+        },
+        { status: 409 }
+      );
+    }
+
+    const newCategory: NewCategory = {
+      ...validatedData,
+    };
+
+    const result = await db.insert(category).values(newCategory).returning();
+
+    return NextResponse.json(
+      {
+        message: "Category created successfully",
+        category: result[0],
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        {
+          error: "Validation failed",
+          details: error.issues.map((issue) => ({
+            field: issue.path.join("."),
+            message: issue.message,
+          })),
+        },
+        { status: 400 }
+      );
+    }
+
+    return ErrorHandler.handle(error);
+  }
+}
