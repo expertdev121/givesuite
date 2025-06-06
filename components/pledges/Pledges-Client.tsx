@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useState } from "react";
@@ -43,10 +44,9 @@ interface PledgesTableProps {
   contactId: number;
 }
 
-// Zod schema for query parameters
 const QueryParamsSchema = z.object({
   contactId: z.number().positive(),
-  categoryId: z.number().positive().optional(),
+  categoryId: z.number().positive().nullable().optional(),
   page: z.number().min(1).default(1),
   limit: z.number().min(1).max(100).default(10),
   startDate: z.string().optional(),
@@ -55,15 +55,19 @@ const QueryParamsSchema = z.object({
   search: z.string().optional(),
 });
 
-// Status type for type safety
 type StatusType = "fullyPaid" | "partiallyPaid" | "unpaid";
 
 export default function PledgesTable({ contactId }: PledgesTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
   const [categoryId] = useQueryState("categoryId", {
-    parse: (value) => (value ? parseInt(value) : undefined),
-    serialize: (value) => value?.toString() ?? "",
+    parse: (value) => {
+      if (!value) return null;
+      const parsed = parseInt(value);
+      return isNaN(parsed) ? null : parsed;
+    },
+    serialize: (value) =>
+      value !== null && value !== undefined ? value.toString() : "",
   });
   const [page, setPage] = useQueryState("page", {
     parse: (value) => parseInt(value) || 1,
@@ -95,7 +99,7 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
 
   const queryParams = QueryParamsSchema.parse({
     contactId,
-    categoryId,
+    categoryId: categoryId !== null ? categoryId : undefined,
     page: currentPage,
     limit: currentLimit,
     search: search || undefined,
@@ -104,7 +108,7 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
     endDate: endDate || undefined,
   });
 
-  const { data, isLoading, error } = usePledgesQuery(queryParams);
+  const { data, isLoading, error } = usePledgesQuery(queryParams as any);
 
   const toggleRowExpansion = (pledgeId: number) => {
     const newExpanded = new Set(expandedRows);

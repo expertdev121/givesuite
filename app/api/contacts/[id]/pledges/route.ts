@@ -1,21 +1,24 @@
 import { db } from "@/lib/db";
-import { pledge, category } from "@/lib/db/schema";
-import { sql, eq, and, or, gte, lte, ilike } from "drizzle-orm";
+import { pledge, category, contact } from "@/lib/db/schema";
+import { sql, eq, and, or, gte, lte, ilike, SQL } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id?: string }> }
 ) {
   const { id } = await params;
-  const contactId = parseInt(id, 10);
+  const contactId = id ? parseInt(id, 10) : null;
+
   const { searchParams } = new URL(request.url);
 
-  if (isNaN(contactId) || contactId <= 0) {
+  if (contactId !== null && (isNaN(contactId) || contactId <= 0)) {
     return NextResponse.json({ error: "Invalid contact ID" }, { status: 400 });
   }
 
-  const categoryId = searchParams.get("categoryId");
+  const categoryId = searchParams.get("categoryId")
+    ? parseInt(searchParams.get("categoryId")!, 10)
+    : null;
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "10");
   const startDate = searchParams.get("startDate");
@@ -33,10 +36,7 @@ export async function GET(
     );
   }
 
-  if (
-    categoryId &&
-    (isNaN(parseInt(categoryId)) || parseInt(categoryId) <= 0)
-  ) {
+  if (categoryId && (isNaN(categoryId) || categoryId <= 0)) {
     return NextResponse.json({ error: "Invalid category ID" }, { status: 400 });
   }
 
@@ -66,12 +66,17 @@ export async function GET(
       })
       .from(pledge)
       .leftJoin(category, eq(pledge.categoryId, category.id))
-      .where(eq(pledge.contactId, contactId))
+      .leftJoin(contact, eq(pledge.contactId, contact.id))
       .$dynamic();
 
-    const conditions = [];
+    const conditions: SQL<unknown>[] = [];
+
+    if (contactId !== null) {
+      conditions.push(eq(pledge.contactId, contactId));
+    }
+
     if (categoryId) {
-      conditions.push(eq(pledge.categoryId, parseInt(categoryId)));
+      conditions.push(eq(pledge.categoryId, categoryId));
     }
     if (startDate) {
       conditions.push(gte(pledge.pledgeDate, startDate));
@@ -86,19 +91,29 @@ export async function GET(
         and(
           sql`${pledge.balance}::numeric > 0`,
           sql`${pledge.totalPaid}::numeric > 0`
-        )
+        )!
       );
     } else if (status === "unpaid") {
       conditions.push(eq(pledge.totalPaid, "0"));
     }
     if (search) {
-      conditions.push(
-        or(
-          ilike(pledge.description, `%${search}%`),
-          ilike(pledge.notes, `%${search}%`)
-        )
-      );
+      const searchConditions: SQL<unknown>[] = [];
+      if (pledge.description) {
+        searchConditions.push(
+          ilike(sql`COALESCE(${pledge.description}, '')`, `%${search}%`)
+        );
+      }
+      if (pledge.notes) {
+        searchConditions.push(
+          ilike(sql`COALESCE(${pledge.notes}, '')`, `%${search}%`)
+        );
+      }
+      if (searchConditions.length > 0) {
+        conditions.push(or(...searchConditions)!);
+      }
     }
+
+    // Apply conditions only if there are any
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
     }
