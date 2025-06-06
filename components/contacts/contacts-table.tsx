@@ -14,6 +14,7 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -112,29 +113,34 @@ export default function ContactsTable() {
 
           <Select
             value={sortBy as string | undefined}
-            onValueChange={(value) => setSortBy(value)}
+            onValueChange={(value) => setSortBy(value === "" ? null : value)}
           >
             <SelectTrigger className="w-full sm:w-36">
               <SelectValue placeholder="Sort By" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="updatedAt">Updated At</SelectItem>
-              <SelectItem value="firstName">First Name</SelectItem>
-              <SelectItem value="lastName">Last Name</SelectItem>
-              <SelectItem value="totalPledgedUsd">Total Pledged</SelectItem>
+              <SelectGroup>
+                <SelectItem value="updatedAt">Updated At</SelectItem>
+                <SelectItem value="firstName">First Name</SelectItem>
+                <SelectItem value="lastName">Last Name</SelectItem>
+                <SelectItem value="totalPledgedUsd">Total Pledged</SelectItem>
+              </SelectGroup>
             </SelectContent>
           </Select>
 
           <Select
             value={sortOrder as string | undefined}
             onValueChange={(value) => setSortOrder(value as "asc" | "desc")}
+            defaultValue="asc"
           >
             <SelectTrigger className="w-full sm:w-36">
               <SelectValue placeholder="Sort Order" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="asc">Ascending</SelectItem>
-              <SelectItem value="desc">Descending</SelectItem>
+              <SelectGroup>
+                <SelectItem value="asc">Ascending</SelectItem>
+                <SelectItem value="desc">Descending</SelectItem>
+              </SelectGroup>
             </SelectContent>
           </Select>
 
@@ -200,7 +206,8 @@ export default function ContactsTable() {
                 data?.contacts.map((contact) => (
                   <TableRow key={contact.id} className="hover:bg-gray-50">
                     <TableCell className="font-medium">
-                      {contact.lastName} {contact.firstName}
+                      {contact.lastName}
+                      {","} {contact.firstName}
                     </TableCell>
                     <TableCell>{contact.email || "N/A"}</TableCell>
                     <TableCell>{contact.phone || "N/A"}</TableCell>
