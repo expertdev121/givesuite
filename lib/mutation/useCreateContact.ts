@@ -1,5 +1,5 @@
 import { ContactFormValues } from "@/components/forms/contact-form";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ClientErrorHandler, ApiError } from "@/lib/error-handler";
 
@@ -23,10 +23,12 @@ async function createContact(data: ContactFormValues) {
 export function useCreateContact(
   setFieldError?: (field: string, message: string) => void
 ) {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createContact,
     onSuccess: () => {
       toast.success("Contact created successfully!");
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
     },
     onError: (error: ApiError) => {
       const errorMessage = ClientErrorHandler.handle(error, setFieldError);
