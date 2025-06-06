@@ -1,239 +1,460 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { Button } from "@/components/ui/button";
+
+import React, { useState } from "react";
+import { useQueryState } from "nuqs";
+import { z } from "zod";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useDataTable } from "@/hooks/use-data-table";
-import type { Column, ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal } from "lucide-react";
-import * as React from "react";
-import { DataTable } from "../data-table/data-table";
-import { DataTableColumnHeader } from "../data-table/data-table-column-header";
-import { DataTableToolbar } from "../data-table/data-table-toolbar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  ChevronDown,
+  ChevronRight,
+  MoreHorizontal,
+  Plus,
+  Search,
+} from "lucide-react";
 import { usePledgesQuery } from "@/lib/query/usePledgeData";
-
-interface Project {
-  id: number;
-  pledgeDate: string;
-  description: string | null;
-  originalAmount: string;
-  currency: string;
-  originalAmountUsd: string | null;
-  totalPaid: string;
-  totalPaidUsd: string | null;
-  balance: string;
-  balanceUsd: string | null;
-  notes: string | null;
-  categoryName: string | null;
-  categoryDescription: string | null;
-  progressPercentage: number;
-}
 
 interface PledgesTableProps {
   contactId: number;
-  categoryId?: number;
-  page?: number;
-  limit?: number;
-  startDate?: string;
-  endDate?: string;
-  status?: "fullyPaid" | "partiallyPaid" | "unpaid";
-  search?: string;
 }
 
-export function PledgesTable({
-  contactId,
-  categoryId,
-  page = 1,
-  limit = 10,
-  startDate,
-  endDate,
-  status,
-  search,
-}: PledgesTableProps) {
-  const {
-    data: pledgesData,
-    isLoading,
-    error,
-    isError,
-  } = usePledgesQuery({
+// Zod schema for query parameters
+const QueryParamsSchema = z.object({
+  contactId: z.number().positive(),
+  categoryId: z.number().positive().optional(),
+  page: z.number().min(1).default(1),
+  limit: z.number().min(1).max(100).default(10),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  status: z.enum(["fullyPaid", "partiallyPaid", "unpaid"]).optional(),
+  search: z.string().optional(),
+});
+
+// Status type for type safety
+type StatusType = "fullyPaid" | "partiallyPaid" | "unpaid";
+
+export default function PledgesTable({ contactId }: PledgesTableProps) {
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+
+  const [categoryId] = useQueryState("categoryId", {
+    parse: (value) => (value ? parseInt(value) : undefined),
+    serialize: (value) => value?.toString() ?? "",
+  });
+  const [page, setPage] = useQueryState("page", {
+    parse: (value) => parseInt(value) || 1,
+    serialize: (value) => value.toString(),
+  });
+  const [limit] = useQueryState("limit", {
+    parse: (value) => parseInt(value) || 10,
+    serialize: (value) => value.toString(),
+  });
+  const [search, setSearch] = useQueryState("search");
+  const [status, setStatus] = useQueryState<StatusType | null>("status", {
+    parse: (value) => {
+      if (
+        value === "fullyPaid" ||
+        value === "partiallyPaid" ||
+        value === "unpaid"
+      ) {
+        return value as StatusType;
+      }
+      return null;
+    },
+    serialize: (value) => value ?? "",
+  });
+  const [startDate] = useQueryState("startDate");
+  const [endDate] = useQueryState("endDate");
+
+  const currentPage = page ?? 1;
+  const currentLimit = limit ?? 10;
+
+  const queryParams = QueryParamsSchema.parse({
     contactId,
     categoryId,
-    page,
-    limit,
-    startDate,
-    endDate,
-    status,
-    search,
+    page: currentPage,
+    limit: currentLimit,
+    search: search || undefined,
+    status: status || undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
   });
 
-  const columns = React.useMemo<ColumnDef<Project>[]>(
-    () => [
-      {
-        id: "pledgeDate",
-        accessorKey: "pledgeDate",
-        header: ({ column }: { column: Column<Project, unknown> }) => (
-          <DataTableColumnHeader column={column} title="Pledge Date" />
-        ),
-        cell: ({ cell }) => {
-          const date = cell.getValue<Project["pledgeDate"]>();
-          return <div>{new Date(date).toLocaleDateString()}</div>;
-        },
-        meta: {
-          label: "Pledge Date",
-        },
-        enableColumnFilter: true,
-      },
-      {
-        id: "description",
-        accessorKey: "description",
-        header: ({ column }: { column: Column<Project, unknown> }) => (
-          <DataTableColumnHeader column={column} title="Pledge Detail" />
-        ),
-        cell: ({ cell }) => (
-          <div>{cell.getValue<Project["description"]>() || "—"}</div>
-        ),
-        meta: {
-          label: "Pledge Detail",
-        },
-        enableColumnFilter: true,
-      },
-      {
-        id: "originalAmountUsd",
-        accessorKey: "originalAmountUsd",
-        header: ({ column }: { column: Column<Project, unknown> }) => (
-          <DataTableColumnHeader column={column} title="Pledge Amount" />
-        ),
-        cell: ({ cell }) => {
-          const amount = cell.getValue<Project["originalAmountUsd"]>();
-          return (
-            <div>{amount ? `$${parseFloat(amount).toFixed(2)}` : "—"}</div>
-          );
-        },
-      },
-      {
-        id: "totalPaidUsd",
-        accessorKey: "totalPaidUsd",
-        header: ({ column }: { column: Column<Project, unknown> }) => (
-          <DataTableColumnHeader column={column} title="Paid" />
-        ),
-        cell: ({ cell }) => {
-          const amount = cell.getValue<Project["totalPaidUsd"]>();
-          return (
-            <div>{amount ? `$${parseFloat(amount).toFixed(2)}` : "$0.00"}</div>
-          );
-        },
-      },
-      {
-        id: "balanceUsd",
-        accessorKey: "balanceUsd",
-        header: ({ column }: { column: Column<Project, unknown> }) => (
-          <DataTableColumnHeader column={column} title="Balance" />
-        ),
-        cell: ({ cell }) => {
-          const amount = cell.getValue<Project["balanceUsd"]>();
-          return (
-            <div>{amount ? `$${parseFloat(amount).toFixed(2)}` : "$0.00"}</div>
-          );
-        },
-      },
-      {
-        id: "progressPercentage",
-        accessorKey: "progressPercentage",
-        header: ({ column }: { column: Column<Project, unknown> }) => (
-          <DataTableColumnHeader column={column} title="Progress" />
-        ),
-        cell: ({ cell }) => {
-          const progress = cell.getValue<Project["progressPercentage"]>();
-          return (
-            <div className="flex items-center space-x-2">
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-blue-600 h-2 rounded-full"
-                  style={{ width: `${progress}%` }}
-                ></div>
-              </div>
-              <span className="text-sm text-gray-600">{progress}%</span>
-            </div>
-          );
-        },
-      },
-      {
-        id: "actions",
-        cell: function Cell({ row }) {
-          const pledge = row.original;
-          return (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <MoreHorizontal className="h-4 w-4" />
-                  <span className="sr-only">Open menu</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() => console.log("Edit pledge:", pledge.id)}
-                >
-                  Edit
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => console.log("Delete pledge:", pledge.id)}
-                >
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          );
-        },
-        size: 32,
-      },
-    ],
-    []
-  );
+  const { data, isLoading, error } = usePledgesQuery(queryParams);
 
-  const { table } = useDataTable({
-    data: pledgesData?.pledges || [],
-    columns,
-    pageCount: pledgesData?.pledges
-      ? Math.ceil(pledgesData.pledges.length / limit)
-      : 1,
-    initialState: {
-      columnPinning: { right: ["actions"] },
-    },
-    getRowId: (row: any) => row.id,
-  });
+  const toggleRowExpansion = (pledgeId: number) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(pledgeId)) {
+      newExpanded.delete(pledgeId);
+    } else {
+      newExpanded.add(pledgeId);
+    }
+    setExpandedRows(newExpanded);
+  };
 
-  if (isLoading) {
+  const formatCurrency = (amount: string, currency: string) => {
+    return `${currency} ${parseFloat(amount).toLocaleString()}`;
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  const getProgressColor = (percentage: number) => {
+    if (percentage >= 100) return "bg-green-500";
+    if (percentage >= 75) return "bg-blue-500";
+    if (percentage >= 50) return "bg-yellow-500";
+    return "bg-red-500";
+  };
+
+  if (error) {
     return (
-      <div className="data-table-container">
-        <div className="flex items-center justify-center p-8">
-          <div className="text-sm text-gray-500">Loading pledges...</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <div className="data-table-container">
-        <div className="flex items-center justify-center p-8">
-          <div className="text-sm text-red-500">
-            Error loading pledges: {error?.message || "Unknown error"}
-          </div>
-        </div>
-      </div>
+      <Alert className="mx-4 my-6">
+        <AlertDescription>
+          Failed to load pledges data. Please try again later.
+        </AlertDescription>
+      </Alert>
     );
   }
 
   return (
-    <div className="data-table-container">
-      <DataTable table={table}>
-        <DataTableToolbar table={table} />
-      </DataTable>
+    <div className="space-y-6 p-4">
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Pledges</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            {/* Search */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Search pledges..."
+                value={search || ""}
+                onChange={(e) => setSearch(e.target.value || null)}
+                className="pl-10"
+              />
+            </div>
+
+            <Select
+              value={status as string}
+              onValueChange={(value) => {
+                if (
+                  value === "fullyPaid" ||
+                  value === "partiallyPaid" ||
+                  value === "unpaid"
+                ) {
+                  setStatus(value as StatusType);
+                } else {
+                  setStatus(null);
+                }
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-36">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fullyPaid">Fully Paid</SelectItem>
+                <SelectItem value="partiallyPaid">Partially Paid</SelectItem>
+                <SelectItem value="unpaid">Unpaid</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Table */}
+          <div className="border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12"></TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Paid</TableHead>
+                  <TableHead>Balance</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Progress</TableHead>
+                  <TableHead className="w-12"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  // Loading skeleton with safe limit value
+                  Array.from({ length: currentLimit }).map((_, index) => (
+                    <TableRow key={index}>
+                      <TableCell>
+                        <Skeleton className="h-4 w-4" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-20" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-32" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-20" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-16" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-4" />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : data?.pledges.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={9}
+                      className="text-center py-8 text-gray-500"
+                    >
+                      No pledges found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  data?.pledges.map((pledge) => (
+                    <React.Fragment key={pledge.id}>
+                      <TableRow className="hover:bg-gray-50">
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleRowExpansion(pledge.id)}
+                            className="p-1"
+                          >
+                            {expandedRows.has(pledge.id) ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {formatDate(pledge.pledgeDate)}
+                        </TableCell>
+                        <TableCell>{pledge.description || "-"}</TableCell>
+                        <TableCell>
+                          {formatCurrency(
+                            pledge.originalAmount,
+                            pledge.currency
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {formatCurrency(pledge.totalPaid, pledge.currency)}
+                        </TableCell>
+                        <TableCell>
+                          {formatCurrency(pledge.balance, pledge.currency)}
+                        </TableCell>
+                        <TableCell>
+                          {pledge.categoryName ? (
+                            <Badge variant="secondary">
+                              {pledge.categoryName}
+                            </Badge>
+                          ) : (
+                            "-"
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="w-16 bg-gray-200 rounded-full h-2">
+                              <div
+                                className={`h-2 rounded-full ${getProgressColor(
+                                  pledge.progressPercentage
+                                )}`}
+                                style={{
+                                  width: `${Math.min(
+                                    pledge.progressPercentage,
+                                    100
+                                  )}%`,
+                                }}
+                              />
+                            </div>
+                            <span className="text-sm text-gray-600">
+                              {pledge.progressPercentage}%
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="p-1">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem>Edit Pledge</DropdownMenuItem>
+                              <DropdownMenuItem>View History</DropdownMenuItem>
+                              <DropdownMenuItem className="text-red-600">
+                                Delete Pledge
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+
+                      {/* Expanded Row Content */}
+                      {expandedRows.has(pledge.id) && (
+                        <TableRow>
+                          <TableCell colSpan={9} className="bg-gray-50 p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              {/* USD Amounts */}
+                              <div className="space-y-3">
+                                <h4 className="font-semibold text-gray-900">
+                                  USD Amounts
+                                </h4>
+                                <div className="space-y-2 text-sm">
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
+                                      Original Amount (USD):
+                                    </span>
+                                    <span className="font-medium">
+                                      {pledge.originalAmountUsd
+                                        ? `$${parseFloat(
+                                            pledge.originalAmountUsd
+                                          ).toLocaleString()}`
+                                        : "N/A"}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
+                                      Total Paid (USD):
+                                    </span>
+                                    <span className="font-medium">
+                                      {pledge.totalPaidUsd
+                                        ? `$${parseFloat(
+                                            pledge.totalPaidUsd
+                                          ).toLocaleString()}`
+                                        : "N/A"}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
+                                      Balance (USD):
+                                    </span>
+                                    <span className="font-medium">
+                                      {pledge.balanceUsd
+                                        ? `$${parseFloat(
+                                            pledge.balanceUsd
+                                          ).toLocaleString()}`
+                                        : "N/A"}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Additional Details */}
+                              <div className="space-y-3">
+                                <h4 className="font-semibold text-gray-900">
+                                  Additional Details
+                                </h4>
+                                <div className="space-y-2 text-sm">
+                                  <div>
+                                    <span className="text-gray-600">
+                                      Category Description:
+                                    </span>
+                                    <p className="mt-1 text-gray-900">
+                                      {pledge.categoryDescription ||
+                                        "No description available"}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-600">
+                                      Notes:
+                                    </span>
+                                    <p className="mt-1 text-gray-900">
+                                      {pledge.notes || "No notes available"}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Action Button */}
+                            <div className="mt-6 pt-4 border-t">
+                              <Button className="flex items-center gap-2">
+                                <Plus className="h-4 w-4" />
+                                Add New Payment
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Pagination with safe values */}
+          {data && data.pledges.length > 0 && (
+            <div className="flex items-center justify-between mt-6">
+              <div className="text-sm text-gray-600">
+                Showing {(currentPage - 1) * currentLimit + 1} to{" "}
+                {Math.min(currentPage * currentLimit, data.pledges.length)} of{" "}
+                {data.pledges.length} pledges
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(currentPage - 1)}
+                  disabled={currentPage <= 1}
+                >
+                  Previous
+                </Button>
+                <div className="flex items-center gap-1">
+                  <span className="text-sm text-gray-600">
+                    Page {currentPage}
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(currentPage + 1)}
+                  disabled={data.pledges.length < currentLimit}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -48,7 +48,7 @@ export default function ContactCategoriesCard({
                 <TableRow key={category.categoryId}>
                   <TableCell className="font-medium">
                     <Link
-                      href={`/contacts/${contactId}/`}
+                      href={`/contacts/${contactId}/pledges?categoryId=${category?.categoryId}`}
                       className="font-medium text-primary hover:underline hover:text-primary-dark transition-colors duration-200"
                     >
                       {category.categoryName}

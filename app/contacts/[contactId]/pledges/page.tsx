@@ -1,4 +1,4 @@
-import { PledgesTable } from "@/components/pledges/Pledges-Client";
+import PledgesTable from "@/components/pledges/Pledges-Client";
 import React from "react";
 
 export default async function ContactDetailsPage({
@@ -7,5 +7,5 @@ export default async function ContactDetailsPage({
   params: Promise<{ contactId: number }>;
 }) {
   const { contactId } = await params;
-  return <PledgesTable contactId={Number(contactId)} categoryId={1} />;
+  return <PledgesTable contactId={Number(contactId)} />;
 }
