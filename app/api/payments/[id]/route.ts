@@ -1,21 +1,47 @@
 import { db } from "@/lib/db";
 import { payment } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, or, ilike, and, SQL, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+
+const PaymentStatusEnum = z.enum([
+  "pending",
+  "completed",
+  "failed",
+  "cancelled",
+  "refunded",
+  "processing",
+]);
+
+const QueryParamsSchema = z.object({
+  pledgeId: z.number().positive(),
+  page: z.number().min(1).default(1),
+  limit: z.number().min(1).max(100).default(10),
+  search: z.string().optional(),
+  paymentStatus: PaymentStatusEnum.optional(),
+});
+
+type QueryParams = z.infer<typeof QueryParamsSchema>;
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const pledgeId = parseInt(id, 10);
-
-  if (isNaN(pledgeId) || pledgeId <= 0) {
-    return NextResponse.json({ error: "Invalid pledge ID" }, { status: 400 });
-  }
-
   try {
-    const payments = await db
+    const { id } = await params;
+    const { searchParams } = new URL(request.url);
+
+    const queryParams: QueryParams = QueryParamsSchema.parse({
+      pledgeId: parseInt(id, 10),
+      page: parseInt(searchParams.get("page") || "1", 10),
+      limit: parseInt(searchParams.get("limit") || "10", 10),
+      search: searchParams.get("search") || undefined,
+      paymentStatus: searchParams.get("paymentStatus") || undefined,
+    });
+
+    const { pledgeId, page, limit, search, paymentStatus } = queryParams;
+
+    let query = db
       .select({
         id: payment.id,
         amount: payment.amount,
@@ -36,7 +62,42 @@ export async function GET(
       })
       .from(payment)
       .where(eq(payment.pledgeId, pledgeId))
+      .$dynamic();
+
+    const conditions: SQL<unknown>[] = [];
+
+    if (paymentStatus) {
+      conditions.push(eq(payment.paymentStatus, paymentStatus));
+    }
+
+    if (search) {
+      const searchConditions: SQL<unknown>[] = [];
+      searchConditions.push(
+        ilike(sql`COALESCE(${payment.notes}, '')`, `%${search}%`)
+      );
+      searchConditions.push(
+        ilike(sql`COALESCE(${payment.referenceNumber}, '')`, `%${search}%`)
+      );
+      searchConditions.push(
+        ilike(sql`COALESCE(${payment.checkNumber}, '')`, `%${search}%`)
+      );
+      searchConditions.push(
+        ilike(sql`COALESCE(${payment.receiptNumber}, '')`, `%${search}%`)
+      );
+      conditions.push(or(...searchConditions)!);
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    const offset = (page - 1) * limit;
+    query = query
+      .limit(limit)
+      .offset(offset)
       .orderBy(desc(payment.paymentDate));
+
+    const payments = await query;
 
     return NextResponse.json(
       { payments },
