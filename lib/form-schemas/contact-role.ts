@@ -1,17 +1,40 @@
-import z from "zod";
+import { z } from "zod";
 
 export const contactRoleSchema = z
   .object({
-    contactId: z.number().positive(),
+    contactId: z.number().positive("Contact ID must be a positive number"),
     roleName: z.string().min(1, "Role name is required"),
     isActive: z.boolean().default(true),
-    startDate: z.string().datetime().optional().or(z.date().optional()),
-    endDate: z.string().datetime().optional().or(z.date().optional()),
+    startDate: z
+      .string()
+      .optional()
+      .refine(
+        (val) => {
+          if (!val || val === "") return true;
+          return !isNaN(Date.parse(val));
+        },
+        { message: "Invalid start date format" }
+      ),
+    endDate: z
+      .string()
+      .optional()
+      .refine(
+        (val) => {
+          if (!val || val === "") return true;
+          return !isNaN(Date.parse(val));
+        },
+        { message: "Invalid end date format" }
+      ),
     notes: z.string().optional(),
   })
   .refine(
     (data) => {
-      if (data.startDate && data.endDate) {
+      if (
+        data.startDate &&
+        data.endDate &&
+        data.startDate !== "" &&
+        data.endDate !== ""
+      ) {
         const start = new Date(data.startDate);
         const end = new Date(data.endDate);
         return end > start;
@@ -23,3 +46,5 @@ export const contactRoleSchema = z
       path: ["endDate"],
     }
   );
+
+export type ContactRoleFormValues = z.infer<typeof contactRoleSchema>;

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useState } from "react";
@@ -37,13 +38,12 @@ import {
   Search,
 } from "lucide-react";
 import { useContactRoles } from "@/lib/query/useContactRoles";
+import ContactRoleDialog from "../forms/contact-role-form";
 
-// Define props
 interface ContactRolesTableProps {
-  contactId: string | number; // Allow string or number to handle route params
+  contactId: string | number;
 }
 
-// Query parameters schema (matches backend querySchema)
 const QueryParamsSchema = z.object({
   contactId: z.number().positive(),
   page: z.number().min(1).default(1),
@@ -59,8 +59,6 @@ export default function ContactRolesTable({
   contactId,
 }: ContactRolesTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
-
-  // Query state management with nuqs (ALL HOOKS AT THE TOP)
   const [page, setPage] = useQueryState("page", {
     parse: (value) => parseInt(value) || 1,
     serialize: (value) => value.toString(),
@@ -93,7 +91,6 @@ export default function ContactRolesTable({
     defaultValue: null,
   });
 
-  // Parse contactId to number
   const parsedContactId =
     typeof contactId === "string" ? parseInt(contactId) : contactId;
 
@@ -196,6 +193,7 @@ export default function ContactRolesTable({
                 <SelectItem value="all">All</SelectItem>
               </SelectContent>
             </Select>
+            <ContactRoleDialog contactId={contactId as any} />
           </div>
 
           {/* Table */}
