@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useExchangeRates } from "@/lib/query/useExchangeRates";
-import { useContactCategories } from "@/lib/query/useContactCategories"; // Add this import
+import { useContactCategories } from "@/lib/query/useContactCategories";
 import {
   Command,
   CommandEmpty,
