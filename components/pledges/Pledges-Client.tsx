@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { usePledgesQuery } from "@/lib/query/usePledgeData";
 import { LinkButton } from "../ui/next-link";
+import PledgeDialog from "../forms/pledge-form";
 
 interface PledgesTableProps {
   contactId: number;
@@ -170,7 +171,6 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                 className="pl-10"
               />
             </div>
-
             <Select
               value={status as string}
               onValueChange={(value) => {
@@ -194,6 +194,7 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                 <SelectItem value="unpaid">Unpaid</SelectItem>
               </SelectContent>
             </Select>
+            <PledgeDialog contactId={contactId} />
           </div>
 
           {/* Table */}

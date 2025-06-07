@@ -4,56 +4,7 @@ import { z } from "zod";
 import { ErrorHandler } from "@/lib/error-handler";
 import { pledge, NewPledge } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
-
-const pledgeSchema = z
-  .object({
-    contactId: z.number().positive(),
-    categoryId: z.number().positive().optional(),
-    pledgeDate: z.string().datetime().or(z.date()),
-    description: z.string().optional(),
-    originalAmount: z.number().positive("Original amount must be positive"),
-    currency: z
-      .enum(["USD", "ILS", "EUR", "JPY", "GBP", "AUD", "CAD", "ZAR"])
-      .default("USD"),
-    totalPaid: z.number().min(0, "Total paid cannot be negative").default(0),
-    balance: z.number().min(0, "Balance cannot be negative"),
-    originalAmountUsd: z
-      .number()
-      .positive("Original amount in USD must be positive")
-      .optional(),
-    totalPaidUsd: z
-      .number()
-      .min(0, "Total paid in USD cannot be negative")
-      .default(0)
-      .optional(),
-    balanceUsd: z
-      .number()
-      .min(0, "Balance in USD cannot be negative")
-      .optional(),
-    isActive: z.boolean().default(true),
-    notes: z.string().optional(),
-  })
-  .refine((data) => data.originalAmount >= data.totalPaid, {
-    message: "Total paid cannot exceed original amount",
-    path: ["totalPaid"],
-  })
-  .refine((data) => data.balance === data.originalAmount - data.totalPaid, {
-    message: "Balance must equal original amount minus total paid",
-    path: ["balance"],
-  })
-  .refine(
-    (data) => {
-      if (data.originalAmountUsd && data.totalPaidUsd && data.balanceUsd) {
-        return data.balanceUsd === data.originalAmountUsd - data.totalPaidUsd;
-      }
-      return true;
-    },
-    {
-      message:
-        "Balance in USD must equal original amount in USD minus total paid in USD",
-      path: ["balanceUsd"],
-    }
-  );
+import { pledgeSchema } from "@/lib/form-schemas/pledge-schema";
 
 export async function POST(request: NextRequest) {
   try {
