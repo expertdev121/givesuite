@@ -1,3 +1,4 @@
+import ContactRolesTable from "@/components/contact-roles/contact-roles-client";
 import React from "react";
 
 export default async function ContactRoles({
@@ -6,9 +7,5 @@ export default async function ContactRoles({
   params: Promise<{ contactId: number }>;
 }) {
   const { contactId } = await params;
-  return (
-    <div>
-      <p>{contactId}</p>
-    </div>
-  );
+  return <ContactRolesTable contactId={contactId} />;
 }
