@@ -152,7 +152,7 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
   }
 
   return (
-    <div className="space-y-6 p-4">
+    <div className="space-y-6 py-4">
       {/* Filters */}
       <Card>
         <CardHeader>

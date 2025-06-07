@@ -7,6 +7,7 @@ import { AlertCircle } from "lucide-react";
 import React from "react";
 import { useContactCategories } from "@/lib/query/useContactCategories";
 import ContactOverviewTab from "./Contact-Overview-Tab";
+import PledgesTable from "../pledges/Pledges-Client";
 
 export default function ContactDetailsClient({
   contactId,
@@ -78,10 +79,13 @@ export default function ContactDetailsClient({
   const { contact, financialSummary } = data;
 
   return (
-    <ContactOverviewTab
-      contact={contact}
-      financialSummary={financialSummary}
-      categories={categories || []}
-    />
+    <React.Fragment>
+      <ContactOverviewTab
+        contact={contact}
+        financialSummary={financialSummary}
+        categories={categories || []}
+      />
+      <PledgesTable contactId={Number(contactId)} />
+    </React.Fragment>
   );
 }
