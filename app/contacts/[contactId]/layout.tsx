@@ -4,10 +4,11 @@ import TabLink from "@/components/next-link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, Home, RefreshCw } from "lucide-react";
 import { useContactQuery } from "@/lib/query/useContactDetails";
 import { useParams } from "next/navigation";
 import type React from "react";
+import Link from "next/link";
 
 export default function SettingsLayout({
   children,
@@ -122,6 +123,9 @@ function ContactDetails({ contactId }: { contactId: number }) {
   return (
     <nav className="sticky top-4 z-50 mb-3 flex px-4">
       <div className="flex items-center gap-6 px-8 py-4 bg-white/20 backdrop-blur-md border border-white/30 rounded-full shadow-lg shadow-black/5">
+        <Link href="/" aria-label="Home">
+          <Home className="h-6 w-6 text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100 transition-colors" />
+        </Link>
         <Avatar className="h-12 w-12 border-2 border-white/50">
           <AvatarImage
             src={`https://api.dicebear.com/7.x/initials/svg?seed=${fullName}`}
