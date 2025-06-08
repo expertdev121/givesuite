@@ -4,6 +4,7 @@ import "./globals.css";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { TanstackQueryProvider } from "./query-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { CurrentBreadcrumb } from "@/components/current-page";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,7 +33,11 @@ export default function RootLayout({
       >
         <TanstackQueryProvider>
           <NuqsAdapter>
-            {children}
+            <main className="container mx-auto py-8 max-w-7xl">
+              <CurrentBreadcrumb />
+              {children}
+            </main>
+
             <Toaster position="top-center" />
           </NuqsAdapter>
         </TanstackQueryProvider>
