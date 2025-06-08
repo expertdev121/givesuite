@@ -84,7 +84,6 @@ const ContactOverviewTab: React.FC<ContactOverviewTabProps> = ({
         </CardContent>
       </Card>
 
-      {/* Quick Financial Summary */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
