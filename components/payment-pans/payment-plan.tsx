@@ -68,6 +68,8 @@ export default function PaymentPlansTable({
       value !== null && value !== undefined ? value.toString() : "",
   });
 
+  console.log(pledgeId);
+
   const [page, setPage] = useQueryState("page", {
     parse: (value) => parseInt(value) || 1,
     serialize: (value) => value.toString(),
@@ -216,7 +218,7 @@ export default function PaymentPlansTable({
                 <SelectItem value="overdue">Overdue</SelectItem>
               </SelectContent>
             </Select>
-            <PaymentPlanDialog pledgeId={1} />
+            {pledgeId && <PaymentPlanDialog pledgeId={pledgeId} />}
           </div>
 
           {/* Table */}

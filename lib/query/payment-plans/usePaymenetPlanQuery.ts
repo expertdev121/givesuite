@@ -114,7 +114,7 @@ export const useCreatePaymentPlanMutation = () => {
     },
     onSuccess: (data, variables) => {
       // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: ["payment-plans"] });
+      queryClient.invalidateQueries({ queryKey: ["paymentPlans"] });
       queryClient.invalidateQueries({
         queryKey: ["payment-plans", variables.pledgeId],
       });
@@ -155,7 +155,7 @@ export const usePaymentPlansQuery = (params?: {
   if (params?.frequency) searchParams.append("frequency", params.frequency);
 
   return useQuery({
-    queryKey: ["payment-plans", params],
+    queryKey: ["paymentPlans", params],
     queryFn: async () => {
       const response = await fetch(
         `/api/payment-plans?${searchParams.toString()}`
@@ -256,7 +256,7 @@ export const useCancelPaymentPlanMutation = () => {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["payment-plans"] });
+      queryClient.invalidateQueries({ queryKey: ["paymentPlans"] });
       toast.success("Payment plan cancelled successfully!");
     },
     onError: (error) => {
