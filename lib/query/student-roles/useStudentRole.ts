@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-// Types based on your schema
+// Types based on your database schema - updated to match enums
 export interface StudentRoleFormData {
   contactId: number;
   program: "LH" | "LLC" | "ML" | "Kollel" | "Madrich";
+  track: "Alef" | "Bet" | "Gimmel" | "Dalet" | "Heh";
+  trackDetail?: "Full Year" | "Fall" | "Spring" | "Until Pesach";
   status:
     | "Student"
     | "Active Soldier"
@@ -13,9 +15,8 @@ export interface StudentRoleFormData {
     | "Transferred Out"
     | "Left Early"
     | "Asked to Leave";
+  machzor?: "10.5" | "10" | "9.5" | "9" | "8.5" | "8";
   year: string;
-  track?: string;
-  machzor?: string;
   startDate?: string;
   endDate?: string;
   isActive: boolean;
@@ -26,6 +27,8 @@ export interface StudentRole {
   id: number;
   contactId: number;
   program: "LH" | "LLC" | "ML" | "Kollel" | "Madrich";
+  track: "Alef" | "Bet" | "Gimmel" | "Dalet" | "Heh";
+  trackDetail?: "Full Year" | "Fall" | "Spring" | "Until Pesach";
   status:
     | "Student"
     | "Active Soldier"
@@ -34,9 +37,8 @@ export interface StudentRole {
     | "Transferred Out"
     | "Left Early"
     | "Asked to Leave";
+  machzor?: "10.5" | "10" | "9.5" | "9" | "8.5" | "8";
   year: string;
-  track?: string;
-  machzor?: string;
   startDate?: string;
   endDate?: string;
   isActive: boolean;
@@ -59,7 +61,6 @@ export interface ContactDetails {
   studentRoleHistory: StudentRole[];
 }
 
-// Student Role Mutations
 export const useCreateStudentRoleMutation = () => {
   const queryClient = useQueryClient();
 
@@ -100,13 +101,14 @@ export const useCreateStudentRoleMutation = () => {
   });
 };
 
-// Student Role Queries
 export const useStudentRolesQuery = (params?: {
   contactId?: number;
   page?: number;
   limit?: number;
   search?: string;
   program?: "LH" | "LLC" | "ML" | "Kollel" | "Madrich";
+  track?: "Alef" | "Bet" | "Gimmel" | "Dalet" | "Heh";
+  trackDetail?: "Full Year" | "Fall" | "Spring" | "Until Pesach";
   status?:
     | "Student"
     | "Active Soldier"
@@ -115,6 +117,7 @@ export const useStudentRolesQuery = (params?: {
     | "Transferred Out"
     | "Left Early"
     | "Asked to Leave";
+  machzor?: "10.5" | "10" | "9.5" | "9" | "8.5" | "8";
   year?: string;
   isActive?: boolean;
   sortBy?: string;
@@ -128,7 +131,11 @@ export const useStudentRolesQuery = (params?: {
   if (params?.limit) searchParams.append("limit", params.limit.toString());
   if (params?.search) searchParams.append("search", params.search);
   if (params?.program) searchParams.append("program", params.program);
+  if (params?.track) searchParams.append("track", params.track);
+  if (params?.trackDetail)
+    searchParams.append("trackDetail", params.trackDetail);
   if (params?.status) searchParams.append("status", params.status);
+  if (params?.machzor) searchParams.append("machzor", params.machzor);
   if (params?.year) searchParams.append("year", params.year);
   if (params?.isActive !== undefined)
     searchParams.append("isActive", params.isActive.toString());
@@ -285,12 +292,19 @@ export const useDeactivateStudentRoleMutation = () => {
 // Get Student Role Statistics
 export const useStudentRoleStatsQuery = (params?: {
   program?: "LH" | "LLC" | "ML" | "Kollel" | "Madrich";
+  track?: "Alef" | "Bet" | "Gimmel" | "Dalet" | "Heh";
+  trackDetail?: "Full Year" | "Fall" | "Spring" | "Until Pesach";
+  machzor?: "10.5" | "10" | "9.5" | "9" | "8.5" | "8";
   year?: string;
   status?: string;
 }) => {
   const searchParams = new URLSearchParams();
 
   if (params?.program) searchParams.append("program", params.program);
+  if (params?.track) searchParams.append("track", params.track);
+  if (params?.trackDetail)
+    searchParams.append("trackDetail", params.trackDetail);
+  if (params?.machzor) searchParams.append("machzor", params.machzor);
   if (params?.year) searchParams.append("year", params.year);
   if (params?.status) searchParams.append("status", params.status);
 

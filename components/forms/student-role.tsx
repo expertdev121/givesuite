@@ -37,12 +37,28 @@ import {
   useCreateStudentRoleMutation,
 } from "@/lib/query/student-roles/useStudentRole";
 
+// Updated to match database schema enums
 const programs = [
   { value: "LH", label: "LH" },
   { value: "LLC", label: "LLC" },
   { value: "ML", label: "ML" },
   { value: "Kollel", label: "Kollel" },
   { value: "Madrich", label: "Madrich" },
+] as const;
+
+const tracks = [
+  { value: "Alef", label: "Alef" },
+  { value: "Bet", label: "Bet" },
+  { value: "Gimmel", label: "Gimmel" },
+  { value: "Dalet", label: "Dalet" },
+  { value: "Heh", label: "Heh" },
+] as const;
+
+const trackDetails = [
+  { value: "Full Year", label: "Full Year" },
+  { value: "Fall", label: "Fall" },
+  { value: "Spring", label: "Spring" },
+  { value: "Until Pesach", label: "Until Pesach" },
 ] as const;
 
 const statuses = [
@@ -55,19 +71,35 @@ const statuses = [
   { value: "Asked to Leave", label: "Asked to Leave" },
 ] as const;
 
+const machzors = [
+  { value: "10.5", label: "10.5" },
+  { value: "10", label: "10" },
+  { value: "9.5", label: "9.5" },
+  { value: "9", label: "9" },
+  { value: "8.5", label: "8.5" },
+  { value: "8", label: "8" },
+] as const;
+
 // Generate years from 2000 to current year + 5
 const currentYear = new Date().getFullYear();
 const years = Array.from({ length: currentYear - 2000 + 6 }, (_, i) => {
   const year = 2000 + i;
-  return { value: year.toString(), label: year.toString() };
+  return { value: `${year}-${year + 1}`, label: `${year}-${year + 1}` };
 }).reverse();
 
+// Updated schema to match database exactly
 const studentRoleSchema = z
   .object({
     contactId: z.coerce.number().positive("Contact ID is required"),
     program: z.enum(["LH", "LLC", "ML", "Kollel", "Madrich"], {
       required_error: "Program is required",
     }),
+    track: z.enum(["Alef", "Bet", "Gimmel", "Dalet", "Heh"], {
+      required_error: "Track is required",
+    }),
+    trackDetail: z
+      .enum(["Full Year", "Fall", "Spring", "Until Pesach"])
+      .optional(),
     status: z.enum(
       [
         "Student",
@@ -82,9 +114,8 @@ const studentRoleSchema = z
         required_error: "Status is required",
       }
     ),
+    machzor: z.enum(["10.5", "10", "9.5", "9", "8.5", "8"]).optional(),
     year: z.string().min(1, "Year is required"),
-    track: z.string().optional(),
-    machzor: z.string().optional(),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
     isActive: z.boolean().default(true),
@@ -130,10 +161,11 @@ export default function StudentRoleDialog(props: StudentRoleDialogProps) {
     defaultValues: {
       contactId,
       program: undefined,
+      track: undefined,
+      trackDetail: undefined,
       status: "Student" as const,
-      year: currentYear.toString(),
-      track: "",
-      machzor: "",
+      machzor: undefined,
+      year: `${currentYear}-${currentYear + 1}`,
       startDate: "",
       endDate: "",
       isActive: true,
@@ -145,10 +177,11 @@ export default function StudentRoleDialog(props: StudentRoleDialogProps) {
     form.reset({
       contactId,
       program: undefined,
+      track: undefined,
+      trackDetail: undefined,
       status: "Student" as const,
-      year: currentYear.toString(),
-      track: "",
-      machzor: "",
+      machzor: undefined,
+      year: `${currentYear}-${currentYear + 1}`,
       startDate: "",
       endDate: "",
       isActive: true,
@@ -174,7 +207,10 @@ export default function StudentRoleDialog(props: StudentRoleDialogProps) {
   };
 
   const selectedProgram = form.watch("program");
+  const selectedTrack = form.watch("track");
+  const selectedTrackDetail = form.watch("trackDetail");
   const selectedStatus = form.watch("status");
+  const selectedMachzor = form.watch("machzor");
   const selectedYear = form.watch("year");
 
   return (
@@ -250,6 +286,36 @@ export default function StudentRoleDialog(props: StudentRoleDialogProps) {
 
               <FormField
                 control={form.control}
+                name="track"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Track *</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select track" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {tracks.map((track) => (
+                          <SelectItem key={track.value} value={track.value}>
+                            {track.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
                 name="year"
                 render={({ field }) => (
                   <FormItem>
@@ -275,49 +341,60 @@ export default function StudentRoleDialog(props: StudentRoleDialogProps) {
                   </FormItem>
                 )}
               />
-            </div>
 
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Status *</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {statuses.map((status) => (
-                        <SelectItem key={status.value} value={status.value}>
-                          {status.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+              <FormField
+                control={form.control}
+                name="trackDetail"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Track Detail</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select track detail" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {trackDetails.map((detail) => (
+                          <SelectItem key={detail.value} value={detail.value}>
+                            {detail.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="track"
+                name="status"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Track</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="e.g., Pre-Military, Regular"
-                      />
-                    </FormControl>
+                    <FormLabel>Status *</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {statuses.map((status) => (
+                          <SelectItem key={status.value} value={status.value}>
+                            {status.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -329,9 +406,23 @@ export default function StudentRoleDialog(props: StudentRoleDialogProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Machzor</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="e.g., Aleph, Bet, Gimel" />
-                    </FormControl>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select machzor" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {machzors.map((machzor) => (
+                          <SelectItem key={machzor.value} value={machzor.value}>
+                            {machzor.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -418,6 +509,22 @@ export default function StudentRoleDialog(props: StudentRoleDialogProps) {
                     ? programs.find((p) => p.value === selectedProgram)?.label
                     : "Not selected"}
                 </div>
+                <div>
+                  Track:{" "}
+                  {selectedTrack
+                    ? tracks.find((t) => t.value === selectedTrack)?.label
+                    : "Not selected"}
+                </div>
+                {selectedTrackDetail && (
+                  <div>
+                    Track Detail:{" "}
+                    {
+                      trackDetails.find(
+                        (td) => td.value === selectedTrackDetail
+                      )?.label
+                    }
+                  </div>
+                )}
                 <div>Year: {selectedYear}</div>
                 <div>
                   Status:{" "}
@@ -425,9 +532,11 @@ export default function StudentRoleDialog(props: StudentRoleDialogProps) {
                     ? statuses.find((s) => s.value === selectedStatus)?.label
                     : "Not selected"}
                 </div>
-                {form.watch("track") && <div>Track: {form.watch("track")}</div>}
-                {form.watch("machzor") && (
-                  <div>Machzor: {form.watch("machzor")}</div>
+                {selectedMachzor && (
+                  <div>
+                    Machzor:{" "}
+                    {machzors.find((m) => m.value === selectedMachzor)?.label}
+                  </div>
                 )}
                 <div>Active: {form.watch("isActive") ? "Yes" : "No"}</div>
                 {form.watch("startDate") && (

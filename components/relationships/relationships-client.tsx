@@ -185,7 +185,6 @@ export default function RelationshipsTable({
     }
   }
 
-  // Always call the hook with valid params or default fallback
   const fallbackParams: QueryParams = {
     contactId: 1, // fallback value
     page: 1,
