@@ -12,19 +12,17 @@ import { ErrorHandler } from "@/lib/error-handler";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
+  const pledgeId = parseInt(id, 10);
   try {
-    const pledgeId = parseInt(params.id);
-
     if (isNaN(pledgeId)) {
       return NextResponse.json({ error: "Invalid pledge ID" }, { status: 400 });
     }
 
-    // Get pledge details with related contact and category information
     const pledgeDetailsQuery = db
       .select({
-        // Pledge fields
         id: pledge.id,
         pledgeDate: pledge.pledgeDate,
         description: pledge.description,
@@ -40,14 +38,12 @@ export async function GET(
         createdAt: pledge.createdAt,
         updatedAt: pledge.updatedAt,
 
-        // Contact fields
         contactId: contact.id,
         contactFirstName: contact.firstName,
         contactLastName: contact.lastName,
         contactEmail: contact.email,
         contactPhone: contact.phone,
 
-        // Category fields
         categoryId: category.id,
         categoryName: category.name,
         categoryDescription: category.description,

@@ -38,7 +38,6 @@ import {
 } from "lucide-react";
 import { usePaymentPlans } from "@/lib/query/usePaymentPlan";
 import PaymentPlanDialog from "../forms/payment-plan-dialog";
-// import PaymentPlanDialog from "../forms/payment-plan";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const PlanStatusEnum = z.enum([
@@ -100,7 +99,6 @@ export default function PaymentPlansTable({
   const currentPage = page ?? 1;
   const currentLimit = limit ?? 10;
 
-  // Use pledgeId from query params if available, otherwise use contactId prop
   const queryParams = {
     ...(pledgeId ? { pledgeId } : contactId ? { contactId } : {}),
     page: currentPage,
