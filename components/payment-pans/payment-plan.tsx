@@ -32,7 +32,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   MoreHorizontal,
   Search,
-  Plus,
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
@@ -479,14 +478,6 @@ export default function PaymentPlansTable({
                                   </div>
                                 </div>
                               </div>
-                            </div>
-
-                            {/* Action Button */}
-                            <div className="mt-6 pt-4 flex justify-end gap-2 border-t">
-                              <Button className="flex items-center gap-2">
-                                <Plus className="h-4 w-4" />
-                                Add From Facts
-                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
