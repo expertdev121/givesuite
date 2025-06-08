@@ -584,7 +584,6 @@ export default function PledgeDialog({
         </DialogContent>
       </Dialog>
 
-      {/* Payment Dialog */}
       {createdPledge && (
         <PaymentDialog
           open={paymentDialogOpen}

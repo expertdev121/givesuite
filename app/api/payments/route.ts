@@ -261,15 +261,14 @@ export async function GET(request: NextRequest) {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Execute queries
     const paymentsQuery = db
       .select({
-        id: payment.id,
         pledgeId: payment.pledgeId,
+        notes: payment.notes,
+        id: payment.id,
         amount: payment.amount,
         currency: payment.currency,
         amountUsd: payment.amountUsd,
-        exchangeRate: payment.exchangeRate,
         paymentDate: payment.paymentDate,
         receivedDate: payment.receivedDate,
         paymentMethod: payment.paymentMethod,
@@ -277,9 +276,8 @@ export async function GET(request: NextRequest) {
         referenceNumber: payment.referenceNumber,
         checkNumber: payment.checkNumber,
         receiptNumber: payment.receiptNumber,
-        receiptType: payment.receiptType,
         receiptIssued: payment.receiptIssued,
-        notes: payment.notes,
+        paymentPlanId: payment.paymentPlanId,
         createdAt: payment.createdAt,
         updatedAt: payment.updatedAt,
         pledgeDescription: sql<string>`(

@@ -63,8 +63,6 @@ export async function GET(
     }
 
     const pledgeIds = pledges.map((p) => p.id);
-
-    // Build the payments query
     let query = db
       .select({
         id: payment.id,
@@ -73,14 +71,12 @@ export async function GET(
         amountUsd: payment.amountUsd,
         paymentDate: payment.paymentDate,
         receivedDate: payment.receivedDate,
-        processedDate: payment.processedDate,
         paymentMethod: payment.paymentMethod,
         paymentStatus: payment.paymentStatus,
         referenceNumber: payment.referenceNumber,
         checkNumber: payment.checkNumber,
         receiptNumber: payment.receiptNumber,
         receiptIssued: payment.receiptIssued,
-        receiptIssuedDate: payment.receiptIssuedDate,
         notes: payment.notes,
         paymentPlanId: payment.paymentPlanId,
         pledgeId: payment.pledgeId,
