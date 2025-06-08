@@ -1,149 +1,100 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { payment, pledge, NewPayment } from "@/lib/db/schema";
+import { sql, eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { ErrorHandler } from "@/lib/error-handler";
-import { payment, NewPayment } from "@/lib/db/schema";
-import { and, eq } from "drizzle-orm";
 
-const paymentSchema = z
-  .object({
-    pledgeId: z.number().positive(),
-    paymentPlanId: z.number().positive().optional(),
-    amount: z.number().positive("Amount must be positive"),
-    currency: z
-      .enum(["USD", "ILS", "EUR", "JPY", "GBP", "AUD", "CAD", "ZAR"])
-      .default("USD"),
-    amountUsd: z.number().positive("Amount in USD must be positive").optional(),
-    exchangeRate: z
-      .number()
-      .positive("Exchange rate must be positive")
-      .optional(),
-    paymentDate: z.string().datetime().or(z.date()),
-    receivedDate: z.string().datetime().or(z.date()).optional(),
-    processedDate: z.string().datetime().or(z.date()).optional(),
-    paymentMethod: z.enum([
-      "credit_card",
-      "cash",
-      "check",
-      "bank_transfer",
-      "paypal",
-      "wire_transfer",
-      "other",
-    ]),
-    paymentStatus: z
-      .enum([
-        "pending",
-        "completed",
-        "failed",
-        "cancelled",
-        "refunded",
-        "processing",
-      ])
-      .default("completed"),
-    referenceNumber: z.string().optional(),
-    checkNumber: z.string().optional(),
-    receiptNumber: z.string().optional(),
-    receiptType: z
-      .enum(["invoice", "confirmation", "receipt", "other"])
-      .optional(),
-    receiptIssued: z.boolean().default(false),
-    receiptIssuedDate: z.string().datetime().or(z.date()).optional(),
-    notes: z.string().optional(),
-    internalNotes: z.string().optional(),
-    createdBy: z.number().positive().optional(),
-    lastModifiedBy: z.number().positive().optional(),
-  })
-  .refine(
-    (data) => {
-      if (data.receiptIssued && !data.receiptIssuedDate) {
-        return false;
-      }
-      return true;
-    },
-    {
-      message: "Receipt issued date is required when receipt is issued",
-      path: ["receiptIssuedDate"],
-    }
-  )
-  .refine(
-    (data) => {
-      if (data.amountUsd && data.exchangeRate) {
-        return (
-          Math.abs(data.amountUsd - data.amount * data.exchangeRate) < 0.01
-        );
-      }
-      return true;
-    },
-    {
-      message: "Amount in USD must equal amount multiplied by exchange rate",
-      path: ["amountUsd"],
-    }
-  );
+const paymentSchema = z.object({
+  pledgeId: z.number().positive(),
+  amount: z.number().positive("Payment amount must be positive"),
+  currency: z.enum(["USD", "ILS", "EUR", "JPY", "GBP", "AUD", "CAD", "ZAR"]),
+  amountUsd: z.number().positive("Payment amount in USD must be positive"),
+  exchangeRate: z.number().positive("Exchange rate must be positive"),
+  paymentDate: z.string().min(1, "Payment date is required"),
+  paymentMethod: z.enum([
+    "credit_card",
+    "cash",
+    "check",
+    "bank_transfer",
+    "paypal",
+    "wire_transfer",
+    "other",
+  ]),
+  referenceNumber: z.string().optional(),
+  checkNumber: z.string().optional(),
+  receiptNumber: z.string().optional(),
+  receiptType: z
+    .enum(["invoice", "confirmation", "receipt", "other"])
+    .optional(),
+  notes: z.string().optional(),
+});
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const validatedData = paymentSchema.parse(body);
+    const result = await db.transaction(async (tx) => {
+      const currentPledge = await tx
+        .select()
+        .from(pledge)
+        .where(eq(pledge.id, validatedData.pledgeId))
+        .limit(1);
 
-    const existingPayment = await db
-      .select()
-      .from(payment)
-      .where(
-        and(
-          eq(payment.pledgeId, validatedData.pledgeId),
-          eq(
-            payment.paymentDate,
-            new Date(validatedData.paymentDate).toISOString().split("T")[0]
-          ),
-          eq(payment.amount, validatedData.amount.toString()),
-          eq(payment.currency, validatedData.currency),
-          eq(payment.paymentMethod, validatedData.paymentMethod),
-          eq(payment.paymentStatus, "completed")
-        )
-      )
-      .limit(1);
+      if (currentPledge.length === 0) {
+        throw new Error("Pledge not found");
+      }
 
-    if (existingPayment.length > 0) {
-      return NextResponse.json(
-        {
-          error: "Duplicate payment",
-          message: `Completed payment for pledge ${validatedData.pledgeId} on ${validatedData.paymentDate} with amount ${validatedData.amount} ${validatedData.currency} via ${validatedData.paymentMethod} already exists`,
-        },
-        { status: 409 }
-      );
-    }
+      const pledgeData = currentPledge[0];
+      const currentTotalPaid = parseFloat(pledgeData.totalPaid);
+      const currentTotalPaidUsd = parseFloat(pledgeData.totalPaidUsd || "0");
+      const originalAmount = parseFloat(pledgeData.originalAmount);
+      const originalAmountUsd = parseFloat(pledgeData.originalAmountUsd || "0");
 
-    const newPayment: NewPayment = {
-      ...validatedData,
-      paymentDate: new Date(validatedData.paymentDate)
-        .toISOString()
-        .split("T")[0],
-      receivedDate: validatedData.receivedDate
-        ? new Date(validatedData.receivedDate).toISOString().split("T")[0]
-        : undefined,
-      processedDate: validatedData.processedDate
-        ? new Date(validatedData.processedDate).toISOString().split("T")[0]
-        : undefined,
-      receiptIssuedDate: validatedData.receiptIssuedDate
-        ? new Date(validatedData.receiptIssuedDate).toISOString().split("T")[0]
-        : undefined,
-      amount: validatedData.amount.toFixed(2),
-      amountUsd: validatedData.amountUsd
-        ? validatedData.amountUsd.toFixed(2)
-        : undefined,
-      exchangeRate: validatedData.exchangeRate
-        ? validatedData.exchangeRate.toFixed(4)
-        : undefined,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+      const newTotalPaid = currentTotalPaid + validatedData.amount;
+      const newTotalPaidUsd = currentTotalPaidUsd + validatedData.amountUsd;
+      const newBalance = originalAmount - newTotalPaid;
+      const newBalanceUsd = originalAmountUsd - newTotalPaidUsd;
+      const newPayment: NewPayment = {
+        pledgeId: validatedData.pledgeId,
+        amount: validatedData.amount.toString(),
+        currency: validatedData.currency,
+        amountUsd: validatedData.amountUsd.toString(),
+        exchangeRate: validatedData.exchangeRate.toString(),
+        paymentDate: validatedData.paymentDate,
+        receivedDate: validatedData.paymentDate,
+        paymentMethod: validatedData.paymentMethod,
+        paymentStatus: "completed",
+        referenceNumber: validatedData.referenceNumber || null,
+        checkNumber: validatedData.checkNumber || null,
+        receiptNumber: validatedData.receiptNumber || null,
+        receiptType: validatedData.receiptType || null,
+        receiptIssued: false,
+        notes: validatedData.notes || null,
+      };
 
-    const result = await db.insert(payment).values(newPayment).returning();
+      const paymentResult = await tx
+        .insert(payment)
+        .values(newPayment)
+        .returning();
+      await tx
+        .update(pledge)
+        .set({
+          totalPaid: newTotalPaid.toString(),
+          totalPaidUsd: newTotalPaidUsd.toString(),
+          balance: Math.max(0, newBalance).toString(),
+          balanceUsd: Math.max(0, newBalanceUsd).toString(),
+          updatedAt: new Date(),
+        })
+        .where(eq(pledge.id, validatedData.pledgeId));
+
+      return paymentResult[0];
+    });
 
     return NextResponse.json(
       {
         message: "Payment created successfully",
-        payment: result[0],
+        payment: result,
       },
       { status: 201 }
     );
@@ -161,6 +112,213 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.error("Error creating payment:", error);
     return ErrorHandler.handle(error);
+  }
+}
+
+const querySchema = z.object({
+  pledgeId: z.number().positive().optional(),
+  contactId: z.number().positive().optional(),
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(100).default(10),
+  search: z.string().optional(),
+  paymentMethod: z
+    .enum([
+      "credit_card",
+      "cash",
+      "check",
+      "bank_transfer",
+      "paypal",
+      "wire_transfer",
+      "other",
+    ])
+    .optional(),
+  paymentStatus: z
+    .enum([
+      "pending",
+      "completed",
+      "failed",
+      "cancelled",
+      "refunded",
+      "processing",
+    ])
+    .optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+});
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const parsedParams = querySchema.safeParse({
+      pledgeId: searchParams.get("pledgeId")
+        ? parseInt(searchParams.get("pledgeId")!)
+        : undefined,
+      contactId: searchParams.get("contactId")
+        ? parseInt(searchParams.get("contactId")!)
+        : undefined,
+      page: searchParams.get("page") ?? undefined,
+      limit: searchParams.get("limit") ?? undefined,
+      search: searchParams.get("search") ?? undefined,
+      paymentMethod: searchParams.get("paymentMethod") ?? undefined,
+      paymentStatus: searchParams.get("paymentStatus") ?? undefined,
+      startDate: searchParams.get("startDate") ?? undefined,
+      endDate: searchParams.get("endDate") ?? undefined,
+    });
+
+    if (!parsedParams.success) {
+      return NextResponse.json(
+        {
+          error: "Invalid query parameters",
+          details: parsedParams.error.issues.map((issue) => ({
+            field: issue.path.join("."),
+            message: issue.message,
+          })),
+        },
+        { status: 400 }
+      );
+    }
+
+    const {
+      pledgeId,
+      contactId,
+      page,
+      limit,
+      search,
+      paymentMethod,
+      paymentStatus,
+      startDate,
+      endDate,
+    } = parsedParams.data;
+    const offset = (page - 1) * limit;
+    const conditions = [];
+
+    if (pledgeId) {
+      conditions.push(eq(payment.pledgeId, pledgeId));
+    }
+
+    if (contactId) {
+      conditions.push(
+        sql`${payment.pledgeId} IN (SELECT id FROM ${pledge} WHERE contact_id = ${contactId})`
+      );
+    }
+
+    if (search) {
+      conditions.push(
+        sql`${payment.referenceNumber} ILIKE ${"%" + search + "%"} OR ${
+          payment.checkNumber
+        } ILIKE ${"%" + search + "%"} OR ${payment.notes} ILIKE ${
+          "%" + search + "%"
+        }`
+      );
+    }
+
+    if (paymentMethod) {
+      conditions.push(eq(payment.paymentMethod, paymentMethod));
+    }
+
+    if (paymentStatus) {
+      conditions.push(eq(payment.paymentStatus, paymentStatus));
+    }
+
+    if (startDate) {
+      conditions.push(sql`${payment.paymentDate} >= ${startDate}`);
+    }
+
+    if (endDate) {
+      conditions.push(sql`${payment.paymentDate} <= ${endDate}`);
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Execute queries
+    const paymentsQuery = db
+      .select({
+        id: payment.id,
+        pledgeId: payment.pledgeId,
+        amount: payment.amount,
+        currency: payment.currency,
+        amountUsd: payment.amountUsd,
+        exchangeRate: payment.exchangeRate,
+        paymentDate: payment.paymentDate,
+        receivedDate: payment.receivedDate,
+        paymentMethod: payment.paymentMethod,
+        paymentStatus: payment.paymentStatus,
+        referenceNumber: payment.referenceNumber,
+        checkNumber: payment.checkNumber,
+        receiptNumber: payment.receiptNumber,
+        receiptType: payment.receiptType,
+        receiptIssued: payment.receiptIssued,
+        notes: payment.notes,
+        createdAt: payment.createdAt,
+        updatedAt: payment.updatedAt,
+        pledgeDescription: sql<string>`(
+          SELECT description FROM ${pledge} WHERE id = ${payment.pledgeId}
+        )`.as("pledgeDescription"),
+        pledgeOriginalAmount: sql<string>`(
+          SELECT original_amount FROM ${pledge} WHERE id = ${payment.pledgeId}
+        )`.as("pledgeOriginalAmount"),
+        contactId: sql<number>`(
+          SELECT contact_id FROM ${pledge} WHERE id = ${payment.pledgeId}
+        )`.as("contactId"),
+      })
+      .from(payment)
+      .where(whereClause)
+      .orderBy(sql`${payment.paymentDate} DESC`)
+      .limit(limit)
+      .offset(offset);
+
+    const countQuery = db
+      .select({
+        count: sql<number>`count(*)`.as("count"),
+      })
+      .from(payment)
+      .where(whereClause);
+
+    const [payments, totalCountResult] = await Promise.all([
+      paymentsQuery.execute(),
+      countQuery.execute(),
+    ]);
+
+    const totalCount = Number(totalCountResult[0]?.count || 0);
+    const totalPages = Math.ceil(totalCount / limit);
+
+    const response = {
+      payments,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+      filters: {
+        pledgeId,
+        contactId,
+        search,
+        paymentMethod,
+        paymentStatus,
+        startDate,
+        endDate,
+      },
+    };
+
+    return NextResponse.json(response, {
+      headers: {
+        "X-Total-Count": response.pagination.totalCount.toString(),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching payments:", error);
+    return NextResponse.json(
+      {
+        error: "Failed to fetch payments",
+        message: error instanceof Error ? error.message : "Unknown error",
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
   }
 }

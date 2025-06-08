@@ -1,111 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { pledge, NewPledge } from "@/lib/db/schema";
+import { sql, eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { ErrorHandler } from "@/lib/error-handler";
-import { pledge, NewPledge } from "@/lib/db/schema";
-import { and, eq } from "drizzle-orm";
 
-const pledgeSchema = z
-  .object({
-    contactId: z.number().positive(),
-    categoryId: z.number().positive().optional(),
-    pledgeDate: z.string().datetime().or(z.date()),
-    description: z.string().optional(),
-    originalAmount: z.number().positive("Original amount must be positive"),
-    currency: z
-      .enum(["USD", "ILS", "EUR", "JPY", "GBP", "AUD", "CAD", "ZAR"])
-      .default("USD"),
-    totalPaid: z.number().min(0, "Total paid cannot be negative").default(0),
-    balance: z.number().min(0, "Balance cannot be negative"),
-    originalAmountUsd: z
-      .number()
-      .positive("Original amount in USD must be positive")
-      .optional(),
-    totalPaidUsd: z
-      .number()
-      .min(0, "Total paid in USD cannot be negative")
-      .default(0)
-      .optional(),
-    balanceUsd: z
-      .number()
-      .min(0, "Balance in USD cannot be negative")
-      .optional(),
-    isActive: z.boolean().default(true),
-    notes: z.string().optional(),
-  })
-  .refine((data) => data.originalAmount >= data.totalPaid, {
-    message: "Total paid cannot exceed original amount",
-    path: ["totalPaid"],
-  })
-  .refine((data) => data.balance === data.originalAmount - data.totalPaid, {
-    message: "Balance must equal original amount minus total paid",
-    path: ["balance"],
-  })
-  .refine(
-    (data) => {
-      if (data.originalAmountUsd && data.totalPaidUsd && data.balanceUsd) {
-        return data.balanceUsd === data.originalAmountUsd - data.totalPaidUsd;
-      }
-      return true;
-    },
-    {
-      message:
-        "Balance in USD must equal original amount in USD minus total paid in USD",
-      path: ["balanceUsd"],
-    }
-  );
+const pledgeSchema = z.object({
+  contactId: z.number().positive(),
+  categoryId: z.number().positive().optional(),
+  pledgeDate: z.string().min(1, "Pledge date is required"),
+  description: z.string().min(1, "Description is required"),
+  originalAmount: z.number().positive("Pledge amount must be positive"),
+  currency: z
+    .enum(["USD", "ILS", "EUR", "JPY", "GBP", "AUD", "CAD", "ZAR"])
+    .default("USD"),
+  originalAmountUsd: z
+    .number()
+    .positive("Pledge amount in USD must be positive"),
+  notes: z.string().optional(),
+});
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const validatedData = pledgeSchema.parse(body);
-
-    const existingPledge = await db
-      .select()
-      .from(pledge)
-      .where(
-        and(
-          eq(pledge.contactId, validatedData.contactId),
-          eq(
-            pledge.pledgeDate,
-            new Date(validatedData.pledgeDate).toISOString().split("T")[0]
-          ),
-          eq(pledge.originalAmount, validatedData.originalAmount.toString()),
-          eq(pledge.currency, validatedData.currency),
-          eq(pledge.isActive, true)
-        )
-      )
-      .limit(1);
-
-    if (existingPledge.length > 0) {
-      return NextResponse.json(
-        {
-          error: "Duplicate pledge",
-          message: `Active pledge for contact ${validatedData.contactId} on ${validatedData.pledgeDate} with amount ${validatedData.originalAmount} ${validatedData.currency} already exists`,
-        },
-        { status: 409 }
-      );
-    }
+    const balance = validatedData.originalAmount;
+    const balanceUsd = validatedData.originalAmountUsd;
 
     const newPledge: NewPledge = {
-      ...validatedData,
-      pledgeDate: new Date(validatedData.pledgeDate)
-        .toISOString()
-        .split("T")[0],
-      originalAmount: validatedData.originalAmount.toFixed(2),
-      totalPaid: validatedData.totalPaid.toFixed(2),
-      balance: validatedData.balance.toFixed(2),
-      originalAmountUsd: validatedData.originalAmountUsd
-        ? validatedData.originalAmountUsd.toFixed(2)
-        : undefined,
-      totalPaidUsd: validatedData.totalPaidUsd
-        ? validatedData.totalPaidUsd.toFixed(2)
-        : undefined,
-      balanceUsd: validatedData.balanceUsd
-        ? validatedData.balanceUsd.toFixed(2)
-        : undefined,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      contactId: validatedData.contactId,
+      categoryId: validatedData.categoryId || null,
+      pledgeDate: validatedData.pledgeDate,
+      description: validatedData.description,
+      originalAmount: validatedData.originalAmount.toString(),
+      currency: validatedData.currency,
+      originalAmountUsd: validatedData.originalAmountUsd.toString(),
+      totalPaid: "0",
+      totalPaidUsd: "0",
+      balance: balance.toString(),
+      balanceUsd: balanceUsd.toString(),
+      isActive: true,
+      notes: validatedData.notes || null,
     };
 
     const result = await db.insert(pledge).values(newPledge).returning();
@@ -131,6 +66,199 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.error("Error creating pledge:", error);
     return ErrorHandler.handle(error);
+  }
+}
+
+const querySchema = z.object({
+  contactId: z.number().positive().optional(),
+  categoryId: z.number().positive().optional(),
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(100).default(10),
+  search: z.string().optional(),
+  status: z.enum(["fullyPaid", "partiallyPaid", "unpaid"]).optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+});
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const parsedParams = querySchema.safeParse({
+      contactId: searchParams.get("contactId")
+        ? parseInt(searchParams.get("contactId")!)
+        : undefined,
+      categoryId: searchParams.get("categoryId")
+        ? parseInt(searchParams.get("categoryId")!)
+        : undefined,
+      page: searchParams.get("page") ?? undefined,
+      limit: searchParams.get("limit") ?? undefined,
+      search: searchParams.get("search") ?? undefined,
+      status: searchParams.get("status") ?? undefined,
+      startDate: searchParams.get("startDate") ?? undefined,
+      endDate: searchParams.get("endDate") ?? undefined,
+    });
+
+    if (!parsedParams.success) {
+      return NextResponse.json(
+        {
+          error: "Invalid query parameters",
+          details: parsedParams.error.issues.map((issue) => ({
+            field: issue.path.join("."),
+            message: issue.message,
+          })),
+        },
+        { status: 400 }
+      );
+    }
+
+    const {
+      contactId,
+      categoryId,
+      page,
+      limit,
+      search,
+      status,
+      startDate,
+      endDate,
+    } = parsedParams.data;
+    const offset = (page - 1) * limit;
+
+    // Build WHERE conditions
+    const conditions = [];
+
+    if (contactId) {
+      conditions.push(eq(pledge.contactId, contactId));
+    }
+
+    if (categoryId) {
+      conditions.push(eq(pledge.categoryId, categoryId));
+    }
+
+    if (search) {
+      conditions.push(
+        sql`${pledge.description} ILIKE ${"%" + search + "%"} OR ${
+          pledge.notes
+        } ILIKE ${"%" + search + "%"}`
+      );
+    }
+
+    if (status) {
+      switch (status) {
+        case "fullyPaid":
+          conditions.push(sql`${pledge.balance}::numeric = 0`);
+          break;
+        case "partiallyPaid":
+          conditions.push(
+            sql`${pledge.totalPaid}::numeric > 0 AND ${pledge.balance}::numeric > 0`
+          );
+          break;
+        case "unpaid":
+          conditions.push(sql`${pledge.totalPaid}::numeric = 0`);
+          break;
+      }
+    }
+
+    if (startDate) {
+      conditions.push(sql`${pledge.pledgeDate} >= ${startDate}`);
+    }
+
+    if (endDate) {
+      conditions.push(sql`${pledge.pledgeDate} <= ${endDate}`);
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Execute queries
+    const pledgesQuery = db
+      .select({
+        id: pledge.id,
+        contactId: pledge.contactId,
+        categoryId: pledge.categoryId,
+        pledgeDate: pledge.pledgeDate,
+        description: pledge.description,
+        originalAmount: pledge.originalAmount,
+        currency: pledge.currency,
+        originalAmountUsd: pledge.originalAmountUsd,
+        totalPaid: pledge.totalPaid,
+        totalPaidUsd: pledge.totalPaidUsd,
+        balance: pledge.balance,
+        balanceUsd: pledge.balanceUsd,
+        isActive: pledge.isActive,
+        notes: pledge.notes,
+        createdAt: pledge.createdAt,
+        updatedAt: pledge.updatedAt,
+        // Calculate progress percentage
+        progressPercentage: sql<number>`
+          CASE 
+            WHEN ${pledge.originalAmount}::numeric = 0 THEN 0
+            ELSE ROUND((${pledge.totalPaid}::numeric / ${pledge.originalAmount}::numeric) * 100)
+          END
+        `.as("progressPercentage"),
+        // Add category name via subquery
+        categoryName: sql<string>`(
+          SELECT name FROM category WHERE id = ${pledge.categoryId}
+        )`.as("categoryName"),
+        categoryDescription: sql<string>`(
+          SELECT description FROM category WHERE id = ${pledge.categoryId}
+        )`.as("categoryDescription"),
+      })
+      .from(pledge)
+      .where(whereClause)
+      .orderBy(sql`${pledge.updatedAt} DESC`)
+      .limit(limit)
+      .offset(offset);
+
+    const countQuery = db
+      .select({
+        count: sql<number>`count(*)`.as("count"),
+      })
+      .from(pledge)
+      .where(whereClause);
+
+    const [pledges, totalCountResult] = await Promise.all([
+      pledgesQuery.execute(),
+      countQuery.execute(),
+    ]);
+
+    const totalCount = Number(totalCountResult[0]?.count || 0);
+    const totalPages = Math.ceil(totalCount / limit);
+
+    const response = {
+      pledges,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+      filters: {
+        contactId,
+        categoryId,
+        search,
+        status,
+        startDate,
+        endDate,
+      },
+    };
+
+    return NextResponse.json(response, {
+      headers: {
+        "X-Total-Count": response.pagination.totalCount.toString(),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching pledges:", error);
+    return NextResponse.json(
+      {
+        error: "Failed to fetch pledges",
+        message: error instanceof Error ? error.message : "Unknown error",
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
   }
 }

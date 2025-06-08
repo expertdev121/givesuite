@@ -2,12 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sql, desc, asc, or, ilike, and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { unstable_cache } from "next/cache";
 import { ErrorHandler } from "@/lib/error-handler";
 import { category, NewCategory } from "@/lib/db/schema";
 import { categorySchema } from "@/lib/form-schemas/category";
-
-const CACHE_TTL_SECONDS = 60;
 
 const querySchema = z.object({
   page: z.coerce.number().min(1).default(1),
@@ -47,118 +44,94 @@ export async function GET(request: NextRequest) {
       parsedParams.data;
     const offset = (page - 1) * limit;
 
-    const cacheKey = `categories:${page}:${limit}:${
-      search || ""
-    }:${sortBy}:${sortOrder}:${isActive ?? ""}`;
-    const cacheTags = [
-      `categories`,
-      `categories:page:${page}`,
-      search && `categories:search:${search}`,
-      isActive !== undefined && `categories:isActive:${isActive}`,
-    ].filter(Boolean) as string[];
+    const conditions = [];
 
-    const cachedQuery = unstable_cache(
-      async () => {
-        const conditions = [];
+    if (search) {
+      conditions.push(
+        or(
+          ilike(category.name, `%${search}%`),
+          ilike(category.description, `%${search}%`)
+        )
+      );
+    }
+    if (isActive !== undefined)
+      conditions.push(eq(category.isActive, isActive));
 
-        if (search) {
-          conditions.push(
-            or(
-              ilike(category.name, `%${search}%`),
-              ilike(category.description, `%${search}%`)
-            )
-          );
-        }
-        if (isActive !== undefined)
-          conditions.push(eq(category.isActive, isActive));
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    let orderByClause;
+    switch (sortBy) {
+      case "id":
+        orderByClause =
+          sortOrder === "asc" ? asc(category.id) : desc(category.id);
+        break;
+      case "name":
+        orderByClause =
+          sortOrder === "asc" ? asc(category.name) : desc(category.name);
+        break;
+      case "isActive":
+        orderByClause =
+          sortOrder === "asc"
+            ? asc(category.isActive)
+            : desc(category.isActive);
+        break;
+      case "createdAt":
+        orderByClause =
+          sortOrder === "asc"
+            ? asc(category.createdAt)
+            : desc(category.createdAt);
+        break;
+      case "updatedAt":
+      default:
+        orderByClause =
+          sortOrder === "asc"
+            ? asc(category.updatedAt)
+            : desc(category.updatedAt);
+        break;
+    }
 
-        const whereClause =
-          conditions.length > 0 ? and(...conditions) : undefined;
-        let orderByClause;
-        switch (sortBy) {
-          case "id":
-            orderByClause =
-              sortOrder === "asc" ? asc(category.id) : desc(category.id);
-            break;
-          case "name":
-            orderByClause =
-              sortOrder === "asc" ? asc(category.name) : desc(category.name);
-            break;
-          case "isActive":
-            orderByClause =
-              sortOrder === "asc"
-                ? asc(category.isActive)
-                : desc(category.isActive);
-            break;
-          case "createdAt":
-            orderByClause =
-              sortOrder === "asc"
-                ? asc(category.createdAt)
-                : desc(category.createdAt);
-            break;
-          case "updatedAt":
-          default:
-            orderByClause =
-              sortOrder === "asc"
-                ? asc(category.updatedAt)
-                : desc(category.updatedAt);
-            break;
-        }
+    const query = db
+      .select()
+      .from(category)
+      .where(whereClause)
+      .orderBy(orderByClause)
+      .limit(limit)
+      .offset(offset);
 
-        const query = db
-          .select()
-          .from(category)
-          .where(whereClause)
-          .orderBy(orderByClause)
-          .limit(limit)
-          .offset(offset);
+    const countQuery = db
+      .select({
+        count: sql<number>`count(*)`.as("count"),
+      })
+      .from(category)
+      .where(whereClause);
 
-        const countQuery = db
-          .select({
-            count: sql<number>`count(*)`.as("count"),
-          })
-          .from(category)
-          .where(whereClause);
+    const [categories, totalCountResult] = await Promise.all([
+      query.execute(),
+      countQuery.execute(),
+    ]);
 
-        const [categories, totalCountResult] = await Promise.all([
-          query.execute(),
-          countQuery.execute(),
-        ]);
+    const totalCount = Number(totalCountResult[0]?.count || 0);
+    const totalPages = Math.ceil(totalCount / limit);
 
-        const totalCount = Number(totalCountResult[0]?.count || 0);
-        const totalPages = Math.ceil(totalCount / limit);
-
-        return {
-          categories,
-          pagination: {
-            page,
-            limit,
-            totalCount,
-            totalPages,
-            hasNextPage: page < totalPages,
-            hasPreviousPage: page > 1,
-          },
-          filters: {
-            search,
-            isActive,
-            sortBy,
-            sortOrder,
-          },
-        };
+    const response = {
+      categories,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
       },
-      [cacheKey],
-      {
-        tags: cacheTags,
-        revalidate: CACHE_TTL_SECONDS,
-      }
-    );
-
-    const response = await cachedQuery();
+      filters: {
+        search,
+        isActive,
+        sortBy,
+        sortOrder,
+      },
+    };
 
     return NextResponse.json(response, {
       headers: {
-        "Cache-Control": `public, s-maxage=${CACHE_TTL_SECONDS}`,
-        Vary: "Origin, Accept-Encoding",
         "X-Total-Count": response.pagination.totalCount.toString(),
       },
     });
