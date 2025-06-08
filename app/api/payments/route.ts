@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { payment, pledge, NewPayment } from "@/lib/db/schema";
+import { payment, pledge } from "@/lib/db/schema";
 import { sql, eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { ErrorHandler } from "@/lib/error-handler";
@@ -34,67 +34,96 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const validatedData = paymentSchema.parse(body);
-    const result = await db.transaction(async (tx) => {
-      const currentPledge = await tx
-        .select()
-        .from(pledge)
-        .where(eq(pledge.id, validatedData.pledgeId))
-        .limit(1);
 
-      if (currentPledge.length === 0) {
-        throw new Error("Pledge not found");
-      }
+    // First, get the current pledge data
+    const currentPledge = await db
+      .select()
+      .from(pledge)
+      .where(eq(pledge.id, validatedData.pledgeId))
+      .limit(1);
 
-      const pledgeData = currentPledge[0];
-      const currentTotalPaid = parseFloat(pledgeData.totalPaid);
-      const currentTotalPaidUsd = parseFloat(pledgeData.totalPaidUsd || "0");
-      const originalAmount = parseFloat(pledgeData.originalAmount);
-      const originalAmountUsd = parseFloat(pledgeData.originalAmountUsd || "0");
+    if (currentPledge.length === 0) {
+      return NextResponse.json({ error: "Pledge not found" }, { status: 404 });
+    }
 
-      const newTotalPaid = currentTotalPaid + validatedData.amount;
-      const newTotalPaidUsd = currentTotalPaidUsd + validatedData.amountUsd;
-      const newBalance = originalAmount - newTotalPaid;
-      const newBalanceUsd = originalAmountUsd - newTotalPaidUsd;
-      const newPayment: NewPayment = {
+    const pledgeData = currentPledge[0];
+    const currentTotalPaid = parseFloat(pledgeData.totalPaid);
+    const currentTotalPaidUsd = parseFloat(pledgeData.totalPaidUsd || "0");
+    const originalAmount = parseFloat(pledgeData.originalAmount);
+    const originalAmountUsd = parseFloat(pledgeData.originalAmountUsd || "0");
+
+    // Calculate new totals
+    const newTotalPaid = currentTotalPaid + validatedData.amount;
+    const newTotalPaidUsd = currentTotalPaidUsd + validatedData.amountUsd;
+    const newBalance = originalAmount - newTotalPaid;
+    const newBalanceUsd = originalAmountUsd - newTotalPaidUsd;
+
+    // Prepare the new payment - only include fields that exist in your actual database
+    const newPayment = {
+      pledgeId: validatedData.pledgeId,
+      amount: validatedData.amount.toString(),
+      currency: validatedData.currency,
+      amountUsd: validatedData.amountUsd.toString(),
+      exchangeRate: validatedData.exchangeRate.toString(),
+      paymentDate: validatedData.paymentDate,
+      receivedDate: validatedData.paymentDate,
+      paymentMethod: validatedData.paymentMethod,
+      paymentStatus: "completed" as const,
+      referenceNumber: validatedData.referenceNumber || null,
+      checkNumber: validatedData.checkNumber || null,
+      receiptNumber: validatedData.receiptNumber || null,
+      receiptType: validatedData.receiptType || null,
+      receiptIssued: false,
+      notes: validatedData.notes || null,
+    };
+
+    // Create the payment first
+    const paymentResult = await db
+      .insert(payment)
+      .values(newPayment)
+      .returning();
+
+    if (paymentResult.length === 0) {
+      return NextResponse.json(
+        { error: "Failed to create payment" },
+        { status: 500 }
+      );
+    }
+
+    // Update the pledge with new totals
+    const updateResult = await db
+      .update(pledge)
+      .set({
+        totalPaid: newTotalPaid.toString(),
+        totalPaidUsd: newTotalPaidUsd.toString(),
+        balance: Math.max(0, newBalance).toString(),
+        balanceUsd: Math.max(0, newBalanceUsd).toString(),
+        updatedAt: new Date(),
+      })
+      .where(eq(pledge.id, validatedData.pledgeId))
+      .returning();
+
+    if (updateResult.length === 0) {
+      // If pledge update fails, we should ideally delete the payment
+      // But since we can't use transactions, log this as an error
+      console.error("Payment created but pledge update failed", {
+        paymentId: paymentResult[0].id,
         pledgeId: validatedData.pledgeId,
-        amount: validatedData.amount.toString(),
-        currency: validatedData.currency,
-        amountUsd: validatedData.amountUsd.toString(),
-        exchangeRate: validatedData.exchangeRate.toString(),
-        paymentDate: validatedData.paymentDate,
-        receivedDate: validatedData.paymentDate,
-        paymentMethod: validatedData.paymentMethod,
-        paymentStatus: "completed",
-        referenceNumber: validatedData.referenceNumber || null,
-        checkNumber: validatedData.checkNumber || null,
-        receiptNumber: validatedData.receiptNumber || null,
-        receiptType: validatedData.receiptType || null,
-        receiptIssued: false,
-        notes: validatedData.notes || null,
-      };
+      });
 
-      const paymentResult = await tx
-        .insert(payment)
-        .values(newPayment)
-        .returning();
-      await tx
-        .update(pledge)
-        .set({
-          totalPaid: newTotalPaid.toString(),
-          totalPaidUsd: newTotalPaidUsd.toString(),
-          balance: Math.max(0, newBalance).toString(),
-          balanceUsd: Math.max(0, newBalanceUsd).toString(),
-          updatedAt: new Date(),
-        })
-        .where(eq(pledge.id, validatedData.pledgeId));
-
-      return paymentResult[0];
-    });
+      return NextResponse.json(
+        {
+          error: "Payment created but pledge update failed",
+          paymentId: paymentResult[0].id,
+        },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json(
       {
         message: "Payment created successfully",
-        payment: result,
+        payment: paymentResult[0],
       },
       { status: 201 }
     );

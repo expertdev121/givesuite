@@ -356,6 +356,7 @@ export const paymentPlan = pgTable(
 export type PaymentPlan = typeof paymentPlan.$inferSelect;
 export type NewPaymentPlan = typeof paymentPlan.$inferInsert;
 
+// SIMPLIFIED PAYMENT TABLE - removed fields that don't exist in your database
 export const payment = pgTable(
   "payment",
   {
@@ -371,32 +372,25 @@ export const payment = pgTable(
     currency: currencyEnum("currency").notNull(),
     amountUsd: numeric("amount_usd", { precision: 10, scale: 2 }),
     exchangeRate: numeric("exchange_rate", { precision: 10, scale: 4 }),
+
     paymentDate: date("payment_date").notNull(),
     receivedDate: date("received_date"),
-    processedDate: date("processed_date"),
+
     paymentMethod: paymentMethodEnum("payment_method").notNull(),
     paymentStatus: paymentStatusEnum("payment_status")
       .notNull()
       .default("completed"),
+
     referenceNumber: text("reference_number"),
     checkNumber: text("check_number"),
     receiptNumber: text("receipt_number"),
     receiptType: receiptTypeEnum("receipt_type"),
     receiptIssued: boolean("receipt_issued").default(false).notNull(),
-    receiptIssuedDate: date("receipt_issued_date"),
-    numberOfPayments: integer("number_of_payments"),
-    paymentFrequency: frequencyEnum("payment_frequency"),
-    firstPaymentDate: date("first_payment_date"),
+
     notes: text("notes"),
-    internalNotes: text("internal_notes"),
+
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
-    createdBy: integer("created_by").references(() => contact.id, {
-      onDelete: "set null",
-    }),
-    lastModifiedBy: integer("last_modified_by").references(() => contact.id, {
-      onDelete: "set null",
-    }),
   },
   (table) => ({
     pledgeIdIdx: index("payment_pledge_id_idx").on(table.pledgeId),
@@ -443,8 +437,6 @@ export const contactRelations = relations(contact, ({ many }) => ({
   }),
   pledges: many(pledge),
   auditLogs: many(auditLog),
-  createdPayments: many(payment, { relationName: "createdPayments" }),
-  modifiedPayments: many(payment, { relationName: "modifiedPayments" }),
 }));
 
 export const contactRolesRelations = relations(contactRoles, ({ one }) => ({
@@ -507,16 +499,6 @@ export const paymentRelations = relations(payment, ({ one }) => ({
   paymentPlan: one(paymentPlan, {
     fields: [payment.paymentPlanId],
     references: [paymentPlan.id],
-  }),
-  createdByContact: one(contact, {
-    fields: [payment.createdBy],
-    references: [contact.id],
-    relationName: "createdPayments",
-  }),
-  lastModifiedByContact: one(contact, {
-    fields: [payment.lastModifiedBy],
-    references: [contact.id],
-    relationName: "modifiedPayments",
   }),
 }));
 
