@@ -111,22 +111,6 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
     return dateString ? new Date(dateString).toLocaleDateString() : "N/A";
   };
 
-  const getStatusColor = (status: PaymentStatusType | null) => {
-    switch (status) {
-      case "completed":
-        return "bg-green-100 text-green-800";
-      case "pending":
-      case "processing":
-        return "bg-yellow-100 text-yellow-800";
-      case "failed":
-      case "cancelled":
-      case "refunded":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
   if (error) {
     return (
       <Alert className="mx-4 my-6">
@@ -137,7 +121,6 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
     );
   }
 
-  // Show message if neither pledgeId nor contactId is provided
   if (!pledgeId && !contactId) {
     return (
       <Alert className="mx-4 my-6">
