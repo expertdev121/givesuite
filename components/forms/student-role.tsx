@@ -64,7 +64,7 @@ const years = Array.from({ length: currentYear - 2000 + 6 }, (_, i) => {
 
 const studentRoleSchema = z
   .object({
-    contactId: z.number().positive("Contact ID is required"),
+    contactId: z.coerce.number().positive("Contact ID is required"),
     program: z.enum(["LH", "LLC", "ML", "Kollel", "Madrich"], {
       required_error: "Program is required",
     }),

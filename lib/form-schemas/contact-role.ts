@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const contactRoleSchema = z
   .object({
-    contactId: z.number().positive("Contact ID must be a positive number"),
+    contactId: z.coerce.number().positive("Contact ID is required"),
     roleName: z.string().min(1, "Role name is required"),
     isActive: z.boolean().default(true),
     startDate: z

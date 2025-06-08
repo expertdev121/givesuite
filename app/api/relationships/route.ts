@@ -2,12 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sql, desc, asc, or, ilike, and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { unstable_cache } from "next/cache";
 import { ErrorHandler } from "@/lib/error-handler";
 import { relationships, NewRelationship } from "@/lib/db/schema";
 import { relationshipSchema } from "@/lib/form-schemas/relationships";
-
-const CACHE_TTL_SECONDS = 60;
 
 const querySchema = z.object({
   page: z.coerce.number().min(1).default(1),
@@ -86,146 +83,116 @@ export async function GET(request: NextRequest) {
     } = parsedParams.data;
     const offset = (page - 1) * limit;
 
-    const cacheKey = `relationships:${page}:${limit}:${
-      search || ""
-    }:${sortBy}:${sortOrder}:${relationshipType || ""}:${isActive ?? ""}:${
-      contactId || ""
-    }:${relatedContactId || ""}`;
-    const cacheTags = [
-      `relationships`,
-      `relationships:page:${page}`,
-      search && `relationships:search:${search}`,
-      relationshipType && `relationships:relationshipType:${relationshipType}`,
-      contactId && `relationships:contactId:${contactId}`,
-      relatedContactId && `relationships:relatedContactId:${relatedContactId}`,
-    ].filter(Boolean) as string[];
+    const conditions = [];
 
-    const cachedQuery = unstable_cache(
-      async () => {
-        const conditions = [];
+    if (search) {
+      conditions.push(
+        or(
+          ilike(relationships.relationshipType, `%${search}%`),
+          ilike(relationships.notes, `%${search}%`)
+        )
+      );
+    }
+    if (relationshipType)
+      conditions.push(eq(relationships.relationshipType, relationshipType));
+    if (isActive !== undefined)
+      conditions.push(eq(relationships.isActive, isActive));
+    if (contactId) conditions.push(eq(relationships.contactId, contactId));
+    if (relatedContactId)
+      conditions.push(eq(relationships.relatedContactId, relatedContactId));
 
-        if (search) {
-          conditions.push(
-            or(
-              ilike(relationships.relationshipType, `%${search}%`),
-              ilike(relationships.notes, `%${search}%`)
-            )
-          );
-        }
-        if (relationshipType)
-          conditions.push(eq(relationships.relationshipType, relationshipType));
-        if (isActive !== undefined)
-          conditions.push(eq(relationships.isActive, isActive));
-        if (contactId) conditions.push(eq(relationships.contactId, contactId));
-        if (relatedContactId)
-          conditions.push(eq(relationships.relatedContactId, relatedContactId));
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    let orderByClause;
+    switch (sortBy) {
+      case "id":
+        orderByClause =
+          sortOrder === "asc" ? asc(relationships.id) : desc(relationships.id);
+        break;
+      case "contactId":
+        orderByClause =
+          sortOrder === "asc"
+            ? asc(relationships.contactId)
+            : desc(relationships.contactId);
+        break;
+      case "relatedContactId":
+        orderByClause =
+          sortOrder === "asc"
+            ? asc(relationships.relatedContactId)
+            : desc(relationships.relatedContactId);
+        break;
+      case "relationshipType":
+        orderByClause =
+          sortOrder === "asc"
+            ? asc(relationships.relationshipType)
+            : desc(relationships.relationshipType);
+        break;
+      case "isActive":
+        orderByClause =
+          sortOrder === "asc"
+            ? asc(relationships.isActive)
+            : desc(relationships.isActive);
+        break;
+      case "createdAt":
+        orderByClause =
+          sortOrder === "asc"
+            ? asc(relationships.createdAt)
+            : desc(relationships.createdAt);
+        break;
+      case "updatedAt":
+      default:
+        orderByClause =
+          sortOrder === "asc"
+            ? asc(relationships.updatedAt)
+            : desc(relationships.updatedAt);
+        break;
+    }
 
-        const whereClause =
-          conditions.length > 0 ? and(...conditions) : undefined;
-        let orderByClause;
-        switch (sortBy) {
-          case "id":
-            orderByClause =
-              sortOrder === "asc"
-                ? asc(relationships.id)
-                : desc(relationships.id);
-            break;
-          case "contactId":
-            orderByClause =
-              sortOrder === "asc"
-                ? asc(relationships.contactId)
-                : desc(relationships.contactId);
-            break;
-          case "relatedContactId":
-            orderByClause =
-              sortOrder === "asc"
-                ? asc(relationships.relatedContactId)
-                : desc(relationships.relatedContactId);
-            break;
-          case "relationshipType":
-            orderByClause =
-              sortOrder === "asc"
-                ? asc(relationships.relationshipType)
-                : desc(relationships.relationshipType);
-            break;
-          case "isActive":
-            orderByClause =
-              sortOrder === "asc"
-                ? asc(relationships.isActive)
-                : desc(relationships.isActive);
-            break;
-          case "createdAt":
-            orderByClause =
-              sortOrder === "asc"
-                ? asc(relationships.createdAt)
-                : desc(relationships.createdAt);
-            break;
-          case "updatedAt":
-          default:
-            orderByClause =
-              sortOrder === "asc"
-                ? asc(relationships.updatedAt)
-                : desc(relationships.updatedAt);
-            break;
-        }
+    const query = db
+      .select()
+      .from(relationships)
+      .where(whereClause)
+      .orderBy(orderByClause)
+      .limit(limit)
+      .offset(offset);
 
-        const query = db
-          .select()
-          .from(relationships)
-          .where(whereClause)
-          .orderBy(orderByClause)
-          .limit(limit)
-          .offset(offset);
+    const countQuery = db
+      .select({
+        count: sql<number>`count(*)`.as("count"),
+      })
+      .from(relationships)
+      .where(whereClause);
 
-        const countQuery = db
-          .select({
-            count: sql<number>`count(*)`.as("count"),
-          })
-          .from(relationships)
-          .where(whereClause);
+    const [relations, totalCountResult] = await Promise.all([
+      query.execute(),
+      countQuery.execute(),
+    ]);
 
-        const [relations, totalCountResult] = await Promise.all([
-          query.execute(),
-          countQuery.execute(),
-        ]);
+    const totalCount = Number(totalCountResult[0]?.count || 0);
+    const totalPages = Math.ceil(totalCount / limit);
 
-        const totalCount = Number(totalCountResult[0]?.count || 0);
-        const totalPages = Math.ceil(totalCount / limit);
-
-        return {
-          relationships: relations,
-          pagination: {
-            page,
-            limit,
-            totalCount,
-            totalPages,
-            hasNextPage: page < totalPages,
-            hasPreviousPage: page > 1,
-          },
-          filters: {
-            search,
-            relationshipType,
-            isActive,
-            contactId,
-            relatedContactId,
-            sortBy: sortBy,
-            sortOrder,
-          },
-        };
+    const response = {
+      relationships: relations,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
       },
-      [cacheKey],
-      {
-        tags: cacheTags,
-        revalidate: CACHE_TTL_SECONDS,
-      }
-    );
-
-    const response = await cachedQuery();
+      filters: {
+        search,
+        relationshipType,
+        isActive,
+        contactId,
+        relatedContactId,
+        sortBy: sortBy,
+        sortOrder,
+      },
+    };
 
     return NextResponse.json(response, {
       headers: {
-        "Cache-Control": `public, s-maxage=${CACHE_TTL_SECONDS}`,
-        Vary: "Origin, Accept-Encoding",
         "X-Total-Count": response.pagination.totalCount.toString(),
       },
     });

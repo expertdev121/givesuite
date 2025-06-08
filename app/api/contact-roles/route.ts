@@ -2,12 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sql, desc, asc, or, ilike, and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { unstable_cache } from "next/cache";
 import { ErrorHandler } from "@/lib/error-handler";
 import { contactRoles, NewContactRole } from "@/lib/db/schema";
 import { contactRoleSchema } from "@/lib/form-schemas/contact-role";
-
-const CACHE_TTL_SECONDS = 60;
 
 const querySchema = z.object({
   page: z.coerce.number().min(1).default(1),
@@ -59,147 +56,118 @@ export async function GET(request: NextRequest) {
     } = parsedParams.data;
     const offset = (page - 1) * limit;
 
-    const cacheKey = `contactRoles:${page}:${limit}:${
-      search || ""
-    }:${sortBy}:${sortOrder}:${roleName || ""}:${isActive ?? ""}:${
-      contactId || ""
-    }`;
-    const cacheTags = [
-      `contactRoles`,
-      `contactRoles:page:${page}`,
-      search && `contactRoles:search:${search}`,
-      roleName && `contactRoles:roleName:${roleName}`,
-      contactId && `contactRoles:contactId:${contactId}`,
-    ].filter(Boolean) as string[];
+    const conditions = [];
 
-    const cachedQuery = unstable_cache(
-      async () => {
-        const conditions = [];
+    if (search) {
+      conditions.push(
+        or(
+          ilike(contactRoles.roleName, `%${search}%`),
+          ilike(contactRoles.notes, `%${search}%`)
+        )
+      );
+    }
+    if (roleName) conditions.push(eq(contactRoles.roleName, roleName));
+    if (isActive !== undefined)
+      conditions.push(eq(contactRoles.isActive, isActive));
+    if (contactId) conditions.push(eq(contactRoles.contactId, contactId));
 
-        if (search) {
-          conditions.push(
-            or(
-              ilike(contactRoles.roleName, `%${search}%`),
-              ilike(contactRoles.notes, `%${search}%`)
-            )
-          );
-        }
-        if (roleName) conditions.push(eq(contactRoles.roleName, roleName));
-        if (isActive !== undefined)
-          conditions.push(eq(contactRoles.isActive, isActive));
-        if (contactId) conditions.push(eq(contactRoles.contactId, contactId));
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    let orderByClause;
+    switch (sortBy) {
+      case "id":
+        orderByClause =
+          sortOrder === "asc" ? asc(contactRoles.id) : desc(contactRoles.id);
+        break;
+      case "contactId":
+        orderByClause =
+          sortOrder === "asc"
+            ? asc(contactRoles.contactId)
+            : desc(contactRoles.contactId);
+        break;
+      case "roleName":
+        orderByClause =
+          sortOrder === "asc"
+            ? asc(contactRoles.roleName)
+            : desc(contactRoles.roleName);
+        break;
+      case "startDate":
+        orderByClause =
+          sortOrder === "asc"
+            ? asc(contactRoles.startDate)
+            : desc(contactRoles.startDate);
+        break;
+      case "endDate":
+        orderByClause =
+          sortOrder === "asc"
+            ? asc(contactRoles.endDate)
+            : desc(contactRoles.endDate);
+        break;
+      case "isActive":
+        orderByClause =
+          sortOrder === "asc"
+            ? asc(contactRoles.isActive)
+            : desc(contactRoles.isActive);
+        break;
+      case "createdAt":
+        orderByClause =
+          sortOrder === "asc"
+            ? asc(contactRoles.createdAt)
+            : desc(contactRoles.createdAt);
+        break;
+      case "updatedAt":
+      default:
+        orderByClause =
+          sortOrder === "asc"
+            ? asc(contactRoles.updatedAt)
+            : desc(contactRoles.updatedAt);
+        break;
+    }
 
-        const whereClause =
-          conditions.length > 0 ? and(...conditions) : undefined;
-        let orderByClause;
-        switch (sortBy) {
-          case "id":
-            orderByClause =
-              sortOrder === "asc"
-                ? asc(contactRoles.id)
-                : desc(contactRoles.id);
-            break;
-          case "contactId":
-            orderByClause =
-              sortOrder === "asc"
-                ? asc(contactRoles.contactId)
-                : desc(contactRoles.contactId);
-            break;
-          case "roleName":
-            orderByClause =
-              sortOrder === "asc"
-                ? asc(contactRoles.roleName)
-                : desc(contactRoles.roleName);
-            break;
-          case "startDate":
-            orderByClause =
-              sortOrder === "asc"
-                ? asc(contactRoles.startDate)
-                : desc(contactRoles.startDate);
-            break;
-          case "endDate":
-            orderByClause =
-              sortOrder === "asc"
-                ? asc(contactRoles.endDate)
-                : desc(contactRoles.endDate);
-            break;
-          case "isActive":
-            orderByClause =
-              sortOrder === "asc"
-                ? asc(contactRoles.isActive)
-                : desc(contactRoles.isActive);
-            break;
-          case "createdAt":
-            orderByClause =
-              sortOrder === "asc"
-                ? asc(contactRoles.createdAt)
-                : desc(contactRoles.createdAt);
-            break;
-          case "updatedAt":
-          default:
-            orderByClause =
-              sortOrder === "asc"
-                ? asc(contactRoles.updatedAt)
-                : desc(contactRoles.updatedAt);
-            break;
-        }
+    const query = db
+      .select()
+      .from(contactRoles)
+      .where(whereClause)
+      .orderBy(orderByClause)
+      .limit(limit)
+      .offset(offset);
 
-        const query = db
-          .select()
-          .from(contactRoles)
-          .where(whereClause)
-          .orderBy(orderByClause)
-          .limit(limit)
-          .offset(offset);
+    const countQuery = db
+      .select({
+        count: sql<number>`count(*)`.as("count"),
+      })
+      .from(contactRoles)
+      .where(whereClause);
 
-        const countQuery = db
-          .select({
-            count: sql<number>`count(*)`.as("count"),
-          })
-          .from(contactRoles)
-          .where(whereClause);
+    const [roles, totalCountResult] = await Promise.all([
+      query.execute(),
+      countQuery.execute(),
+    ]);
 
-        const [roles, totalCountResult] = await Promise.all([
-          query.execute(),
-          countQuery.execute(),
-        ]);
+    const totalCount = Number(totalCountResult[0]?.count || 0);
+    const totalPages = Math.ceil(totalCount / limit);
 
-        const totalCount = Number(totalCountResult[0]?.count || 0);
-        const totalPages = Math.ceil(totalCount / limit);
-
-        return {
-          contactRoles: roles,
-          pagination: {
-            page,
-            limit,
-            totalCount,
-            totalPages,
-            hasNextPage: page < totalPages,
-            hasPreviousPage: page > 1,
-          },
-          filters: {
-            search,
-            roleName,
-            isActive,
-            contactId,
-            sortBy: sortBy,
-            sortOrder,
-          },
-        };
+    const response = {
+      contactRoles: roles,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
       },
-      [cacheKey],
-      {
-        tags: cacheTags,
-        revalidate: CACHE_TTL_SECONDS,
-      }
-    );
-
-    const response = await cachedQuery();
+      filters: {
+        search,
+        roleName,
+        isActive,
+        contactId,
+        sortBy: sortBy,
+        sortOrder,
+      },
+    };
 
     return NextResponse.json(response, {
       headers: {
-        "Cache-Control": `public, s-maxage=${CACHE_TTL_SECONDS}`,
-        Vary: "Origin, Accept-Encoding",
         "X-Total-Count": response.pagination.totalCount.toString(),
       },
     });

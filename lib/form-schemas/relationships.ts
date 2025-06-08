@@ -2,7 +2,7 @@ import z from "zod";
 
 export const relationshipSchema = z
   .object({
-    contactId: z.number().positive(),
+    contactId: z.coerce.number().positive("Contact ID is required"),
     relatedContactId: z.number().positive(),
     relationshipType: z.enum([
       "mother",

@@ -51,7 +51,6 @@ export async function GET(
           return { error: "Contact not found", status: 404 };
         }
 
-        // Fetch financial summary
         const [financialSummary] = await db
           .select({
             totalPledgedUsd: sql<number>`COALESCE(SUM(${pledge.originalAmountUsd}), 0)`,

@@ -64,7 +64,7 @@ const relationshipTypes = [
 
 const relationshipSchema = z
   .object({
-    contactId: z.number().positive("Contact ID is required"),
+    contactId: z.coerce.number().positive("Contact ID is required"),
     relatedContactId: z.number().positive("Related contact must be selected"),
     relationshipType: z.enum(
       [

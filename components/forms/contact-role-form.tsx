@@ -52,7 +52,7 @@ const commonRoles = [
 
 const contactRoleSchema = z
   .object({
-    contactId: z.number().positive("Contact ID is required"),
+    contactId: z.coerce.number().positive("Contact ID is required"),
     roleName: z.string().min(1, "Role name is required"),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
