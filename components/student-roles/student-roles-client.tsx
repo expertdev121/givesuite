@@ -36,6 +36,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
+import StudentRoleDialog from "../forms/student-role";
 
 interface StudentRolesTableProps {
   contactId: string | number;
@@ -318,6 +319,7 @@ export default function StudentRolesTable({
                 <SelectItem value="all">All</SelectItem>
               </SelectContent>
             </Select>
+            <StudentRoleDialog contactId={contactId as number} />
           </div>
           <div className="border rounded-lg overflow-hidden">
             <Table>

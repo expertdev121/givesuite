@@ -39,6 +39,7 @@ import { useRelationships } from "@/lib/query/useRelationShips";
 
 import { Dialog, DialogContent, DialogTitle } from "@radix-ui/react-dialog";
 import { DialogHeader, DialogFooter } from "../ui/dialog";
+import RelationshipDialog from "../forms/relationships-form";
 
 interface RelationshipsTableProps {
   contactId: string | number;
@@ -316,8 +317,9 @@ export default function RelationshipsTable({
               }
               className="w-full sm:w-36"
             />
+            <RelationshipDialog contactId={contactId as number} />
           </div>
-          <Button className="mb-4">Create New Relationship</Button>
+
           <div className="border rounded-lg overflow-hidden">
             <Table>
               <TableHeader>
