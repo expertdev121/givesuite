@@ -1,6 +1,53 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-// Types
+// Payment Types
+export interface CreatePaymentData {
+  pledgeId: number;
+  amount: number;
+  currency: string;
+  amountUsd?: number;
+  paymentDate: string;
+  receivedDate?: string;
+  paymentMethod?: string;
+  paymentStatus?:
+    | "pending"
+    | "completed"
+    | "failed"
+    | "cancelled"
+    | "refunded"
+    | "processing";
+  referenceNumber?: string;
+  checkNumber?: string;
+  receiptNumber?: string;
+  receiptIssued?: boolean;
+  notes?: string;
+  paymentPlanId?: number;
+}
+
+export interface CreatePaymentResponse {
+  message: string;
+  payment: {
+    id: number;
+    pledgeId: number;
+    amount: string;
+    currency: string;
+    amountUsd: string | null;
+    paymentDate: string;
+    receivedDate: string | null;
+    paymentMethod: string | null;
+    paymentStatus: string | null;
+    referenceNumber: string | null;
+    checkNumber: string | null;
+    receiptNumber: string | null;
+    receiptIssued: boolean | null;
+    notes: string | null;
+    paymentPlanId: number | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+}
+
+// Pledge Types
 export interface PledgeQueryParams {
   contactId?: number;
   categoryId?: number;
@@ -75,6 +122,27 @@ export interface CreatePledgeAndPayData extends CreatePledgeData {
 }
 
 // API Functions
+const createPayment = async (
+  data: CreatePaymentData
+): Promise<CreatePaymentResponse> => {
+  const response = await fetch("/api/payments", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(
+      errorData.error || `Failed to create payment: ${response.statusText}`
+    );
+  }
+
+  return response.json();
+};
+
 const fetchPledges = async (
   params: PledgeQueryParams
 ): Promise<PledgesResponse> => {
@@ -125,6 +193,15 @@ export const pledgeKeys = {
   detail: (id: number) => [...pledgeKeys.details(), id] as const,
 };
 
+export const paymentKeys = {
+  all: ["payments"] as const,
+  lists: () => [...paymentKeys.all, "list"] as const,
+  byPledge: (pledgeId: number) =>
+    [...paymentKeys.lists(), "pledge", pledgeId] as const,
+  byContact: (contactId: number) =>
+    [...paymentKeys.lists(), "contact", contactId] as const,
+};
+
 // Hooks
 export const usePledgesQuery = (params: PledgeQueryParams) => {
   return useQuery({
@@ -158,6 +235,34 @@ export const useCreatePledgeMutation = () => {
     },
     onError: (error) => {
       console.error("Error creating pledge:", error);
+    },
+  });
+};
+
+export const useCreatePaymentMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: createPayment,
+    onSuccess: (data, variables) => {
+      // Invalidate all payment queries
+      queryClient.invalidateQueries({ queryKey: paymentKeys.all });
+
+      // Invalidate payments for this specific pledge
+      queryClient.invalidateQueries({
+        queryKey: paymentKeys.byPledge(variables.pledgeId),
+      });
+
+      // Invalidate all pledge queries since payment affects pledge balance
+      queryClient.invalidateQueries({ queryKey: pledgeKeys.all });
+
+      // Optionally invalidate specific pledge detail if you have that query
+      queryClient.invalidateQueries({
+        queryKey: pledgeKeys.detail(variables.pledgeId),
+      });
+    },
+    onError: (error) => {
+      console.error("Error creating payment:", error);
     },
   });
 };

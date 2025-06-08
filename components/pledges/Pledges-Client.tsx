@@ -35,12 +35,12 @@ import {
   ChevronDown,
   ChevronRight,
   MoreHorizontal,
-  Plus,
   Search,
 } from "lucide-react";
 import { usePledgesQuery } from "@/lib/query/usePledgeData";
 import { LinkButton } from "../ui/next-link";
 import PledgeDialog from "../forms/pledge-form";
+import PaymentDialogClientt from "../forms/payment-dialog";
 
 interface PledgesTableProps {
   contactId: number;
@@ -422,11 +422,12 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
 
                             {/* Action Button */}
                             <div className="mt-6 pt-4 flex gap-2 border-t">
-                              <Button className="flex items-center gap-2">
-                                <Plus className="h-4 w-4" />
-                                Add New Payment
-                              </Button>
-
+                              <PaymentDialogClientt
+                                pledgeId={pledge.id}
+                                pledgeAmount={parseFloat(pledge.balance)}
+                                pledgeCurrency={pledge.currency}
+                                pledgeDescription={pledge.description ?? ""}
+                              />
                               <LinkButton
                                 href={`/contacts/${contactId}/payments?pledgeId=${pledge.id}`}
                                 variant="outline"
