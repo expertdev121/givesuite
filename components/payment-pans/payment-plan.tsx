@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { usePaymentPlans } from "@/lib/query/usePaymentPlan";
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const PlanStatusEnum = z.enum([
   "active",
   "completed",
@@ -46,17 +47,15 @@ const PlanStatusEnum = z.enum([
   "overdue",
 ]);
 
-const QueryParamsSchema = z.object({
-  pledgeId: z.number().positive(),
-  page: z.number().min(1).default(1),
-  limit: z.number().min(1).max(100).default(10),
-  search: z.string().optional(),
-  planStatus: PlanStatusEnum.optional(),
-});
-
 type PlanStatusType = z.infer<typeof PlanStatusEnum>;
 
-export default function PaymentPlansTable() {
+interface PaymentPlansTableProps {
+  contactId?: number;
+}
+
+export default function PaymentPlansTable({
+  contactId,
+}: PaymentPlansTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [pledgeId] = useQueryState("pledgeId", {
     parse: (value) => {
@@ -99,13 +98,14 @@ export default function PaymentPlansTable() {
   const currentPage = page ?? 1;
   const currentLimit = limit ?? 10;
 
-  const queryParams = QueryParamsSchema.parse({
-    pledgeId,
+  // Use pledgeId from query params if available, otherwise use contactId prop
+  const queryParams = {
+    ...(pledgeId ? { pledgeId } : contactId ? { contactId } : {}),
     page: currentPage,
     limit: currentLimit,
     search: search || undefined,
     planStatus: planStatus || undefined,
-  });
+  };
 
   const { data, isLoading, error } = usePaymentPlans(queryParams);
 
@@ -152,6 +152,18 @@ export default function PaymentPlansTable() {
       <Alert className="mx-4 my-6">
         <AlertDescription>
           Failed to load payment plans data. Please try again later.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  // Show message if neither pledgeId nor contactId is provided
+  if (!pledgeId && !contactId) {
+    return (
+      <Alert className="mx-4 my-6">
+        <AlertDescription>
+          No pledge or contact specified. Please provide either a pledgeId in
+          the URL or a contactId prop.
         </AlertDescription>
       </Alert>
     );
@@ -370,7 +382,12 @@ export default function PaymentPlansTable() {
                                       Total Paid (USD):
                                     </span>
                                     <span className="font-medium">
-                                      {plan.totalPaidUsd}
+                                      {plan.totalPaidUsd
+                                        ? formatCurrency(
+                                            plan.totalPaidUsd,
+                                            "USD"
+                                          )
+                                        : "N/A"}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
@@ -450,7 +467,7 @@ export default function PaymentPlansTable() {
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
-                                    <span className="text-gray600">
+                                    <span className="text-gray-600">
                                       Internal Notes:
                                     </span>
                                     <span className="font-medium">

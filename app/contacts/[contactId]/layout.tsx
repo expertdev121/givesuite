@@ -36,6 +36,13 @@ export default function SettingsLayout({
               <TabLink href={`/contacts/${contactId}`} exact>
                 Contact Info
               </TabLink>
+              <TabLink href={`/contacts/${contactId}/pledges`}>Pledges</TabLink>
+              <TabLink href={`/contacts/${contactId}/payment-plans`}>
+                Payment Plans
+              </TabLink>
+              <TabLink href={`/contacts/${contactId}/payments`}>
+                Payments
+              </TabLink>
               <TabLink href={`/contacts/${contactId}/contact-roles`}>
                 Contact Roles
               </TabLink>
@@ -45,15 +52,9 @@ export default function SettingsLayout({
               <TabLink href={`/contacts/${contactId}/relationships`}>
                 Relationships
               </TabLink>
-              <TabLink href={`/contacts/${contactId}/payment-plans`}>
-                Payment Plans
-              </TabLink>
-              <TabLink href={`/contacts/${contactId}/payments`}>
-                Payments
-              </TabLink>
             </nav>
           </div>
-          <div className="py-6">{children}</div>
+          <div className="p-6">{children}</div>
         </>
       )}
     </div>

@@ -42,6 +42,7 @@ const PaymentPlanSchema = z.object({
   internalNotes: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  pledgeId: z.number().optional(), // Add pledgeId for reference
 });
 
 const PaymentPlansResponseSchema = z.object({
@@ -50,8 +51,10 @@ const PaymentPlansResponseSchema = z.object({
 
 type PaymentPlansResponse = z.infer<typeof PaymentPlansResponseSchema>;
 
+// Updated interface to support either pledgeId or contactId
 interface UsePaymentPlansParams {
-  pledgeId: number;
+  pledgeId?: number;
+  contactId?: number;
   page?: number;
   limit?: number;
   search?: string;
@@ -60,13 +63,17 @@ interface UsePaymentPlansParams {
 
 export const usePaymentPlans = ({
   pledgeId,
+  contactId,
   page = 1,
   limit = 10,
   search,
   planStatus,
 }: UsePaymentPlansParams) => {
   return useQuery<PaymentPlansResponse, Error>({
-    queryKey: ["paymentPlans", pledgeId, page, limit, search, planStatus],
+    queryKey: [
+      "paymentPlans",
+      { pledgeId, contactId, page, limit, search, planStatus },
+    ],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append("page", page.toString());
@@ -74,12 +81,23 @@ export const usePaymentPlans = ({
       if (search) params.append("search", search);
       if (planStatus) params.append("planStatus", planStatus);
 
-      const response = await axios.get(`/api/payment-plans/${pledgeId}`, {
-        params,
-      });
+      let url: string;
+
+      if (pledgeId) {
+        // Use existing endpoint for pledge-specific payment plans
+        url = `/api/payment-plans/${pledgeId}`;
+      } else if (contactId) {
+        // Use contact endpoint for contact-specific payment plans
+        url = `/api/contacts/${contactId}/payment-plans`;
+      } else {
+        throw new Error("Either pledgeId or contactId must be provided");
+      }
+
+      const response = await axios.get(url, { params });
 
       return PaymentPlansResponseSchema.parse(response.data);
     },
+    enabled: !!(pledgeId || contactId),
     staleTime: 60 * 1000,
   });
 };
