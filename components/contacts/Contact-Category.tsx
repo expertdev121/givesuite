@@ -23,7 +23,6 @@ export default function ContactCategoriesCard({
 }: ContactCategoriesCardProps) {
   const { contactId } = useParams<{ contactId: string }>();
 
-  // Define the preferred order and create empty category template
   const categoryOrder = ["Tuition", "Donation", "Miscellaneous"];
 
   const createEmptyCategory = (name: string) => ({
@@ -36,13 +35,11 @@ export default function ContactCategoriesCard({
     pledgeCount: 0,
   });
 
-  // Create a map of existing categories by name (case-insensitive)
   const categoryMap = new Map<string, Category>();
   categories.forEach((cat) => {
     categoryMap.set(cat.categoryName.toLowerCase(), cat);
   });
 
-  // Build the sorted categories array with empty states
   const sortedCategories = categoryOrder.map((categoryName) => {
     const existing = categoryMap.get(categoryName.toLowerCase());
     return existing || createEmptyCategory(categoryName);
