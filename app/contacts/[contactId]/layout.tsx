@@ -45,6 +45,12 @@ export default function SettingsLayout({
               <TabLink href={`/contacts/${contactId}/relationships`}>
                 Relationships
               </TabLink>
+              <TabLink href={`/contacts/${contactId}/payment-plans`}>
+                Payment Plans
+              </TabLink>
+              <TabLink href={`/contacts/${contactId}/payments`}>
+                Payments
+              </TabLink>
             </nav>
           </div>
           <div className="py-6">{children}</div>

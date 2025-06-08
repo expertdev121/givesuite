@@ -40,17 +40,13 @@ const PaymentStatusEnum = z.enum([
   "processing",
 ]);
 
-const QueryParamsSchema = z.object({
-  pledgeId: z.number().positive(),
-  page: z.number().min(1).default(1),
-  limit: z.number().min(1).max(100).default(10),
-  search: z.string().optional(),
-  paymentStatus: PaymentStatusEnum.optional(),
-});
-
 type PaymentStatusType = z.infer<typeof PaymentStatusEnum>;
 
-export default function PaymentsTable() {
+interface PaymentsTableProps {
+  contactId?: number;
+}
+
+export default function PaymentsTable({ contactId }: PaymentsTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [pledgeId] = useQueryState("pledgeId", {
     parse: (value) => {
@@ -92,25 +88,15 @@ export default function PaymentsTable() {
   const currentPage = page ?? 1;
   const currentLimit = limit ?? 10;
 
-  const queryParams = QueryParamsSchema.parse({
-    pledgeId,
+  const queryParams = {
+    ...(pledgeId ? { pledgeId } : contactId ? { contactId } : {}),
     page: currentPage,
     limit: currentLimit,
     search: search || undefined,
     paymentStatus: paymentStatus || undefined,
-  });
+  };
 
   const { data, isLoading, error } = usePaymentsQuery(queryParams);
-
-  const toggleRowExpansion = (paymentId: number) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(paymentId)) {
-      newExpanded.delete(paymentId);
-    } else {
-      newExpanded.add(paymentId);
-    }
-    setExpandedRows(newExpanded);
-  };
 
   const formatCurrency = (amount: string, currency: string) => {
     return new Intl.NumberFormat("en-US", {
@@ -146,6 +132,18 @@ export default function PaymentsTable() {
       <Alert className="mx-4 my-6">
         <AlertDescription>
           Failed to load payments data. Please try again later.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  // Show message if neither pledgeId nor contactId is provided
+  if (!pledgeId && !contactId) {
+    return (
+      <Alert className="mx-4 my-6">
+        <AlertDescription>
+          No pledge or contact specified. Please provide either a pledgeId in
+          the URL or a contactId prop.
         </AlertDescription>
       </Alert>
     );
@@ -303,22 +301,12 @@ export default function PaymentsTable() {
                         <TableCell>
                           <Link
                             className="font-medium text-primary hover:underline hover:text-primary-dark transition-colors duration-200"
-                            href={`/contacts/1/payment-plans?pledgeId=${pledgeId}`}
+                            href={`/contacts/1/payment-plans?pledgeId=${
+                              pledgeId || payment.pledgeId
+                            }`}
                           >
                             View
                           </Link>
-                          {/* <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => toggleRowExpansion(payment.id)}
-                            className="p-1"
-                          >
-                            {expandedRows.has(payment.id) ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
-                          </Button> */}
                         </TableCell>
                       </TableRow>
 
@@ -418,7 +406,9 @@ export default function PaymentsTable() {
                             <div className="mt-6 pt-4 flex justify-end gap-2 border-t">
                               <LinkButton
                                 variant="secondary"
-                                href={`/contacts/1/payment-plans?pledgeId=${pledgeId}`}
+                                href={`/contacts/1/payment-plans?pledgeId=${
+                                  pledgeId || payment.pledgeId
+                                }`}
                                 className="flex items-center gap-2"
                               >
                                 <BadgeDollarSignIcon className="h-4 w-4" />

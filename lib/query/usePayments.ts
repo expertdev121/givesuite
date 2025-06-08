@@ -28,19 +28,26 @@ interface PaymentResponse {
   receiptIssuedDate: string | null;
   notes: string | null;
   paymentPlanId: number | null;
+  pledgeId?: number; // Add pledgeId to response for View link
 }
 
 interface ApiResponse {
   payments: PaymentResponse[];
 }
 
-const QueryParamsSchema = z.object({
-  pledgeId: z.number().positive(),
-  page: z.number().min(1).default(1),
-  limit: z.number().min(1).max(100).default(10),
-  search: z.string().optional(),
-  paymentStatus: PaymentStatusEnum.optional(),
-});
+// Updated schema to support either pledgeId or contactId
+const QueryParamsSchema = z
+  .object({
+    pledgeId: z.number().positive().optional(),
+    contactId: z.number().positive().optional(),
+    page: z.number().min(1).default(1),
+    limit: z.number().min(1).max(100).default(10),
+    search: z.string().optional(),
+    paymentStatus: PaymentStatusEnum.optional(),
+  })
+  .refine((data) => data.pledgeId || data.contactId, {
+    message: "Either pledgeId or contactId must be provided",
+  });
 
 type QueryParams = z.infer<typeof QueryParamsSchema>;
 
@@ -56,12 +63,20 @@ const fetchPayments = async (params: QueryParams): Promise<ApiResponse> => {
   };
 
   try {
-    const response = await axios.get<ApiResponse>(
-      `/api/payments/${validatedParams.pledgeId}`,
-      {
-        params: queryParams,
-      }
-    );
+    let url: string;
+
+    if (validatedParams.pledgeId) {
+      url = `/api/payments/${validatedParams.pledgeId}`;
+    } else if (validatedParams.contactId) {
+      url = `/api/contacts/${validatedParams.contactId}/payments`;
+    } else {
+      throw new Error("Either pledgeId or contactId must be provided");
+    }
+
+    const response = await axios.get<ApiResponse>(url, {
+      params: queryParams,
+    });
+
     return response.data;
   } catch (error) {
     throw new Error(
@@ -76,6 +91,6 @@ export const usePaymentsQuery = (params: QueryParams) => {
   return useQuery<ApiResponse, Error>({
     queryKey: ["payments", params],
     queryFn: () => fetchPayments(params),
-    enabled: !!params.pledgeId && !isNaN(params.pledgeId),
+    enabled: !!(params.pledgeId || params.contactId),
   });
 };
