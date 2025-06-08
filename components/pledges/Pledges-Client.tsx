@@ -430,17 +430,28 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                                   pledgeCurrency={pledge.currency}
                                   pledgeDescription={pledge.description ?? ""}
                                 />
+                                <LinkButton
+                                  href={`/contacts/${contactId}/payments?pledgeId=${pledge.id}`}
+                                  variant="outline"
+                                  className="flex items-center gap-2"
+                                >
+                                  <BadgeDollarSign className="h-4 w-4" />
+                                  View Payments
+                                </LinkButton>
+                              </div>
+
+                              <div className="flex gap-2">
                                 <PaymentPlanDialog pledgeId={pledge.id} />
+                                <LinkButton
+                                  href={`/contacts/${contactId}/payment-plans?pledgeId=${pledge.id}`}
+                                  variant="outline"
+                                  className="flex items-center gap-2"
+                                >
+                                  <BadgeDollarSign className="h-4 w-4" />
+                                  View Plans
+                                </LinkButton>
                               </div>
                               {/* or */}
-                              <LinkButton
-                                href={`/contacts/${contactId}/payments?pledgeId=${pledge.id}`}
-                                variant="outline"
-                                className="flex items-center gap-2"
-                              >
-                                <BadgeDollarSign className="h-4 w-4" />
-                                View Payments
-                              </LinkButton>
                             </div>
                           </TableCell>
                         </TableRow>
