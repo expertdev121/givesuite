@@ -181,14 +181,6 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                 <SelectItem value="processing">Processing</SelectItem>
               </SelectContent>
             </Select>
-            <LinkButton
-              variant="outline"
-              href="/new-payment"
-              className="flex items-center gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              New Payment
-            </LinkButton>
             <FactsDialog />
           </div>
 
