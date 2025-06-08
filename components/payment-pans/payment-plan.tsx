@@ -37,6 +37,8 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { usePaymentPlans } from "@/lib/query/usePaymentPlan";
+import PaymentPlanDialog from "../forms/payment-plan-dialog";
+// import PaymentPlanDialog from "../forms/payment-plan";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const PlanStatusEnum = z.enum([
@@ -216,6 +218,7 @@ export default function PaymentPlansTable({
                 <SelectItem value="overdue">Overdue</SelectItem>
               </SelectContent>
             </Select>
+            <PaymentPlanDialog pledgeId={1} />
           </div>
 
           {/* Table */}
