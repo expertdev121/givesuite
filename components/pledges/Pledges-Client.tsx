@@ -41,6 +41,7 @@ import { usePledgesQuery } from "@/lib/query/usePledgeData";
 import { LinkButton } from "../ui/next-link";
 import PledgeDialog from "../forms/pledge-form";
 import PaymentDialogClientt from "../forms/payment-dialog";
+import PaymentPlanDialog from "../forms/payment-plan-dialog";
 
 interface PledgesTableProps {
   contactId: number;
@@ -421,13 +422,17 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                             </div>
 
                             {/* Action Button */}
-                            <div className="mt-6 pt-4 flex gap-2 border-t">
-                              <PaymentDialogClientt
-                                pledgeId={pledge.id}
-                                pledgeAmount={parseFloat(pledge.balance)}
-                                pledgeCurrency={pledge.currency}
-                                pledgeDescription={pledge.description ?? ""}
-                              />
+                            <div className="mt-6 pt-4 flex gap-2 border-t justify-between">
+                              <div className="flex gap-2">
+                                <PaymentDialogClientt
+                                  pledgeId={pledge.id}
+                                  pledgeAmount={parseFloat(pledge.balance)}
+                                  pledgeCurrency={pledge.currency}
+                                  pledgeDescription={pledge.description ?? ""}
+                                />
+                                <PaymentPlanDialog pledgeId={pledge.id} />
+                              </div>
+                              {/* or */}
                               <LinkButton
                                 href={`/contacts/${contactId}/payments?pledgeId=${pledge.id}`}
                                 variant="outline"
