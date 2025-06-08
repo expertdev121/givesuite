@@ -143,7 +143,6 @@ export default function PledgeDialog({
     }
   }, [watchedCurrency, watchedPledgeDate, exchangeRatesData, form]);
 
-  // Auto-calculate USD amount when original amount or exchange rate changes
   useEffect(() => {
     const exchangeRate = form.getValues("exchangeRate");
     if (watchedOriginalAmount && exchangeRate) {
