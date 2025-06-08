@@ -36,7 +36,6 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useExchangeRates } from "@/lib/query/useExchangeRates";
-import { useContactCategories } from "@/lib/query/useContactCategories";
 
 import {
   Command,
@@ -54,6 +53,7 @@ import {
   useCreatePledgeAndPayMutation,
 } from "@/lib/query/pledge/usePledgeQuery";
 import PaymentDialog from "./payment-form";
+import { getCategoryById, STATIC_CATEGORIES } from "@/lib/data/categories";
 
 const supportedCurrencies = [
   "USD",
@@ -98,18 +98,15 @@ export default function PledgeDialog({
   const [open, setOpen] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [createdPledge, setCreatedPledge] = useState<any>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(
+    null
+  );
 
   const {
     data: exchangeRatesData,
     isLoading: isLoadingRates,
     error: ratesError,
   } = useExchangeRates();
-
-  const {
-    data: categories,
-    isLoading: isLoadingCategories,
-    error: categoriesError,
-  } = useContactCategories(contactId);
 
   const createPledgeMutation = useCreatePledgeMutation();
   const createPledgeAndPayMutation = useCreatePledgeAndPayMutation();
@@ -118,8 +115,10 @@ export default function PledgeDialog({
     resolver: zodResolver(pledgeSchema),
     defaultValues: {
       contactId,
+      categoryId: undefined,
       currency: "USD" as const,
       exchangeRate: 1,
+      originalAmount: 0,
       originalAmountUsd: 0,
       description: "",
       pledgeDate: new Date().toISOString().split("T")[0],
@@ -154,6 +153,13 @@ export default function PledgeDialog({
   const handleCategoryChange = (categoryId: string) => {
     const id = parseInt(categoryId);
     form.setValue("categoryId", id);
+    setSelectedCategoryId(id);
+    // Clear description when category changes
+    form.setValue("description", "");
+  };
+
+  const handleItemSelect = (item: string) => {
+    form.setValue("description", item);
   };
 
   const onSubmit = async (data: PledgeFormData, shouldOpenPayment = false) => {
@@ -187,6 +193,7 @@ export default function PledgeDialog({
           pledgeDate: new Date().toISOString().split("T")[0],
           notes: "",
         });
+        setSelectedCategoryId(null);
         setOpen(false);
 
         // Store pledge data and open payment dialog
@@ -197,16 +204,18 @@ export default function PledgeDialog({
 
         toast.success("Pledge created successfully!");
 
-        // Reset form and close dialog
         form.reset({
           contactId,
+          categoryId: undefined,
           currency: "USD" as const,
           exchangeRate: 1,
+          originalAmount: 0, // Add this
           originalAmountUsd: 0,
           description: "",
           pledgeDate: new Date().toISOString().split("T")[0],
           notes: "",
         });
+        setSelectedCategoryId(null);
         setOpen(false);
 
         // Call callback if provided
@@ -234,11 +243,16 @@ export default function PledgeDialog({
         pledgeDate: new Date().toISOString().split("T")[0],
         notes: "",
       });
+      setSelectedCategoryId(null);
     }
   };
 
   const isSubmitting =
     createPledgeMutation.isPending || createPledgeAndPayMutation.isPending;
+
+  const selectedCategory = selectedCategoryId
+    ? getCategoryById(selectedCategoryId)
+    : null;
 
   return (
     <>
@@ -279,15 +293,11 @@ export default function PledgeDialog({
                               "w-[200px] justify-between",
                               !field.value && "text-muted-foreground"
                             )}
-                            disabled={isLoadingCategories}
                           >
-                            {field.value && categories
-                              ? categories.find(
-                                  (category) =>
-                                    category.categoryId === field.value
-                                )?.categoryName
-                              : isLoadingCategories
-                              ? "Loading categories..."
+                            {field.value
+                              ? STATIC_CATEGORIES.find(
+                                  (category) => category.id === field.value
+                                )?.name
                               : "Select category"}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
@@ -300,31 +310,24 @@ export default function PledgeDialog({
                             className="h-9"
                           />
                           <CommandList>
-                            <CommandEmpty>
-                              {isLoadingCategories
-                                ? "Loading categories..."
-                                : "No category found."}
-                            </CommandEmpty>
+                            <CommandEmpty>No category found.</CommandEmpty>
                             <CommandGroup>
-                              {categories?.map((category) => (
+                              {STATIC_CATEGORIES.map((category) => (
                                 <CommandItem
-                                  key={category.categoryId}
-                                  value={category.categoryName}
+                                  key={category.id}
+                                  value={category.name}
                                   onSelect={() => {
-                                    form.setValue(
-                                      "categoryId",
-                                      category.categoryId
-                                    );
+                                    form.setValue("categoryId", category.id);
                                     handleCategoryChange(
-                                      category.categoryId.toString()
+                                      category.id.toString()
                                     );
                                   }}
                                 >
-                                  {category.categoryName}
+                                  {category.name}
                                   <Check
                                     className={cn(
                                       "ml-auto h-4 w-4",
-                                      category.categoryId === field.value
+                                      category.id === field.value
                                         ? "opacity-100"
                                         : "opacity-0"
                                     )}
@@ -339,15 +342,12 @@ export default function PledgeDialog({
                     <FormDescription>
                       Select the category for this pledge.
                     </FormDescription>
-                    {categoriesError && (
-                      <FormMessage>Error loading categories</FormMessage>
-                    )}
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              {/* Description */}
+              {/* Description with item selection */}
               <FormField
                 control={form.control}
                 name="description"
@@ -355,10 +355,60 @@ export default function PledgeDialog({
                   <FormItem>
                     <FormLabel>Description *</FormLabel>
                     <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="Enter description of the pledge"
-                      />
+                      <div className="space-y-2">
+                        <Input
+                          {...field}
+                          placeholder="Enter description of the pledge"
+                        />
+                        {selectedCategory &&
+                          selectedCategory.items.length > 0 && (
+                            <div className="mt-2">
+                              <FormLabel className="text-sm text-muted-foreground">
+                                Or select from {selectedCategory.name} items:
+                              </FormLabel>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    className="w-full justify-between mt-1"
+                                  >
+                                    Select item from {selectedCategory.name}
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-full p-0">
+                                  <Command>
+                                    <CommandInput
+                                      placeholder={`Search ${selectedCategory.name} items...`}
+                                      className="h-9"
+                                    />
+                                    <CommandList className="max-h-[200px]">
+                                      <CommandEmpty>
+                                        No items found.
+                                      </CommandEmpty>
+                                      <CommandGroup>
+                                        {selectedCategory.items.map(
+                                          (item, index) => (
+                                            <CommandItem
+                                              key={index}
+                                              value={item}
+                                              onSelect={() =>
+                                                handleItemSelect(item)
+                                              }
+                                            >
+                                              {item}
+                                            </CommandItem>
+                                          )
+                                        )}
+                                      </CommandGroup>
+                                    </CommandList>
+                                  </Command>
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+                          )}
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -516,18 +566,14 @@ export default function PledgeDialog({
                 <Button
                   type="button"
                   onClick={form.handleSubmit((data) => onSubmit(data, false))}
-                  disabled={
-                    isSubmitting || isLoadingRates || isLoadingCategories
-                  }
+                  disabled={isSubmitting || isLoadingRates}
                 >
                   {isSubmitting ? "Creating..." : "Create Pledge"}
                 </Button>
                 <Button
                   type="button"
                   onClick={form.handleSubmit((data) => onSubmit(data, true))}
-                  disabled={
-                    isSubmitting || isLoadingRates || isLoadingCategories
-                  }
+                  disabled={isSubmitting || isLoadingRates}
                   className="bg-green-600 hover:bg-green-700"
                 >
                   {isSubmitting ? "Creating..." : "Create Pledge + Pay"}
