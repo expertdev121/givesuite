@@ -42,6 +42,7 @@ import { LinkButton } from "../ui/next-link";
 import PledgeDialog from "../forms/pledge-form";
 import PaymentDialogClientt from "../forms/payment-dialog";
 import PaymentPlanDialog from "../forms/payment-plan-dialog";
+import Link from "next/link";
 
 interface PledgesTableProps {
   contactId: number;
@@ -216,11 +217,20 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                   <TableHead className="font-semibold text-gray-900">
                     Paid
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">
+                  <TableHead className="font-semibold text-red-400">
                     Balance
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
                     Progress
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Scheduled
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Unscheduled
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Notes
                   </TableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
@@ -327,6 +337,18 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                           </div>
                         </TableCell>
                         <TableCell>
+                          {formatCurrency(pledge.balance, pledge.currency)}
+                        </TableCell>
+                        <TableCell>
+                          {formatCurrency(
+                            pledge.originalAmount,
+                            pledge.currency
+                          )}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {pledge.notes}
+                        </TableCell>
+                        <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="sm" className="p-1">
@@ -334,10 +356,19 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem>Edit Pledge</DropdownMenuItem>
-                              <DropdownMenuItem>View History</DropdownMenuItem>
-                              <DropdownMenuItem className="text-red-600">
-                                Delete Pledge
+                              <DropdownMenuItem>
+                                <Link
+                                  href={`/contacts/${contactId}/payments?pledgeId=${pledge.id}`}
+                                >
+                                  View Payments
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>
+                                <Link
+                                  href={`/contacts/${contactId}/payment-plans?pledgeId=${pledge.id}`}
+                                >
+                                  View Payment Plans
+                                </Link>
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
