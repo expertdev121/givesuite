@@ -1,7 +1,8 @@
 import React from "react";
+import AllPledgesTable from "./_components/all-pledges";
 
-const page = () => {
-  return <div>page</div>;
+const AllPledges = () => {
+  return <AllPledgesTable />;
 };
 
-export default page;
+export default AllPledges;
