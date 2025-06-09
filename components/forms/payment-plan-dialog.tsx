@@ -4,7 +4,16 @@ import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +32,11 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -32,10 +46,12 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   useCreatePaymentPlanMutation,
   usePledgeDetailsQuery,
 } from "@/lib/query/payment-plans/usePaymenetPlanQuery";
+import { usePledgesQuery } from "@/lib/query/usePledgeData";
 
 const supportedCurrencies = [
   "USD",
@@ -90,11 +106,13 @@ const paymentPlanSchema = z.object({
 type PaymentPlanFormData = z.infer<typeof paymentPlanSchema>;
 
 interface PaymentPlanDialogProps {
-  pledgeId: number;
+  pledgeId?: number;
+  contactId?: number;
   pledgeAmount?: number;
   pledgeCurrency?: string;
   pledgeDescription?: string;
   remainingBalance?: number;
+  showPledgeSelector?: boolean;
 }
 
 const calculateNextPaymentDate = (
@@ -162,16 +180,29 @@ const calculateEndDate = (
 
 export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
   const {
-    pledgeId,
+    pledgeId: initialPledgeId,
+    contactId,
     pledgeAmount,
     pledgeCurrency,
     pledgeDescription,
     remainingBalance,
+    showPledgeSelector = false,
   } = props;
+
   const [open, setOpen] = useState(false);
+  const [selectedPledgeId, setSelectedPledgeId] = useState<number | undefined>(
+    initialPledgeId
+  );
+
+  const { data: pledgesData, isLoading: isLoadingPledges } = usePledgesQuery({
+    contactId: contactId,
+    page: 1,
+    limit: 100,
+    status: undefined,
+  });
 
   const { data: pledgeData, isLoading: isLoadingPledge } =
-    usePledgeDetailsQuery(pledgeId);
+    usePledgeDetailsQuery(selectedPledgeId!);
 
   const effectivePledgeAmount =
     pledgeAmount || (pledgeData?.pledge.originalAmount ?? 0);
@@ -179,7 +210,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
     pledgeCurrency || (pledgeData?.pledge.currency ?? "USD");
   const effectivePledgeDescription =
     pledgeDescription ||
-    (pledgeData?.pledge.description ?? `Pledge #${pledgeId}`);
+    (pledgeData?.pledge.description ?? `Pledge #${selectedPledgeId}`);
   const effectiveRemainingBalance =
     remainingBalance ||
     (pledgeData?.pledge.remainingBalance ?? effectivePledgeAmount);
@@ -191,7 +222,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
   const form = useForm({
     resolver: zodResolver(paymentPlanSchema),
     defaultValues: {
-      pledgeId,
+      pledgeId: selectedPledgeId || 0,
       planName: "",
       frequency: "monthly",
       totalPlannedAmount: defaultAmount,
@@ -211,6 +242,23 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
   const watchedStartDate = form.watch("startDate");
   const watchedNumberOfInstallments = form.watch("numberOfInstallments");
   const watchedTotalPlannedAmount = form.watch("totalPlannedAmount");
+
+  // Update form when selectedPledgeId changes
+  useEffect(() => {
+    if (selectedPledgeId) {
+      form.setValue("pledgeId", selectedPledgeId);
+    }
+  }, [selectedPledgeId, form]);
+
+  // Update form values when pledge data changes
+  useEffect(() => {
+    if (pledgeData?.pledge) {
+      const newDefaultAmount =
+        pledgeData.pledge.remainingBalance || pledgeData.pledge.originalAmount;
+      form.setValue("totalPlannedAmount", newDefaultAmount);
+      form.setValue("currency", pledgeData.pledge.currency as any);
+    }
+  }, [pledgeData, form]);
 
   useEffect(() => {
     const totalAmount = watchedTotalPlannedAmount;
@@ -247,7 +295,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
   const resetForm = () => {
     const newDefaultAmount = effectiveRemainingBalance || effectivePledgeAmount;
     form.reset({
-      pledgeId,
+      pledgeId: selectedPledgeId || 0,
       planName: "",
       frequency: "monthly",
       totalPlannedAmount: newDefaultAmount,
@@ -279,6 +327,18 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
       resetForm();
     }
   };
+
+  // Format pledge options for the combobox
+  const pledgeOptions =
+    pledgesData?.pledges?.map((pledge) => ({
+      label: `#${pledge.id} - ${pledge.description || "No description"} (${
+        pledge.currency
+      } ${parseFloat(pledge.balance).toLocaleString()})`,
+      value: pledge.id,
+      balance: parseFloat(pledge.balance),
+      currency: pledge.currency,
+      description: pledge.description,
+    })) || [];
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -315,6 +375,76 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
 
         <Form {...form}>
           <div className="space-y-4">
+            {showPledgeSelector && (
+              <FormField
+                control={form.control}
+                name="pledgeId"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Select Pledge *</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className={cn(
+                              "w-full justify-between",
+                              !field.value && "text-muted-foreground"
+                            )}
+                            disabled={isLoadingPledges}
+                          >
+                            {field.value
+                              ? pledgeOptions.find(
+                                  (pledge) => pledge.value === field.value
+                                )?.label
+                              : isLoadingPledges
+                              ? "Loading pledges..."
+                              : "Select pledge"}
+                            <ChevronsUpDown className="opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0">
+                        <Command>
+                          <CommandInput
+                            placeholder="Search pledges..."
+                            className="h-9"
+                          />
+                          <CommandList>
+                            <CommandEmpty>No pledge found.</CommandEmpty>
+                            <CommandGroup>
+                              {pledgeOptions.map((pledge) => (
+                                <CommandItem
+                                  value={pledge.label}
+                                  key={pledge.value}
+                                  onSelect={() => {
+                                    setSelectedPledgeId(pledge.value);
+                                    form.setValue("pledgeId", pledge.value);
+                                  }}
+                                >
+                                  {pledge.label}
+                                  <Check
+                                    className={cn(
+                                      "ml-auto",
+                                      pledge.value === field.value
+                                        ? "opacity-100"
+                                        : "opacity-0"
+                                    )}
+                                  />
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
             <FormField
               control={form.control}
               name="planName"
@@ -603,7 +733,10 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                 type="button"
                 onClick={form.handleSubmit(onSubmit)}
                 disabled={
-                  createPaymentPlanMutation.isPending || isLoadingPledge
+                  createPaymentPlanMutation.isPending ||
+                  isLoadingPledge ||
+                  !selectedPledgeId ||
+                  (showPledgeSelector && isLoadingPledges)
                 }
                 className="text-white"
               >

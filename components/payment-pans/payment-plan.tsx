@@ -217,7 +217,13 @@ export default function PaymentPlansTable({
                 <SelectItem value="overdue">Overdue</SelectItem>
               </SelectContent>
             </Select>
-            {pledgeId && <PaymentPlanDialog pledgeId={pledgeId} />}
+            {
+              <PaymentPlanDialog
+                pledgeId={pledgeId ?? 0}
+                contactId={contactId}
+                showPledgeSelector
+              />
+            }
           </div>
 
           {/* Table */}
