@@ -199,7 +199,10 @@ export default function ContactsTable() {
               </TableRow>
             ) : (
               data?.contacts.map((contact) => (
-                <TableRow key={contact.id} className="hover:bg-gray-50">
+                <TableRow
+                  key={`${contact.id}-${contact.createdAt}`}
+                  className="hover:bg-gray-50"
+                >
                   <TableCell className="font-medium">
                     {contact.lastName}
                     {","} {contact.firstName}
