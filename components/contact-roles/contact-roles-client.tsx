@@ -97,7 +97,6 @@ export default function ContactRolesTable({
   const currentPage = page ?? 1;
   const currentLimit = limit ?? 10;
 
-  // Validate query parameters - use a default contactId if invalid to avoid hook call issues
   const validContactId =
     isNaN(parsedContactId) || parsedContactId <= 0 ? 1 : parsedContactId;
 
@@ -108,14 +107,12 @@ export default function ContactRolesTable({
     search: search || undefined,
     sortBy: sortBy || undefined,
     sortOrder: sortOrder || undefined,
-    roleName: undefined, // Not used in UI
+    roleName: undefined,
     isActive: isActive !== null ? isActive : undefined,
   });
 
-  // Fetch contact roles using the TanStack Query hook (MOVED TO TOP, AFTER ALL OTHER HOOKS)
   const { data, isLoading, error } = useContactRoles(queryParams);
 
-  // Check for invalid contactId AFTER all hooks are called
   if (isNaN(parsedContactId) || parsedContactId <= 0) {
     return (
       <Alert className="mx-4 my-6" variant="destructive">
