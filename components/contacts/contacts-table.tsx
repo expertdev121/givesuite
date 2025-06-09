@@ -132,6 +132,7 @@ export default function ContactsTable() {
         showViewAll={true}
         pledgesHref="/pledges"
         pledgersHref="/student-roles"
+        recentHref="/contact-roles"
       />
       <p className="my-2 text-muted-foreground">
         View and manage your contacts

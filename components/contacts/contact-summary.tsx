@@ -125,9 +125,6 @@ export default function ContactsSummaryCards({
                 <h3 className="text-sm font-bold text-purple-700">
                   Student Roles
                 </h3>
-                <p className="text-lg font-semibold text-purple-800 mt-1">
-                  {data ? 1 : "0"}
-                </p>
               </div>
               <div className="bg-purple-600 text-white p-1.5 rounded-full">
                 <UserCheck className="h-3 w-3" />
@@ -149,14 +146,8 @@ export default function ContactsSummaryCards({
             <div className="flex items-center justify-between flex-1">
               <div>
                 <h3 className="text-sm font-bold text-orange-700">
-                  Recent Contacts
+                  Contact Roles
                 </h3>
-                <p className="text-lg font-semibold text-orange-800 mt-1">
-                  {data ? formatNumber(data.recentContacts) : "0"}
-                </p>
-                <p className="text-[10px] text-orange-600 mt-0.5">
-                  Added this month
-                </p>
               </div>
               <div className="bg-orange-600 text-white p-1.5 rounded-full">
                 <Clock className="h-3 w-3" />

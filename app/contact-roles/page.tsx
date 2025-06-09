@@ -1,10 +1,10 @@
 import React, { Suspense } from "react";
-import StudentRolesTable from "@/components/student-roles/student-roles-client";
+import ContactRolesTable from "@/components/contact-roles/contact-roles-client";
 
 const AllContactRoles = () => {
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      <StudentRolesTable contactId={1} />
+      <ContactRolesTable contactId={1} />
     </Suspense>
   );
 };
