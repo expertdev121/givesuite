@@ -68,7 +68,7 @@ const fetchAllPledges = async (
     searchParams.append("search", params.search);
   }
 
-  const response = await fetch(`/api/pledges?${searchParams.toString()}`);
+  const response = await fetch(`/api/all-pledges?${searchParams.toString()}`);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch pledges: ${response.statusText}`);

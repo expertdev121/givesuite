@@ -127,7 +127,14 @@ export default function ContactsTable() {
   return (
     <div className="py-4">
       {/* Summary Cards */}
-      <ContactsSummaryCards data={summaryData} isLoading={isLoading} />
+      <ContactsSummaryCards
+        data={summaryData}
+        showViewAll={true}
+        contactsHref="/contacts"
+        pledgesHref="/pledges"
+        pledgersHref="/contacts?filter=pledgers"
+        recentHref="/contacts?filter=recent"
+      />
       <p className="my-2 text-muted-foreground">
         View and manage your contacts
       </p>
