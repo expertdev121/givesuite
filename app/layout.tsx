@@ -37,7 +37,6 @@ export default function RootLayout({
               <CurrentBreadcrumb />
               {children}
             </main>
-
             <Toaster position="top-center" />
           </NuqsAdapter>
         </TanstackQueryProvider>

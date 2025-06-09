@@ -1,0 +1,127 @@
+"use client";
+
+import React from "react";
+import { Users, DollarSign, UserCheck, Clock } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+
+interface ContactsSummaryCardsProps {
+  data?: {
+    totalContacts: number;
+    totalPledgedAmount: number;
+    contactsWithPledges: number;
+    recentContacts: number;
+  };
+  isLoading?: boolean;
+}
+
+export default function ContactsSummaryCards({
+  data,
+  isLoading,
+}: ContactsSummaryCardsProps) {
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const formatNumber = (num: number) => {
+    return new Intl.NumberFormat("en-US").format(num);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2 mb-6">
+        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Card key={index} className="h-full">
+              <CardContent className="flex items-center justify-between p-3">
+                <div className="flex-1">
+                  <Skeleton className="h-4 w-20 mb-2" />
+                  <Skeleton className="h-3 w-32" />
+                </div>
+                <Skeleton className="h-8 w-8 rounded-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-6 -mt-10">
+      <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="h-full bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+          <CardContent className="flex items-center justify-between p-3">
+            <div>
+              <h3 className="text-sm font-bold text-blue-700">
+                Total Contacts
+              </h3>
+              <p className="text-lg font-semibold text-blue-800 mt-1">
+                {data ? formatNumber(data.totalContacts) : "0"}
+              </p>
+            </div>
+            <div className="bg-blue-600 text-white p-1.5 rounded-full">
+              <Users className="h-3 w-3" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="h-full bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+          <CardContent className="flex items-center justify-between p-3">
+            <div>
+              <h3 className="text-sm font-bold text-green-700">
+                Total Pledged
+              </h3>
+              <p className="text-lg font-semibold text-green-800 mt-1">
+                {data ? formatCurrency(data.totalPledgedAmount) : "$0"}
+              </p>
+            </div>
+            <div className="bg-green-600 text-white p-1.5 rounded-full">
+              <DollarSign className="h-3 w-3" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="h-full bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+          <CardContent className="flex items-center justify-between p-3">
+            <div>
+              <h3 className="text-sm font-bold text-purple-700">
+                Active Pledgers
+              </h3>
+              <p className="text-lg font-semibold text-purple-800 mt-1">
+                {data ? formatNumber(data.contactsWithPledges) : "0"}
+              </p>
+            </div>
+            <div className="bg-purple-600 text-white p-1.5 rounded-full">
+              <UserCheck className="h-3 w-3" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="h-full bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
+          <CardContent className="flex items-center justify-between p-3">
+            <div>
+              <h3 className="text-sm font-bold text-orange-700">
+                Recent Contacts
+              </h3>
+              <p className="text-lg font-semibold text-orange-800 mt-1">
+                {data ? formatNumber(data.recentContacts) : "0"}
+              </p>
+              <p className="text-[10px] text-orange-600 mt-0.5">
+                Added this month
+              </p>
+            </div>
+            <div className="bg-orange-600 text-white p-1.5 rounded-full">
+              <Clock className="h-3 w-3" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

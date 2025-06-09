@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { useQueryState } from "nuqs";
 import { z } from "zod";
 import {
@@ -27,6 +27,7 @@ import { Search } from "lucide-react";
 import { LinkButton } from "../ui/next-link";
 import { useGetContacts } from "@/lib/query/useContacts";
 import ContactFormDialog from "../forms/contact-form";
+import ContactsSummaryCards from "./contact-summary";
 
 const QueryParamsSchema = z.object({
   page: z.number().min(1).default(1),
@@ -73,6 +74,37 @@ export default function ContactsTable() {
 
   const { data, isLoading, error } = useGetContacts(queryParams);
 
+  // Calculate summary data from the contacts
+  const summaryData = useMemo(() => {
+    if (!data?.contacts) return undefined;
+
+    const totalContacts = data.pagination.totalCount;
+    const totalPledgedAmount = data.contacts.reduce((sum, contact) => {
+      const amount = parseFloat(contact.totalPledgedUsd?.toString() || "0");
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
+    const contactsWithPledges = data.contacts.filter((contact) => {
+      const amount = parseFloat(contact.totalPledgedUsd?.toString() || "0");
+      return !isNaN(amount) && amount > 0;
+    }).length;
+
+    // Calculate recent contacts (contacts added in the last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const recentContacts = data.contacts.filter((contact) => {
+      const createdDate = new Date(contact.createdAt);
+      return createdDate >= thirtyDaysAgo;
+    }).length;
+
+    return {
+      totalContacts,
+      totalPledgedAmount,
+      contactsWithPledges,
+      recentContacts,
+    };
+  }, [data]);
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -93,7 +125,13 @@ export default function ContactsTable() {
   }
 
   return (
-    <div className="p-4">
+    <div className="py-4">
+      {/* Summary Cards */}
+      <ContactsSummaryCards data={summaryData} isLoading={isLoading} />
+      <p className="my-2 text-muted-foreground">
+        View and manage your contacts
+      </p>
+
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         {/* Search */}
         <div className="relative flex-1">
