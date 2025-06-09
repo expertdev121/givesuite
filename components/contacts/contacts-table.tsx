@@ -130,7 +130,6 @@ export default function ContactsTable() {
       <ContactsSummaryCards
         data={summaryData}
         showViewAll={true}
-        contactsHref="/contacts"
         pledgesHref="/pledges"
         pledgersHref="/contacts?filter=pledgers"
         recentHref="/contacts?filter=recent"
