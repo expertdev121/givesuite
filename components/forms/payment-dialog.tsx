@@ -5,7 +5,16 @@ import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +33,11 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -32,10 +46,12 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useExchangeRates } from "@/lib/query/useExchangeRates";
-
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useCreatePaymentMutation } from "@/lib/query/payments/usePaymentQuery";
+import { usePledgeDetailsQuery } from "@/lib/query/payment-plans/usePaymenetPlanQuery";
 import { PlusCircleIcon } from "lucide-react";
+import { usePledgesQuery } from "@/lib/query/usePledgeData";
 
 const supportedCurrencies = [
   "USD",
@@ -93,17 +109,21 @@ const paymentSchema = z.object({
 type PaymentFormData = z.infer<typeof paymentSchema>;
 
 interface PaymentDialogProps {
-  pledgeId: number;
-  pledgeAmount: number;
-  pledgeCurrency: string;
+  pledgeId?: number;
+  contactId?: number;
+  pledgeAmount?: number;
+  pledgeCurrency?: string;
   pledgeDescription?: string;
+  showPledgeSelector?: boolean;
 }
 
-export default function PaymentDialog({
-  pledgeId,
+export default function PaymentFormDialog({
+  pledgeId: initialPledgeId,
+  contactId,
   pledgeAmount,
   pledgeCurrency,
   pledgeDescription,
+  showPledgeSelector = false,
 }: PaymentDialogProps) {
   const {
     data: exchangeRatesData,
@@ -113,15 +133,36 @@ export default function PaymentDialog({
 
   const createPaymentMutation = useCreatePaymentMutation();
   const [open, setOpen] = useState(false);
+  const [selectedPledgeId, setSelectedPledgeId] = useState<number | undefined>(
+    initialPledgeId
+  );
+
+  const { data: pledgesData, isLoading: isLoadingPledges } = usePledgesQuery({
+    contactId: contactId,
+    page: 1,
+    limit: 100,
+    status: undefined,
+  });
+
+  const { data: pledgeData, isLoading: isLoadingPledge } =
+    usePledgeDetailsQuery(selectedPledgeId!);
+
+  const effectivePledgeAmount =
+    pledgeAmount || (pledgeData?.pledge.originalAmount ?? 0);
+  const effectivePledgeCurrency =
+    pledgeCurrency || (pledgeData?.pledge.currency ?? "USD");
+  const effectivePledgeDescription =
+    pledgeDescription ||
+    (pledgeData?.pledge.description ?? `Pledge #${selectedPledgeId}`);
 
   const form = useForm({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
-      pledgeId,
-      currency: (pledgeCurrency as any) || "USD",
+      pledgeId: selectedPledgeId || 0,
+      currency: (effectivePledgeCurrency as any) || "USD",
       exchangeRate: 1,
       amountUsd: 0,
-      amount: pledgeAmount,
+      amount: effectivePledgeAmount || 0,
       paymentDate: new Date().toISOString().split("T")[0],
       paymentMethod: "cash" as const,
       referenceNumber: "",
@@ -135,6 +176,22 @@ export default function PaymentDialog({
   const watchedAmount = form.watch("amount");
   const watchedPaymentDate = form.watch("paymentDate");
   const watchedPaymentMethod = form.watch("paymentMethod");
+
+  useEffect(() => {
+    if (selectedPledgeId) {
+      form.setValue("pledgeId", selectedPledgeId);
+    }
+  }, [selectedPledgeId, form]);
+
+  useEffect(() => {
+    if (pledgeData?.pledge) {
+      form.setValue("currency", pledgeData.pledge.currency as any);
+      // Optionally set the amount to remaining balance or original amount
+      const suggestedAmount =
+        pledgeData.pledge.remainingBalance || pledgeData.pledge.originalAmount;
+      form.setValue("amount", suggestedAmount);
+    }
+  }, [pledgeData, form]);
 
   // Update exchange rate when currency or date changes
   useEffect(() => {
@@ -160,11 +217,11 @@ export default function PaymentDialog({
 
   const resetForm = () => {
     form.reset({
-      pledgeId,
-      currency: (pledgeCurrency as any) || "USD",
+      pledgeId: selectedPledgeId || 0,
+      currency: (effectivePledgeCurrency as any) || "USD",
       exchangeRate: 1,
       amountUsd: 0,
-      amount: pledgeAmount,
+      amount: effectivePledgeAmount || 0,
       paymentDate: new Date().toISOString().split("T")[0],
       paymentMethod: "cash" as const,
       referenceNumber: "",
@@ -198,6 +255,19 @@ export default function PaymentDialog({
     }
   };
 
+  // Format pledge options for the combobox
+  const pledgeOptions =
+    pledgesData?.pledges?.map((pledge: any) => ({
+      label: `#${pledge.id} - ${pledge.description || "No description"} (${
+        pledge.currency
+      } ${parseFloat(pledge.balance).toLocaleString()})`,
+      value: pledge.id,
+      balance: parseFloat(pledge.balance),
+      currency: pledge.currency,
+      description: pledge.description,
+      originalAmount: parseFloat(pledge.originalAmount),
+    })) || [];
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
@@ -210,13 +280,99 @@ export default function PaymentDialog({
         <DialogHeader>
           <DialogTitle>Add Payment</DialogTitle>
           <DialogDescription>
-            Record a payment for pledge:{" "}
-            {pledgeDescription || `Pledge #${pledgeId}`}
+            {isLoadingPledge ? (
+              "Loading pledge details..."
+            ) : (
+              <div>
+                Record a payment for pledge: {effectivePledgeDescription}
+                {pledgeData?.pledge?.remainingBalance && (
+                  <span className="block mt-1 text-sm text-muted-foreground">
+                    Remaining Balance: {effectivePledgeCurrency}{" "}
+                    {pledgeData.pledge.remainingBalance.toLocaleString()}
+                  </span>
+                )}
+                {pledgeData?.contact && (
+                  <span className="block mt-1 text-sm text-muted-foreground">
+                    Contact: {pledgeData.contact.fullName}
+                  </span>
+                )}
+              </div>
+            )}
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <div className="space-y-4">
+            {showPledgeSelector && (
+              <FormField
+                control={form.control}
+                name="pledgeId"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Select Pledge *</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className={cn(
+                              "w-full justify-between",
+                              !field.value && "text-muted-foreground"
+                            )}
+                            disabled={isLoadingPledges}
+                          >
+                            {field.value
+                              ? pledgeOptions.find(
+                                  (pledge: any) => pledge.value === field.value
+                                )?.label
+                              : isLoadingPledges
+                              ? "Loading pledges..."
+                              : "Select pledge"}
+                            <ChevronsUpDown className="opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0">
+                        <Command>
+                          <CommandInput
+                            placeholder="Search pledges..."
+                            className="h-9"
+                          />
+                          <CommandList>
+                            <CommandEmpty>No pledge found.</CommandEmpty>
+                            <CommandGroup>
+                              {pledgeOptions.map((pledge: any) => (
+                                <CommandItem
+                                  value={pledge.label}
+                                  key={pledge.value}
+                                  onSelect={() => {
+                                    setSelectedPledgeId(pledge.value);
+                                    form.setValue("pledgeId", pledge.value);
+                                  }}
+                                >
+                                  {pledge.label}
+                                  <Check
+                                    className={cn(
+                                      "ml-auto",
+                                      pledge.value === field.value
+                                        ? "opacity-100"
+                                        : "opacity-0"
+                                    )}
+                                  />
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
             {/* Payment Amount */}
             <FormField
               control={form.control}
@@ -460,6 +616,36 @@ export default function PaymentDialog({
               )}
             />
 
+            {/* Payment Summary */}
+            {selectedPledgeId && pledgeData?.pledge && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-6">
+                <h4 className="font-medium text-green-900 mb-2">
+                  Payment Summary
+                </h4>
+                <div className="grid grid-cols-2 gap-2 text-sm text-green-800">
+                  <div>
+                    Payment Amount: {form.watch("currency")}{" "}
+                    {form.watch("amount")?.toLocaleString()}
+                  </div>
+                  <div>
+                    Amount (USD): ${form.watch("amountUsd")?.toLocaleString()}
+                  </div>
+                  <div>
+                    Current Balance: {pledgeData.pledge.currency}{" "}
+                    {pledgeData.pledge.remainingBalance?.toLocaleString()}
+                  </div>
+                  <div>
+                    Payment Method:{" "}
+                    {
+                      paymentMethods.find(
+                        (m) => m.value === form.watch("paymentMethod")
+                      )?.label
+                    }
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="flex justify-end space-x-2 pt-4 border-t">
               <Button
@@ -473,7 +659,12 @@ export default function PaymentDialog({
               <Button
                 type="button"
                 onClick={form.handleSubmit(onSubmit)}
-                disabled={createPaymentMutation.isPending || isLoadingRates}
+                disabled={
+                  createPaymentMutation.isPending ||
+                  isLoadingRates ||
+                  !selectedPledgeId ||
+                  (showPledgeSelector && isLoadingPledges)
+                }
                 className="bg-green-600 hover:bg-green-700"
               >
                 {createPaymentMutation.isPending

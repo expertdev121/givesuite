@@ -219,7 +219,7 @@ export default function PaymentPlansTable({
             </Select>
             {
               <PaymentPlanDialog
-                pledgeId={pledgeId ?? 0}
+                pledgeId={pledgeId ?? undefined}
                 contactId={contactId}
                 showPledgeSelector
               />

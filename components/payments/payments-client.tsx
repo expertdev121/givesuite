@@ -30,6 +30,7 @@ import { usePaymentsQuery } from "@/lib/query/usePayments";
 import { LinkButton } from "../ui/next-link";
 import FactsDialog from "../facts-iframe";
 import Link from "next/link";
+import PaymentFormDialog from "../forms/payment-dialog";
 
 const PaymentStatusEnum = z.enum([
   "pending",
@@ -181,6 +182,11 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                 <SelectItem value="processing">Processing</SelectItem>
               </SelectContent>
             </Select>
+            <PaymentFormDialog
+              pledgeId={pledgeId ?? undefined}
+              contactId={contactId}
+              showPledgeSelector
+            />
             <FactsDialog />
           </div>
 
