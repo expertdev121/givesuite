@@ -123,10 +123,10 @@ export default function ContactsSummaryCards({
             <div className="flex items-center justify-between flex-1">
               <div>
                 <h3 className="text-sm font-bold text-purple-700">
-                  Active Pledgers
+                  Student Roles
                 </h3>
                 <p className="text-lg font-semibold text-purple-800 mt-1">
-                  {data ? formatNumber(data.contactsWithPledges) : "0"}
+                  {data ? 1 : "0"}
                 </p>
               </div>
               <div className="bg-purple-600 text-white p-1.5 rounded-full">
