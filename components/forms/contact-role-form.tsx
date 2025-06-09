@@ -38,16 +38,10 @@ import {
 } from "@/lib/query/contact-roles/useContactRole";
 
 const commonRoles = [
-  "Board Member",
+  "Solicitor",
   "Volunteer",
   "Donor",
   "Committee Member",
-  "Advisor",
-  "Staff",
-  "Consultant",
-  "Partner",
-  "Vendor",
-  "Alumni",
 ] as const;
 
 const contactRoleSchema = z
