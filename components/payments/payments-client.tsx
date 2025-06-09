@@ -25,12 +25,23 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Search, Plus, BadgeDollarSignIcon } from "lucide-react";
+import {
+  Search,
+  Plus,
+  BadgeDollarSignIcon,
+  MoreHorizontal,
+} from "lucide-react";
 import { usePaymentsQuery } from "@/lib/query/usePayments";
 import { LinkButton } from "../ui/next-link";
 import FactsDialog from "../facts-iframe";
 import Link from "next/link";
 import PaymentFormDialog from "../forms/payment-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 
 const PaymentStatusEnum = z.enum([
   "pending",
@@ -216,7 +227,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                   <TableHead className="font-semibold text-gray-900">
                     Notes
                   </TableHead>
-                  <TableHead className="w-12"></TableHead>
+                  <TableHead className="w-12">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -288,6 +299,30 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                           >
                             View
                           </Link>
+                        </TableCell>
+
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Actions</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem>Edit Details</DropdownMenuItem>
+                              <DropdownMenuItem variant="destructive">
+                                <Link
+                                  className="font-medium text-primary hover:underline hover:text-primary-dark transition-colors duration-200"
+                                  href={`/contacts/1/payment-plans?pledgeId=${
+                                    pledgeId || payment.pledgeId
+                                  }`}
+                                >
+                                  View
+                                </Link>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
 
