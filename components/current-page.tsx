@@ -34,7 +34,7 @@ export function CurrentBreadcrumb() {
   };
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-1">
       {shouldShowBackButton && (
         <Button
           variant="ghost"

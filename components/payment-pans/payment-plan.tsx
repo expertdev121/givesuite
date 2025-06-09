@@ -233,19 +233,43 @@ export default function PaymentPlansTable({
                 <TableRow>
                   <TableHead className="w-12"></TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Plan Name
+                    Pledge Dt
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Total Planned
+                    Detail
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Status
+                    Rec Type
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Frequency
+                    Rec Dt 1
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Start Date
+                    Rec Dt 2
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Pledge $USD
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Pledge $Cur
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Paid $USD
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Paid $Cur
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Bal $USD
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Bal $Cur
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Sched $Cur
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Bal-Sched $Cur
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
                     Notes
@@ -271,10 +295,34 @@ export default function PaymentPlansTable({
                         <Skeleton className="h-4 w-16" />
                       </TableCell>
                       <TableCell>
-                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-4 w-20" />
                       </TableCell>
                       <TableCell>
                         <Skeleton className="h-4 w-20" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
                       </TableCell>
                       <TableCell>
                         <Skeleton className="h-4 w-32" />
@@ -287,7 +335,7 @@ export default function PaymentPlansTable({
                 ) : data?.paymentPlans.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={16}
                       className="text-center py-8 text-gray-500"
                     >
                       No payment plans found
@@ -312,14 +360,9 @@ export default function PaymentPlansTable({
                           </Button>
                         </TableCell>
                         <TableCell className="font-medium">
-                          {plan.planName || "N/A"}
+                          {formatDate(plan.startDate)}
                         </TableCell>
-                        <TableCell>
-                          {formatCurrency(
-                            plan.totalPlannedAmount,
-                            plan.currency
-                          )}
-                        </TableCell>
+                        <TableCell>{plan.planName || "N/A"}</TableCell>
                         <TableCell>
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(
@@ -329,9 +372,61 @@ export default function PaymentPlansTable({
                             {plan.planStatus || "N/A"}
                           </span>
                         </TableCell>
-                        <TableCell>{plan.frequency || "-"}</TableCell>
                         <TableCell>{formatDate(plan.startDate)}</TableCell>
-                        <TableCell>{plan.notes || "-"}</TableCell>
+                        <TableCell>
+                          {formatDate(plan.nextPaymentDate)}
+                        </TableCell>
+                        <TableCell>
+                          {plan.totalPaidUsd
+                            ? formatCurrency(plan.totalPaidUsd, "USD")
+                            : formatCurrency(plan.totalPlannedAmount, "USD")}
+                        </TableCell>
+                        <TableCell>
+                          {formatCurrency(
+                            plan.totalPlannedAmount,
+                            plan.currency
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {plan.totalPaidUsd
+                            ? formatCurrency(plan.totalPaidUsd, "USD")
+                            : "N/A"}
+                        </TableCell>
+                        <TableCell>
+                          {formatCurrency(plan.totalPaid, plan.currency)}
+                        </TableCell>
+                        <TableCell>
+                          {plan.totalPaidUsd
+                            ? formatCurrency(
+                                (
+                                  parseFloat(plan.totalPlannedAmount) -
+                                  parseFloat(plan.totalPaidUsd)
+                                ).toString(),
+                                "USD"
+                              )
+                            : formatCurrency(plan.remainingAmount, "USD")}
+                        </TableCell>
+                        <TableCell>
+                          {formatCurrency(plan.remainingAmount, plan.currency)}
+                        </TableCell>
+                        <TableCell>
+                          {formatCurrency(
+                            plan.installmentAmount,
+                            plan.currency
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {formatCurrency(
+                            (
+                              parseFloat(plan.remainingAmount) -
+                              parseFloat(plan.installmentAmount)
+                            ).toString(),
+                            plan.currency
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {plan.notes || plan.internalNotes || "-"}
+                        </TableCell>
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -355,7 +450,7 @@ export default function PaymentPlansTable({
                       {/* Expanded Row Content */}
                       {expandedRows.has(plan.id) && (
                         <TableRow>
-                          <TableCell colSpan={8} className="bg-gray-50 p-6">
+                          <TableCell colSpan={16} className="bg-gray-50 p-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               {/* Financial Details */}
                               <div className="space-y-3">
