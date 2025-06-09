@@ -30,7 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { MoreHorizontal, Search, User } from "lucide-react";
+import { MoreHorizontal, Search } from "lucide-react";
 
 import Link from "next/link";
 import { useAllPledgesQuery } from "@/lib/query/pledge/useAllPledgeQuery";
@@ -177,9 +177,6 @@ export default function AllPledgesTable() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="font-semibold text-gray-900">
-                    Contact
-                  </TableHead>
-                  <TableHead className="font-semibold text-gray-900">
                     Pledge Date
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
@@ -253,21 +250,6 @@ export default function AllPledgesTable() {
                   data?.pledges.map((pledge) => (
                     <React.Fragment key={pledge.id}>
                       <TableRow className="hover:bg-gray-50">
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-gray-400" />
-                            <div>
-                              <div className="font-medium">
-                                {pledge.contactName || "Unknown Contact"}
-                              </div>
-                              {pledge.contactEmail && (
-                                <div className="text-sm text-gray-500">
-                                  {pledge.contactEmail}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </TableCell>
                         <TableCell className="font-medium">
                           {formatDate(pledge.pledgeDate)}
                         </TableCell>

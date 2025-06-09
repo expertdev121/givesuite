@@ -131,8 +131,6 @@ export default function ContactsTable() {
         data={summaryData}
         showViewAll={true}
         pledgesHref="/pledges"
-        pledgersHref="/contacts?filter=pledgers"
-        recentHref="/contacts?filter=recent"
       />
       <p className="my-2 text-muted-foreground">
         View and manage your contacts
