@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { paymentPlan } from "@/lib/db/schema";
+import { ErrorHandler } from "@/lib/error-handler";
 import { eq, desc, or, ilike, and, SQL, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -116,5 +117,45 @@ export async function GET(
       { error: "Failed to fetch payment plans" },
       { status: 500 }
     );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const planId = parseInt(id);
+    if (isNaN(planId) || planId <= 0) {
+      return NextResponse.json(
+        { error: "Invalid payment plan ID" },
+        { status: 400 }
+      );
+    }
+
+    // Check if payment plan exists
+    const existingPlan = await db
+      .select()
+      .from(paymentPlan)
+      .where(eq(paymentPlan.id, planId))
+      .limit(1);
+
+    if (existingPlan.length === 0) {
+      return NextResponse.json(
+        { error: "Payment plan not found" },
+        { status: 404 }
+      );
+    }
+
+    // Delete the payment plan
+    await db.delete(paymentPlan).where(eq(paymentPlan.id, planId));
+
+    return NextResponse.json({
+      message: "Payment plan deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting payment plan:", error);
+    return ErrorHandler.handle(error);
   }
 }
