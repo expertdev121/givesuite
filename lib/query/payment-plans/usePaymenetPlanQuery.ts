@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-// Types based on your schema
 export interface PaymentPlanFormData {
   pledgeId: number;
   planName?: string;
@@ -25,6 +24,11 @@ export interface PaymentPlanFormData {
   internalNotes?: string;
 }
 
+export interface PaymentPlanUpdateData
+  extends Omit<Partial<PaymentPlanFormData>, "pledgeId"> {
+  planStatus?: "active" | "completed" | "cancelled" | "paused" | "overdue";
+}
+
 export interface PaymentPlan {
   id: number;
   pledgeId: number;
@@ -44,6 +48,7 @@ export interface PaymentPlan {
   autoRenew: boolean;
   isActive: boolean;
   notes?: string;
+  internalNotes?: string;
   createdAt: string;
   updatedAt: string;
   pledgeDescription?: string;
@@ -93,7 +98,6 @@ export interface PledgeDetails {
   activePaymentPlans: PaymentPlan[];
 }
 
-// Payment Plan Mutations
 export const useCreatePaymentPlanMutation = () => {
   const queryClient = useQueryClient();
 
@@ -113,7 +117,6 @@ export const useCreatePaymentPlanMutation = () => {
       return response.json();
     },
     onSuccess: (data, variables) => {
-      // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ["paymentPlans"] });
       queryClient.invalidateQueries({
         queryKey: ["payment-plans", variables.pledgeId],
@@ -134,7 +137,6 @@ export const useCreatePaymentPlanMutation = () => {
   });
 };
 
-// Payment Plan Queries
 export const usePaymentPlansQuery = (params?: {
   pledgeId?: number;
   contactId?: number;
@@ -168,7 +170,7 @@ export const usePaymentPlansQuery = (params?: {
 
       return response.json();
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 };
 
@@ -176,7 +178,24 @@ export const usePaymentPlansByPledgeQuery = (pledgeId: number) => {
   return usePaymentPlansQuery({ pledgeId, limit: 100 });
 };
 
-// Pledge Details Query
+export const usePaymentPlanQuery = (planId: number) => {
+  return useQuery({
+    queryKey: ["payment-plan", planId],
+    queryFn: async (): Promise<{ paymentPlan: PaymentPlan }> => {
+      const response = await fetch(`/api/payment-plans/${planId}`);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch payment plan");
+      }
+
+      return response.json();
+    },
+    enabled: !!planId && planId > 0,
+    staleTime: 2 * 60 * 1000,
+  });
+};
+
 export const usePledgeDetailsQuery = (pledgeId: number) => {
   return useQuery({
     queryKey: ["pledge-details", pledgeId],
@@ -191,11 +210,10 @@ export const usePledgeDetailsQuery = (pledgeId: number) => {
       return response.json();
     },
     enabled: !!pledgeId && pledgeId > 0,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
   });
 };
 
-// Update Payment Plan Mutation (for future use)
 export const useUpdatePaymentPlanMutation = () => {
   const queryClient = useQueryClient();
 
@@ -205,7 +223,7 @@ export const useUpdatePaymentPlanMutation = () => {
       data,
     }: {
       id: number;
-      data: Partial<PaymentPlanFormData>;
+      data: PaymentPlanUpdateData;
     }) => {
       const response = await fetch(`/api/payment-plans/${id}`, {
         method: "PATCH",
@@ -221,10 +239,22 @@ export const useUpdatePaymentPlanMutation = () => {
       return response.json();
     },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["payment-plans"] });
+      queryClient.invalidateQueries({ queryKey: ["paymentPlans"] });
       queryClient.invalidateQueries({
-        queryKey: ["payment-plans", variables.id],
+        queryKey: ["payment-plan", variables.id],
       });
+
+      const updatedPlan = data.paymentPlan;
+      if (updatedPlan?.pledgeId) {
+        queryClient.invalidateQueries({
+          queryKey: ["payment-plans", updatedPlan.pledgeId],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["pledge-details", updatedPlan.pledgeId],
+        });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["pledges"] });
 
       toast.success("Payment plan updated successfully!");
     },
@@ -237,7 +267,6 @@ export const useUpdatePaymentPlanMutation = () => {
   });
 };
 
-// Cancel Payment Plan Mutation
 export const useCancelPaymentPlanMutation = () => {
   const queryClient = useQueryClient();
 
@@ -255,14 +284,92 @@ export const useCancelPaymentPlanMutation = () => {
 
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, planId) => {
       queryClient.invalidateQueries({ queryKey: ["paymentPlans"] });
+      queryClient.invalidateQueries({ queryKey: ["payment-plan", planId] });
       toast.success("Payment plan cancelled successfully!");
     },
     onError: (error) => {
       console.error("Error cancelling payment plan:", error);
       toast.error(
         error instanceof Error ? error.message : "Failed to cancel payment plan"
+      );
+    },
+  });
+};
+
+export const useDeletePaymentPlanMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (planId: number) => {
+      const response = await fetch(`/api/payment-plans/${planId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to delete payment plan");
+      }
+
+      return response.json();
+    },
+    onSuccess: (_, planId) => {
+      queryClient.invalidateQueries({ queryKey: ["paymentPlans"] });
+      queryClient.removeQueries({ queryKey: ["payment-plan", planId] });
+      toast.success("Payment plan deleted successfully!");
+    },
+    onError: (error) => {
+      console.error("Error deleting payment plan:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete payment plan"
+      );
+    },
+  });
+};
+
+export const usePauseResumePaymentPlanMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      planId,
+      action,
+    }: {
+      planId: number;
+      action: "pause" | "resume";
+    }) => {
+      const newStatus = action === "pause" ? "paused" : "active";
+
+      const response = await fetch(`/api/payment-plans/${planId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planStatus: newStatus }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to ${action} payment plan`);
+      }
+
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["paymentPlans"] });
+      queryClient.invalidateQueries({
+        queryKey: ["payment-plan", variables.planId],
+      });
+
+      const actionText = variables.action === "pause" ? "paused" : "resumed";
+      toast.success(`Payment plan ${actionText} successfully!`);
+    },
+    onError: (error, variables) => {
+      console.error(`Error ${variables.action}ing payment plan:`, error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : `Failed to ${variables.action} payment plan`
       );
     },
   });

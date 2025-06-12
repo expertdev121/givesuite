@@ -34,6 +34,9 @@ import {
   Search,
   ChevronDown,
   ChevronRight,
+  Edit,
+  Eye,
+  Trash2,
 } from "lucide-react";
 import { usePaymentPlans } from "@/lib/query/usePaymentPlan";
 import PaymentPlanDialog from "../forms/payment-plan-dialog";
@@ -108,7 +111,7 @@ export default function PaymentPlansTable({
     planStatus: planStatus || undefined,
   };
 
-  const { data, isLoading, error } = usePaymentPlans(queryParams);
+  const { data, isLoading, error, refetch } = usePaymentPlans(queryParams);
 
   const toggleRowExpansion = (planId: number) => {
     const newExpanded = new Set(expandedRows);
@@ -146,6 +149,10 @@ export default function PaymentPlansTable({
       default:
         return "bg-gray-100 text-gray-800";
     }
+  };
+
+  const handleSuccess = () => {
+    refetch();
   };
 
   if (error) {
@@ -217,13 +224,15 @@ export default function PaymentPlansTable({
                 <SelectItem value="overdue">Overdue</SelectItem>
               </SelectContent>
             </Select>
-            {
-              <PaymentPlanDialog
-                pledgeId={pledgeId ?? undefined}
-                contactId={contactId}
-                showPledgeSelector
-              />
-            }
+
+            {/* Create Payment Plan Button */}
+            <PaymentPlanDialog
+              mode="create"
+              pledgeId={pledgeId ?? undefined}
+              contactId={contactId}
+              showPledgeSelector={!pledgeId}
+              onSuccess={handleSuccess}
+            />
           </div>
 
           {/* Table */}
@@ -435,13 +444,48 @@ export default function PaymentPlansTable({
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
-                                Edit Payment Plan
+                              {/* Edit Payment Plan */}
+                              <PaymentPlanDialog
+                                mode="edit"
+                                paymentPlanId={plan.id}
+                                onSuccess={handleSuccess}
+                                trigger={
+                                  <DropdownMenuItem
+                                    onSelect={(e) => e.preventDefault()}
+                                  >
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    Edit Payment Plan
+                                  </DropdownMenuItem>
+                                }
+                              />
+
+                              {/* View Details - Opens expanded row */}
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  const newExpanded = new Set(expandedRows);
+                                  newExpanded.add(plan.id);
+                                  setExpandedRows(newExpanded);
+                                }}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                View Details
                               </DropdownMenuItem>
-                              <DropdownMenuItem>View Details</DropdownMenuItem>
-                              <DropdownMenuItem className="text-red-600">
-                                Delete Payment Plan
-                              </DropdownMenuItem>
+
+                              {/* Delete Payment Plan */}
+                              <PaymentPlanDialog
+                                mode="edit"
+                                paymentPlanId={plan.id}
+                                onSuccess={handleSuccess}
+                                trigger={
+                                  <DropdownMenuItem
+                                    onSelect={(e) => e.preventDefault()}
+                                    className="text-red-600 focus:text-red-600"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete Payment Plan
+                                  </DropdownMenuItem>
+                                }
+                              />
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -451,7 +495,7 @@ export default function PaymentPlansTable({
                       {expandedRows.has(plan.id) && (
                         <TableRow>
                           <TableCell colSpan={16} className="bg-gray-50 p-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                               {/* Financial Details */}
                               <div className="space-y-3">
                                 <h4 className="font-semibold text-gray-900">
@@ -507,12 +551,20 @@ export default function PaymentPlansTable({
                                 </div>
                               </div>
 
-                              {/* Additional Details */}
+                              {/* Schedule Details */}
                               <div className="space-y-3">
                                 <h4 className="font-semibold text-gray-900">
-                                  Additional Details
+                                  Schedule Details
                                 </h4>
                                 <div className="space-y-2 text-sm">
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
+                                      Frequency:
+                                    </span>
+                                    <span className="font-medium capitalize">
+                                      {plan.frequency}
+                                    </span>
+                                  </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
                                       Number of Installments:
@@ -545,6 +597,15 @@ export default function PaymentPlansTable({
                                       {formatDate(plan.nextPaymentDate)}
                                     </span>
                                   </div>
+                                </div>
+                              </div>
+
+                              {/* Additional Details */}
+                              <div className="space-y-3">
+                                <h4 className="font-semibold text-gray-900">
+                                  Additional Details
+                                </h4>
+                                <div className="space-y-2 text-sm">
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
                                       Auto Renew:
@@ -558,12 +619,12 @@ export default function PaymentPlansTable({
                                       Reminders Sent:
                                     </span>
                                     <span className="font-medium">
-                                      {plan.remindersSent}
+                                      {plan.remindersSent || 0}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Last Reminder Date:
+                                      Last Reminder:
                                     </span>
                                     <span className="font-medium">
                                       {formatDate(plan.lastReminderDate)}
@@ -571,14 +632,71 @@ export default function PaymentPlansTable({
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Internal Notes:
+                                      Created:
                                     </span>
                                     <span className="font-medium">
-                                      {plan.internalNotes || "N/A"}
+                                      {formatDate(plan.createdAt)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
+                                      Last Updated:
+                                    </span>
+                                    <span className="font-medium">
+                                      {formatDate(plan.updatedAt)}
                                     </span>
                                   </div>
                                 </div>
+
+                                {/* Notes Section */}
+                                {(plan.notes || plan.internalNotes) && (
+                                  <div className="pt-2 border-t border-gray-200">
+                                    {plan.notes && (
+                                      <div className="mb-2">
+                                        <span className="text-gray-600 text-xs">
+                                          Notes:
+                                        </span>
+                                        <p className="text-sm font-medium mt-1">
+                                          {plan.notes}
+                                        </p>
+                                      </div>
+                                    )}
+                                    {plan.internalNotes && (
+                                      <div>
+                                        <span className="text-gray-600 text-xs">
+                                          Internal Notes:
+                                        </span>
+                                        <p className="text-sm font-medium mt-1">
+                                          {plan.internalNotes}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
+                            </div>
+
+                            {/* Quick Actions in Expanded Row */}
+                            <div className="flex gap-2 mt-4 pt-4 border-t border-gray-200">
+                              <PaymentPlanDialog
+                                mode="edit"
+                                paymentPlanId={plan.id}
+                                onSuccess={handleSuccess}
+                                trigger={
+                                  <Button size="sm" variant="outline">
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    Edit Plan
+                                  </Button>
+                                }
+                              />
+
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => toggleRowExpansion(plan.id)}
+                              >
+                                Collapse
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
