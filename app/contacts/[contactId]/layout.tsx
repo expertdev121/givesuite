@@ -43,6 +43,9 @@ export default function SettingsLayout({
               <TabLink href={`/contacts/${contactId}/payments`}>
                 Payments
               </TabLink>
+              <TabLink href={`/contacts/${contactId}/solicitor`}>
+                Solicitor
+              </TabLink>
               <TabLink href={`/contacts/${contactId}/contact-roles`}>
                 Contact Roles
               </TabLink>
