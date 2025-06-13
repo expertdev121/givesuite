@@ -146,6 +146,20 @@ export const currencyEnum = pgEnum("currency", [
   "ZAR",
 ]);
 
+// *** NEW ENUMS FOR SOLICITOR SYSTEM ***
+export const solicitorStatusEnum = pgEnum("solicitor_status", [
+  "active",
+  "inactive",
+  "suspended",
+]);
+
+export const bonusPaymentTypeEnum = pgEnum("bonus_payment_type", [
+  "tuition",
+  "donation",
+  "both",
+]);
+
+// EXISTING TABLES (unchanged)
 export const contact = pgTable("contact", {
   id: serial("id").primaryKey(),
   firstName: text("first_name").notNull(),
@@ -356,7 +370,118 @@ export const paymentPlan = pgTable(
 export type PaymentPlan = typeof paymentPlan.$inferSelect;
 export type NewPaymentPlan = typeof paymentPlan.$inferInsert;
 
-// SIMPLIFIED PAYMENT TABLE - removed fields that don't exist in your database
+// *** NEW TABLES FOR SOLICITOR SYSTEM ***
+
+// Solicitor table - links to existing contact
+export const solicitor = pgTable(
+  "solicitor",
+  {
+    id: serial("id").primaryKey(),
+    contactId: integer("contact_id")
+      .references(() => contact.id, { onDelete: "cascade" })
+      .notNull()
+      .unique(), // One-to-one with contact
+    solicitorCode: text("solicitor_code").unique(), // Optional unique identifier
+    status: solicitorStatusEnum("status").notNull().default("active"),
+    commissionRate: numeric("commission_rate", { precision: 5, scale: 2 }), // Default rate if no specific bonus rule
+    hireDate: date("hire_date"),
+    terminationDate: date("termination_date"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    contactIdIdx: index("solicitor_contact_id_idx").on(table.contactId),
+    statusIdx: index("solicitor_status_idx").on(table.status),
+    codeIdx: index("solicitor_code_idx").on(table.solicitorCode),
+  })
+);
+
+export type Solicitor = typeof solicitor.$inferSelect;
+export type NewSolicitor = typeof solicitor.$inferInsert;
+
+// Bonus rules for flexible commission structures
+export const bonusRule = pgTable(
+  "bonus_rule",
+  {
+    id: serial("id").primaryKey(),
+    solicitorId: integer("solicitor_id")
+      .references(() => solicitor.id, { onDelete: "cascade" })
+      .notNull(),
+    ruleName: text("rule_name").notNull(),
+    bonusPercentage: numeric("bonus_percentage", {
+      precision: 5,
+      scale: 2,
+    }).notNull(),
+    paymentType: bonusPaymentTypeEnum("payment_type").notNull().default("both"),
+    minAmount: numeric("min_amount", { precision: 10, scale: 2 }), // Minimum payment to qualify
+    maxAmount: numeric("max_amount", { precision: 10, scale: 2 }), // Maximum bonus cap
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveTo: date("effective_to"), // NULL means ongoing
+    isActive: boolean("is_active").default(true).notNull(),
+    priority: integer("priority").default(1).notNull(), // Higher number = higher priority if multiple rules apply
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    solicitorIdIdx: index("bonus_rule_solicitor_id_idx").on(table.solicitorId),
+    effectiveDatesIdx: index("bonus_rule_effective_dates_idx").on(
+      table.effectiveFrom,
+      table.effectiveTo
+    ),
+    priorityIdx: index("bonus_rule_priority_idx").on(table.priority),
+  })
+);
+
+export type BonusRule = typeof bonusRule.$inferSelect;
+export type NewBonusRule = typeof bonusRule.$inferInsert;
+
+// Bonus calculations for audit trail and reporting
+export const bonusCalculation = pgTable(
+  "bonus_calculation",
+  {
+    id: serial("id").primaryKey(),
+    paymentId: integer("payment_id")
+      .references(() => payment.id, { onDelete: "cascade" })
+      .notNull()
+      .unique(), // One calculation per payment
+    solicitorId: integer("solicitor_id")
+      .references(() => solicitor.id, { onDelete: "cascade" })
+      .notNull(),
+    bonusRuleId: integer("bonus_rule_id").references(() => bonusRule.id, {
+      onDelete: "set null",
+    }),
+    paymentAmount: numeric("payment_amount", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    bonusPercentage: numeric("bonus_percentage", {
+      precision: 5,
+      scale: 2,
+    }).notNull(),
+    bonusAmount: numeric("bonus_amount", { precision: 10, scale: 2 }).notNull(),
+    calculatedAt: timestamp("calculated_at").defaultNow().notNull(),
+    isPaid: boolean("is_paid").default(false).notNull(),
+    paidAt: timestamp("paid_at"),
+    notes: text("notes"),
+  },
+  (table) => ({
+    paymentIdIdx: index("bonus_calculation_payment_id_idx").on(table.paymentId),
+    solicitorIdIdx: index("bonus_calculation_solicitor_id_idx").on(
+      table.solicitorId
+    ),
+    calculatedAtIdx: index("bonus_calculation_calculated_at_idx").on(
+      table.calculatedAt
+    ),
+    isPaidIdx: index("bonus_calculation_is_paid_idx").on(table.isPaid),
+  })
+);
+
+export type BonusCalculation = typeof bonusCalculation.$inferSelect;
+export type NewBonusCalculation = typeof bonusCalculation.$inferInsert;
+
+// *** UPDATED PAYMENT TABLE (with new solicitor fields) ***
 export const payment = pgTable(
   "payment",
   {
@@ -387,6 +512,16 @@ export const payment = pgTable(
     receiptType: receiptTypeEnum("receipt_type"),
     receiptIssued: boolean("receipt_issued").default(false).notNull(),
 
+    // *** NEW SOLICITOR FIELDS ***
+    solicitorId: integer("solicitor_id").references(() => solicitor.id, {
+      onDelete: "set null",
+    }),
+    bonusPercentage: numeric("bonus_percentage", { precision: 5, scale: 2 }),
+    bonusAmount: numeric("bonus_amount", { precision: 10, scale: 2 }),
+    bonusRuleId: integer("bonus_rule_id").references(() => bonusRule.id, {
+      onDelete: "set null",
+    }),
+
     notes: text("notes"),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -401,12 +536,15 @@ export const payment = pgTable(
     statusIdx: index("payment_status_idx").on(table.paymentStatus),
     methodIdx: index("payment_method_idx").on(table.paymentMethod),
     referenceIdx: index("payment_reference_idx").on(table.referenceNumber),
+    // *** NEW INDEX ***
+    solicitorIdIdx: index("payment_solicitor_id_idx").on(table.solicitorId),
   })
 );
 
 export type Payment = typeof payment.$inferSelect;
 export type NewPayment = typeof payment.$inferInsert;
 
+// EXISTING AUDIT LOG TABLE (unchanged)
 export const auditLog = pgTable("audit_log", {
   id: serial("id").primaryKey(),
   tableName: text("table_name").notNull(),
@@ -426,6 +564,8 @@ export const auditLog = pgTable("audit_log", {
 export type AuditLog = typeof auditLog.$inferSelect;
 export type NewAuditLog = typeof auditLog.$inferInsert;
 
+// *** UPDATED RELATIONS (with new solicitor relations) ***
+
 export const contactRelations = relations(contact, ({ many }) => ({
   contactRoles: many(contactRoles),
   studentRoles: many(studentRoles),
@@ -437,6 +577,8 @@ export const contactRelations = relations(contact, ({ many }) => ({
   }),
   pledges: many(pledge),
   auditLogs: many(auditLog),
+  // *** NEW RELATION ***
+  solicitor: many(solicitor),
 }));
 
 export const contactRolesRelations = relations(contactRoles, ({ one }) => ({
@@ -491,6 +633,7 @@ export const paymentPlanRelations = relations(paymentPlan, ({ one, many }) => ({
   payments: many(payment),
 }));
 
+// *** UPDATED PAYMENT RELATIONS (with solicitor) ***
 export const paymentRelations = relations(payment, ({ one }) => ({
   pledge: one(pledge, {
     fields: [payment.pledgeId],
@@ -500,7 +643,58 @@ export const paymentRelations = relations(payment, ({ one }) => ({
     fields: [payment.paymentPlanId],
     references: [paymentPlan.id],
   }),
+  // *** NEW RELATIONS ***
+  solicitor: one(solicitor, {
+    fields: [payment.solicitorId],
+    references: [solicitor.id],
+  }),
+  bonusRule: one(bonusRule, {
+    fields: [payment.bonusRuleId],
+    references: [bonusRule.id],
+  }),
+  bonusCalculation: one(bonusCalculation, {
+    fields: [payment.id],
+    references: [bonusCalculation.paymentId],
+  }),
 }));
+
+// *** NEW SOLICITOR RELATIONS ***
+export const solicitorRelations = relations(solicitor, ({ one, many }) => ({
+  contact: one(contact, {
+    fields: [solicitor.contactId],
+    references: [contact.id],
+  }),
+  bonusRules: many(bonusRule),
+  bonusCalculations: many(bonusCalculation),
+  payments: many(payment),
+}));
+
+export const bonusRuleRelations = relations(bonusRule, ({ one, many }) => ({
+  solicitor: one(solicitor, {
+    fields: [bonusRule.solicitorId],
+    references: [solicitor.id],
+  }),
+  bonusCalculations: many(bonusCalculation),
+  payments: many(payment),
+}));
+
+export const bonusCalculationRelations = relations(
+  bonusCalculation,
+  ({ one }) => ({
+    payment: one(payment, {
+      fields: [bonusCalculation.paymentId],
+      references: [payment.id],
+    }),
+    solicitor: one(solicitor, {
+      fields: [bonusCalculation.solicitorId],
+      references: [solicitor.id],
+    }),
+    bonusRule: one(bonusRule, {
+      fields: [bonusCalculation.bonusRuleId],
+      references: [bonusRule.id],
+    }),
+  })
+);
 
 export const auditLogRelations = relations(auditLog, ({ one }) => ({
   changedByContact: one(contact, {
