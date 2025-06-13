@@ -159,7 +159,6 @@ export const bonusPaymentTypeEnum = pgEnum("bonus_payment_type", [
   "both",
 ]);
 
-// EXISTING TABLES (unchanged)
 export const contact = pgTable("contact", {
   id: serial("id").primaryKey(),
   firstName: text("first_name").notNull(),
