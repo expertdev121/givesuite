@@ -77,6 +77,7 @@ const pledgeSchema = z.object({
     .number()
     .positive("Pledge amount in USD must be positive"),
   exchangeRate: z.number().positive("Exchange rate must be positive"),
+  exchangeRateDate: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -102,15 +103,6 @@ export default function PledgeDialog({
     null
   );
 
-  const {
-    data: exchangeRatesData,
-    isLoading: isLoadingRates,
-    error: ratesError,
-  } = useExchangeRates();
-
-  const createPledgeMutation = useCreatePledgeMutation();
-  const createPledgeAndPayMutation = useCreatePledgeAndPayMutation();
-
   const form = useForm({
     resolver: zodResolver(pledgeSchema),
     defaultValues: {
@@ -122,30 +114,42 @@ export default function PledgeDialog({
       originalAmountUsd: 0,
       description: "",
       pledgeDate: new Date().toISOString().split("T")[0],
+      exchangeRateDate: new Date().toISOString().split("T")[0],
       notes: "",
     },
   });
 
   const watchedCurrency = form.watch("currency");
   const watchedOriginalAmount = form.watch("originalAmount");
-  const watchedPledgeDate = form.watch("pledgeDate");
+  const watchedExchangeRateDate = form.watch("exchangeRateDate");
+
+  const {
+    data: exchangeRatesData,
+    isLoading: isLoadingRates,
+    error: ratesError,
+  } = useExchangeRates(watchedExchangeRateDate);
+
+  const createPledgeMutation = useCreatePledgeMutation();
+  const createPledgeAndPayMutation = useCreatePledgeAndPayMutation();
 
   useEffect(() => {
     if (
       watchedCurrency &&
-      watchedPledgeDate &&
+      watchedExchangeRateDate &&
       exchangeRatesData?.data?.rates
     ) {
       const rate =
         parseFloat(exchangeRatesData.data.rates[watchedCurrency]) || 1;
       form.setValue("exchangeRate", rate);
     }
-  }, [watchedCurrency, watchedPledgeDate, exchangeRatesData, form]);
+  }, [watchedCurrency, watchedExchangeRateDate, exchangeRatesData, form]);
 
   useEffect(() => {
     const exchangeRate = form.getValues("exchangeRate");
     if (watchedOriginalAmount && exchangeRate) {
-      const usdAmount = watchedOriginalAmount / exchangeRate;
+      // Since exchange rates are now inverted (currency to USD conversion rates),
+      // we multiply instead of divide
+      const usdAmount = watchedOriginalAmount * exchangeRate;
       form.setValue("originalAmountUsd", Math.round(usdAmount * 100) / 100);
     }
   }, [watchedOriginalAmount, form.watch("exchangeRate"), form]);
@@ -164,6 +168,7 @@ export default function PledgeDialog({
 
   const onSubmit = async (data: PledgeFormData, shouldOpenPayment = false) => {
     try {
+      // Extract only the fields that should be submitted (exclude exchangeRateDate)
       const pledgeData = {
         contactId: data.contactId,
         categoryId: data.categoryId,
@@ -173,6 +178,7 @@ export default function PledgeDialog({
         currency: data.currency,
         originalAmountUsd: data.originalAmountUsd,
         notes: data.notes,
+        // exchangeRateDate is excluded - it's only used for fetching rates
       };
 
       if (shouldOpenPayment) {
@@ -188,9 +194,11 @@ export default function PledgeDialog({
           contactId,
           currency: "USD" as const,
           exchangeRate: 1,
+          originalAmount: 0,
           originalAmountUsd: 0,
           description: "",
           pledgeDate: new Date().toISOString().split("T")[0],
+          exchangeRateDate: new Date().toISOString().split("T")[0],
           notes: "",
         });
         setSelectedCategoryId(null);
@@ -209,10 +217,11 @@ export default function PledgeDialog({
           categoryId: undefined,
           currency: "USD" as const,
           exchangeRate: 1,
-          originalAmount: 0, // Add this
+          originalAmount: 0,
           originalAmountUsd: 0,
           description: "",
           pledgeDate: new Date().toISOString().split("T")[0],
+          exchangeRateDate: new Date().toISOString().split("T")[0],
           notes: "",
         });
         setSelectedCategoryId(null);
@@ -238,9 +247,11 @@ export default function PledgeDialog({
         contactId,
         currency: "USD" as const,
         exchangeRate: 1,
+        originalAmount: 0,
         originalAmountUsd: 0,
         description: "",
         pledgeDate: new Date().toISOString().split("T")[0],
+        exchangeRateDate: new Date().toISOString().split("T")[0],
         notes: "",
       });
       setSelectedCategoryId(null);
@@ -469,6 +480,25 @@ export default function PledgeDialog({
                 )}
               />
 
+              {/* Exchange Rate Date */}
+              <FormField
+                control={form.control}
+                name="exchangeRateDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Exchange Rate Date *</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Select the date for which exchange rates should be used.
+                      Current date uses live rates.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               {/* Exchange Rate (Read-only) */}
               <FormField
                 control={form.control}
@@ -485,6 +515,11 @@ export default function PledgeDialog({
                         className="bg-gray-50"
                       />
                     </FormControl>
+                    <FormDescription>
+                      {isLoadingRates
+                        ? "Loading exchange rate..."
+                        : `Rate for ${watchedExchangeRateDate || "today"}`}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

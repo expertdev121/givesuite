@@ -156,7 +156,9 @@ export default function PaymentDialog({
   useEffect(() => {
     const exchangeRate = form.getValues("exchangeRate");
     if (watchedAmount && exchangeRate) {
-      const usdAmount = watchedAmount / exchangeRate;
+      // Since exchange rates are now inverted (currency to USD conversion rates),
+      // we multiply instead of divide
+      const usdAmount = watchedAmount * exchangeRate;
       form.setValue("amountUsd", Math.round(usdAmount * 100) / 100);
     }
   }, [watchedAmount, form.watch("exchangeRate"), form]);
