@@ -4,7 +4,15 @@ import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Check, ChevronsUpDown, Trash2, Pause, Play, Edit } from "lucide-react";
+import {
+  Check,
+  ChevronsUpDown,
+  Trash2,
+  Pause,
+  Play,
+  Edit,
+  Calculator,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -237,6 +245,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
     initialPledgeId
   );
   const [isEditing, setIsEditing] = useState(mode === "edit");
+  const [manualInstallment, setManualInstallment] = useState(false);
 
   // Determine if this is edit mode
   const isEditMode = mode === "edit" && !!paymentPlanId;
@@ -312,6 +321,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
   const watchedStartDate = form.watch("startDate");
   const watchedNumberOfInstallments = form.watch("numberOfInstallments");
   const watchedTotalPlannedAmount = form.watch("totalPlannedAmount");
+  const watchedInstallmentAmount = form.watch("installmentAmount");
 
   // Update form when existing plan data loads (edit mode)
   useEffect(() => {
@@ -357,19 +367,45 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
     }
   }, [pledgeData, form, isEditMode]);
 
-  // Calculate installment amount
+  // Calculate installment amount automatically when not in manual mode
   useEffect(() => {
-    const totalAmount = watchedTotalPlannedAmount;
-    const installments = watchedNumberOfInstallments;
+    if (!manualInstallment) {
+      const totalAmount = watchedTotalPlannedAmount;
+      const installments = watchedNumberOfInstallments;
 
-    if (totalAmount && installments > 0) {
-      const installmentAmount = totalAmount / installments;
-      form.setValue(
-        "installmentAmount",
-        Math.round(installmentAmount * 100) / 100
-      );
+      if (totalAmount && installments > 0) {
+        const installmentAmount = totalAmount / installments;
+        form.setValue(
+          "installmentAmount",
+          Math.round(installmentAmount * 100) / 100
+        );
+      }
     }
-  }, [watchedTotalPlannedAmount, watchedNumberOfInstallments, form]);
+  }, [
+    watchedTotalPlannedAmount,
+    watchedNumberOfInstallments,
+    form,
+    manualInstallment,
+  ]);
+
+  // Calculate number of installments when in manual installment mode
+  useEffect(() => {
+    if (
+      manualInstallment &&
+      watchedInstallmentAmount > 0 &&
+      watchedTotalPlannedAmount > 0
+    ) {
+      const calculatedInstallments = Math.ceil(
+        watchedTotalPlannedAmount / watchedInstallmentAmount
+      );
+      form.setValue("numberOfInstallments", calculatedInstallments);
+    }
+  }, [
+    watchedInstallmentAmount,
+    watchedTotalPlannedAmount,
+    form,
+    manualInstallment,
+  ]);
 
   // Calculate dates
   useEffect(() => {
@@ -392,6 +428,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
   }, [watchedStartDate, watchedFrequency, watchedNumberOfInstallments, form]);
 
   const resetForm = () => {
+    setManualInstallment(false);
     if (isEditMode && existingPlan) {
       // Reset to original plan values
       form.reset({
@@ -508,7 +545,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
     setOpen(newOpen);
     if (!newOpen) {
       resetForm();
-      setIsEditing(mode === "edit"); // Fixed: Use mode comparison instead of isEditMode
+      setIsEditing(mode === "edit");
       onClose?.();
     }
   };
@@ -527,6 +564,25 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
           onSuccess?.();
         },
       });
+    }
+  };
+
+  const toggleManualInstallment = () => {
+    setManualInstallment(!manualInstallment);
+    if (!manualInstallment) {
+      // Switching to manual mode - keep current installment amount
+      // The useEffect will calculate numberOfInstallments
+    } else {
+      // Switching to auto mode - recalculate installment amount
+      const totalAmount = form.getValues("totalPlannedAmount");
+      const installments = form.getValues("numberOfInstallments");
+      if (totalAmount && installments > 0) {
+        const installmentAmount = totalAmount / installments;
+        form.setValue(
+          "installmentAmount",
+          Math.round(installmentAmount * 100) / 100
+        );
+      }
     }
   };
 
@@ -852,6 +908,25 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
               />
             )}
 
+            {/* Toggle for manual installment entry */}
+            <div className="flex items-center space-x-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <Button
+                type="button"
+                size="sm"
+                variant={manualInstallment ? "default" : "outline"}
+                onClick={toggleManualInstallment}
+                className="shrink-0"
+              >
+                <Calculator className="w-4 h-4 mr-2" />
+                {manualInstallment ? "Auto Calculate" : "Manual Entry"}
+              </Button>
+              <p className="text-sm text-blue-700">
+                {manualInstallment
+                  ? "Enter both installment amount and number of installments manually"
+                  : "Installment amount will be calculated automatically from total amount ÷ number of installments"}
+              </p>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -880,18 +955,27 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                 name="installmentAmount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Installment Amount</FormLabel>
+                    <FormLabel>Installment Amount *</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
                         step="0.01"
                         {...field}
-                        readOnly
-                        className="bg-gray-50"
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          field.onChange(value ? parseFloat(value) : 0);
+                        }}
+                        readOnly={!manualInstallment}
+                        className={!manualInstallment ? "bg-gray-50" : ""}
                         value={field.value || 0}
                       />
                     </FormControl>
                     <FormMessage />
+                    {!manualInstallment && (
+                      <p className="text-xs text-muted-foreground">
+                        Calculated automatically
+                      </p>
+                    )}
                   </FormItem>
                 )}
               />
@@ -1070,6 +1154,43 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                     </span>
                   </div>
                 )}
+                {manualInstallment &&
+                  watchedInstallmentAmount &&
+                  watchedTotalPlannedAmount && (
+                    <div className="col-span-2 pt-2 border-t border-blue-200 text-xs">
+                      <div className="flex justify-between">
+                        <span>
+                          Manual Total ({form.watch("numberOfInstallments")} ×{" "}
+                          {form.watch("currency")}{" "}
+                          {form.watch("installmentAmount")}):
+                        </span>
+                        <span className="font-medium">
+                          {form.watch("currency")}{" "}
+                          {(
+                            form.watch("numberOfInstallments") *
+                            form.watch("installmentAmount")
+                          ).toLocaleString()}
+                        </span>
+                      </div>
+                      {Math.abs(
+                        form.watch("numberOfInstallments") *
+                          form.watch("installmentAmount") -
+                          form.watch("totalPlannedAmount")
+                      ) > 0.01 && (
+                        <div className="flex justify-between text-amber-700 mt-1">
+                          <span>Difference from planned total:</span>
+                          <span className="font-medium">
+                            {form.watch("currency")}{" "}
+                            {Math.abs(
+                              form.watch("numberOfInstallments") *
+                                form.watch("installmentAmount") -
+                                form.watch("totalPlannedAmount")
+                            ).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
               </div>
             </div>
 
