@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useState, useMemo } from "react";
@@ -31,261 +32,83 @@ import {
   Award,
   Calculator,
   FileText,
+  Loader2,
 } from "lucide-react";
-
-const mockSolicitors = [
-  {
-    id: 1,
-    contactId: 15,
-    solicitorCode: "SOL001",
-    status: "active" as const,
-    commissionRate: "5.00",
-    hireDate: "2024-01-15",
-    terminationDate: null,
-    notes: "Top performer",
-    // Contact info
-    firstName: "John",
-    lastName: "Smith",
-    email: "john.smith@org.com",
-    phone: "+1-555-0201",
-    // Performance metrics
-    totalRaised: 45230.5,
-    paymentsCount: 23,
-    bonusEarned: 2261.53,
-    lastActivity: "2024-12-01",
-  },
-  {
-    id: 2,
-    contactId: 16,
-    solicitorCode: "SOL002",
-    status: "active" as const,
-    commissionRate: "4.50",
-    hireDate: "2024-03-01",
-    terminationDate: null,
-    notes: "Specializes in major donors",
-    firstName: "Maria",
-    lastName: "Garcia",
-    email: "maria.garcia@org.com",
-    phone: "+1-555-0202",
-    totalRaised: 78450.0,
-    paymentsCount: 15,
-    bonusEarned: 3922.5,
-    lastActivity: "2024-11-28",
-  },
-  {
-    id: 3,
-    contactId: 17,
-    solicitorCode: "SOL003",
-    status: "inactive" as const,
-    commissionRate: "3.00",
-    hireDate: "2023-06-01",
-    terminationDate: "2024-10-15",
-    notes: "Left for personal reasons",
-    firstName: "David",
-    lastName: "Wilson",
-    email: "david.wilson@org.com",
-    phone: "+1-555-0203",
-    totalRaised: 12800.0,
-    paymentsCount: 8,
-    bonusEarned: 384.0,
-    lastActivity: "2024-10-15",
-  },
-];
-
-const mockBonusRules = [
-  {
-    id: 1,
-    solicitorId: 1,
-    ruleName: "Standard Donation Bonus",
-    bonusPercentage: "5.00",
-    paymentType: "donation" as const,
-    minAmount: "100.00",
-    maxAmount: null,
-    effectiveFrom: "2024-01-01",
-    effectiveTo: null,
-    isActive: true,
-    priority: 1,
-  },
-  {
-    id: 2,
-    solicitorId: 1,
-    ruleName: "Major Donor Bonus",
-    bonusPercentage: "7.50",
-    paymentType: "donation" as const,
-    minAmount: "5000.00",
-    maxAmount: null,
-    effectiveFrom: "2024-01-01",
-    effectiveTo: null,
-    isActive: true,
-    priority: 2,
-  },
-  {
-    id: 3,
-    solicitorId: 2,
-    ruleName: "Tuition Collection Bonus",
-    bonusPercentage: "3.00",
-    paymentType: "tuition" as const,
-    minAmount: "500.00",
-    maxAmount: "1000.00",
-    effectiveFrom: "2024-03-01",
-    effectiveTo: null,
-    isActive: true,
-    priority: 1,
-  },
-];
-
-const mockBonusCalculations = [
-  {
-    id: 1,
-    paymentId: 4,
-    solicitorId: 1,
-    bonusRuleId: 1,
-    paymentAmount: "454.17",
-    bonusPercentage: "5.00",
-    bonusAmount: "22.71",
-    calculatedAt: "2024-12-01T10:30:00Z",
-    isPaid: true,
-    paidAt: "2024-12-15T14:20:00Z",
-    notes: "Standard donation bonus",
-  },
-  {
-    id: 2,
-    paymentId: 42,
-    solicitorId: 1,
-    bonusRuleId: 2,
-    paymentAmount: "7500.00",
-    bonusPercentage: "7.50",
-    bonusAmount: "562.50",
-    calculatedAt: "2025-06-16T09:15:00Z",
-    isPaid: false,
-    paidAt: null,
-    notes: "Major donor bonus - pending payment",
-  },
-];
-
-// Using your original payment data structure
-const paymentsData = [
-  {
-    id: 4,
-    amount: "416.67",
-    amountUsd: "454.17",
-    currency: "EUR",
-    paymentDate: "2024-12-01",
-    receivedDate: "2024-12-01",
-    paymentMethod: "credit_card",
-    paymentStatus: "completed",
-    referenceNumber: "CC-2024-12-001",
-    contactFirstName: "David",
-    contactLastName: "Cohen",
-    contactEmail: "david.cohen@email.com",
-    pledgeDescription: "Alef 2004/05",
-    categoryName: "Donation",
-    // Updated with actual solicitor data
-    solicitorId: 1,
-    bonusPercentage: "5.00",
-    bonusAmount: "22.71",
-    bonusRuleId: 1,
-  },
-  {
-    id: 42,
-    amount: "7500.00",
-    amountUsd: "7500.00",
-    currency: "USD",
-    paymentDate: "2025-06-16",
-    receivedDate: "2025-06-16",
-    paymentMethod: "cash",
-    paymentStatus: "completed",
-    referenceNumber: "jtfy789",
-    contactFirstName: "Aaron",
-    contactLastName: "Friedman",
-    contactEmail: "aaron.friedman@email.com",
-    pledgeDescription: "Alef 2019/20",
-    categoryName: "Donation",
-    // Major donor with higher bonus
-    solicitorId: 1,
-    bonusPercentage: "7.50",
-    bonusAmount: "562.50",
-    bonusRuleId: 2,
-  },
-  // Some unassigned payments
-  {
-    id: 30,
-    amount: "200.00",
-    amountUsd: "132.00",
-    currency: "AUD",
-    paymentDate: "2024-12-15",
-    receivedDate: null,
-    paymentMethod: "credit_card",
-    paymentStatus: "processing",
-    referenceNumber: "CC-2024-12-PROC",
-    contactFirstName: "Leah",
-    contactLastName: "Goldman",
-    contactEmail: "leah.goldman@email.com",
-    pledgeDescription: "Banquet 2019 - General Sponsorship",
-    categoryName: "Donation",
-    solicitorId: null,
-    bonusPercentage: null,
-    bonusAmount: null,
-    bonusRuleId: null,
-  },
-];
+import {
+  useSolicitors,
+  useBonusRules,
+  usePayments,
+  useBonusCalculations,
+  useDashboardStats,
+  useAssignPayment,
+  useUnassignPayment,
+  useMarkBonusPaid,
+  useRecalculateBonus,
+} from "@/lib/query/solicitors/solicitorQueries";
 
 export default function SolicitorDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("solicitors");
 
-  const filteredSolicitors = useMemo(() => {
-    return mockSolicitors.filter((solicitor) => {
-      const matchesSearch =
-        solicitor.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        solicitor.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        solicitor.solicitorCode
-          ?.toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        solicitor.email.toLowerCase().includes(searchTerm.toLowerCase());
+  const { data: solicitorsData, isLoading: solicitorsLoading } = useSolicitors({
+    search: searchTerm,
+    status: statusFilter === "all" ? undefined : statusFilter,
+  });
 
-      const matchesStatus =
-        statusFilter === "all" || solicitor.status === statusFilter;
+  const { data: bonusRulesData, isLoading: bonusRulesLoading } =
+    useBonusRules();
 
-      return matchesSearch && matchesStatus;
+  const { data: assignedPaymentsData, isLoading: assignedPaymentsLoading } =
+    usePayments({
+      assigned: true,
     });
-  }, [searchTerm, statusFilter]);
 
-  const unassignedPayments = useMemo(() => {
-    return paymentsData.filter((payment) => !payment.solicitorId);
-  }, []);
+  const { data: unassignedPaymentsData, isLoading: unassignedPaymentsLoading } =
+    usePayments({
+      assigned: false,
+    });
 
-  const assignedPayments = useMemo(() => {
-    return paymentsData.filter((payment) => payment.solicitorId);
-  }, []);
+  const { data: bonusCalculationsData, isLoading: bonusCalculationsLoading } =
+    useBonusCalculations();
+
+  const { data: dashboardStatsData, isLoading: statsLoading } =
+    useDashboardStats();
+
+  const assignPaymentMutation = useAssignPayment();
+  const unassignPaymentMutation = useUnassignPayment();
+  const markBonusPaidMutation = useMarkBonusPaid();
+  const recalculateBonusMutation = useRecalculateBonus();
+
+  const solicitors = solicitorsData?.solicitors || [];
+  const bonusRules = bonusRulesData?.bonusRules || [];
+  const assignedPayments = assignedPaymentsData?.payments || [];
+  const unassignedPayments = unassignedPaymentsData?.payments || [];
+  const bonusCalculations = bonusCalculationsData?.bonusCalculations || [];
 
   const stats = useMemo(() => {
-    const activeSolicitors = mockSolicitors.filter(
-      (s) => s.status === "active"
-    ).length;
-    const totalRaised = mockSolicitors.reduce(
-      (sum, s) => sum + s.totalRaised,
-      0
-    );
-    const totalBonuses = mockSolicitors.reduce(
-      (sum, s) => sum + s.bonusEarned,
-      0
-    );
-    const unpaidBonuses = mockBonusCalculations
-      .filter((calc) => !calc.isPaid)
-      .reduce((sum, calc) => sum + Number.parseFloat(calc.bonusAmount), 0);
+    if (!dashboardStatsData) {
+      return {
+        activeSolicitors: 0,
+        totalSolicitors: 0,
+        totalRaised: 0,
+        totalBonuses: 0,
+        unpaidBonuses: 0,
+        unassignedCount: 0,
+        assignedCount: 0,
+      };
+    }
 
     return {
-      activeSolicitors,
-      totalSolicitors: mockSolicitors.length,
-      totalRaised,
-      totalBonuses,
-      unpaidBonuses,
-      unassignedCount: unassignedPayments.length,
-      assignedCount: assignedPayments.length,
+      activeSolicitors: dashboardStatsData.solicitors.active,
+      totalSolicitors: dashboardStatsData.solicitors.total,
+      totalRaised: dashboardStatsData.payments.assignedAmount,
+      totalBonuses: dashboardStatsData.bonuses.totalAmount,
+      unpaidBonuses: dashboardStatsData.bonuses.unpaidAmount,
+      unassignedCount: dashboardStatsData.payments.unassigned,
+      assignedCount: dashboardStatsData.payments.assigned,
     };
-  }, [unassignedPayments.length, assignedPayments.length]);
+  }, [dashboardStatsData]);
 
   const getStatusBadge = (status: string) => {
     const variants = {
@@ -302,6 +125,49 @@ export default function SolicitorDashboard() {
       "bg-gray-100 text-gray-800 border-gray-200"
     );
   };
+
+  const handleAssignPayment = async (
+    paymentId: number,
+    solicitorId: number
+  ) => {
+    try {
+      await assignPaymentMutation.mutateAsync({ paymentId, solicitorId });
+    } catch (error) {
+      console.error("Failed to assign payment:", error);
+    }
+  };
+
+  const handleUnassignPayment = async (paymentId: number) => {
+    try {
+      await unassignPaymentMutation.mutateAsync(paymentId);
+    } catch (error) {
+      console.error("Failed to unassign payment:", error);
+    }
+  };
+
+  const handleMarkBonusPaid = async (calculationId: number) => {
+    try {
+      await markBonusPaidMutation.mutateAsync(calculationId);
+    } catch (error) {
+      console.error("Failed to mark bonus as paid:", error);
+    }
+  };
+
+  const handleRecalculateBonus = async (paymentId: number) => {
+    try {
+      await recalculateBonusMutation.mutateAsync(paymentId);
+    } catch (error) {
+      console.error("Failed to recalculate bonus:", error);
+    }
+  };
+
+  if (statsLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
@@ -419,83 +285,97 @@ export default function SolicitorDashboard() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="solicitors">Solicitors</TabsTrigger>
-          <TabsTrigger value="bonus-rules">Bonus Rules</TabsTrigger>
-          <TabsTrigger value="calculations">Calculations</TabsTrigger>
           <TabsTrigger value="assigned">Assigned Payments</TabsTrigger>
           <TabsTrigger value="unassigned">Unassigned</TabsTrigger>
+          <TabsTrigger value="bonus-rules">Bonus Rules</TabsTrigger>
+          <TabsTrigger value="calculations">Calculations</TabsTrigger>
         </TabsList>
 
         <TabsContent value="solicitors">
           <Card>
             <CardHeader>
-              <CardTitle>
-                Solicitor Directory ({filteredSolicitors.length})
-              </CardTitle>
+              <CardTitle>Solicitor Directory ({solicitors.length})</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Solicitor</TableHead>
-                      <TableHead>Code</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Commission Rate</TableHead>
-                      <TableHead>Total Raised</TableHead>
-                      <TableHead>Bonus Earned</TableHead>
-                      <TableHead>Hire Date</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredSolicitors.map((solicitor) => (
-                      <TableRow key={solicitor.id}>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">
-                              {solicitor.firstName} {solicitor.lastName}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              {solicitor.email}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              Contact ID: {solicitor.contactId}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-mono">
-                          {solicitor.solicitorCode}
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getStatusBadge(solicitor.status)}>
-                            {solicitor.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{solicitor.commissionRate}%</TableCell>
-                        <TableCell className="font-medium">
-                          ${solicitor.totalRaised.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-green-600 font-medium">
-                          ${solicitor.bonusEarned.toLocaleString()}
-                        </TableCell>
-                        <TableCell>
-                          {new Date(solicitor.hireDate).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button variant="outline" size="sm">
-                              View
-                            </Button>
-                            <Button variant="outline" size="sm">
-                              Edit
-                            </Button>
-                          </div>
-                        </TableCell>
+              {solicitorsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Solicitor</TableHead>
+                        <TableHead>Code</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Commission Rate</TableHead>
+                        <TableHead>Total Raised</TableHead>
+                        <TableHead>Bonus Earned</TableHead>
+                        <TableHead>Hire Date</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {solicitors.map((solicitor: any) => (
+                        <TableRow key={solicitor.id}>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">
+                                {solicitor.firstName} {solicitor.lastName}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {solicitor.email}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                Contact ID: {solicitor.contactId}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-mono">
+                            {solicitor.solicitorCode}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={getStatusBadge(solicitor.status)}>
+                              {solicitor.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{solicitor.commissionRate}%</TableCell>
+                          <TableCell className="font-medium">
+                            $
+                            {Number(
+                              solicitor.totalRaised || 0
+                            ).toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-green-600 font-medium">
+                            $
+                            {Number(
+                              solicitor.bonusEarned || 0
+                            ).toLocaleString()}
+                          </TableCell>
+                          <TableCell>
+                            {solicitor.hireDate
+                              ? new Date(
+                                  solicitor.hireDate
+                                ).toLocaleDateString()
+                              : "N/A"}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button variant="outline" size="sm">
+                                View
+                              </Button>
+                              <Button variant="outline" size="sm">
+                                Edit
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -505,53 +385,49 @@ export default function SolicitorDashboard() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Calculator className="h-5 w-5" />
-                Bonus Rules ({mockBonusRules.length})
+                Bonus Rules ({bonusRules.length})
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Rule Name</TableHead>
-                      <TableHead>Solicitor</TableHead>
-                      <TableHead>Bonus %</TableHead>
-                      <TableHead>Payment Type</TableHead>
-                      <TableHead>Min Amount</TableHead>
-                      <TableHead>Max Amount</TableHead>
-                      <TableHead>Effective Period</TableHead>
-                      <TableHead>Priority</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {mockBonusRules.map((rule) => {
-                      const solicitor = mockSolicitors.find(
-                        (s) => s.id === rule.solicitorId
-                      );
-                      return (
+              {bonusRulesLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Rule Name</TableHead>
+                        <TableHead>Solicitor</TableHead>
+                        <TableHead>Bonus %</TableHead>
+                        <TableHead>Payment Type</TableHead>
+                        <TableHead>Min Amount</TableHead>
+                        <TableHead>Max Amount</TableHead>
+                        <TableHead>Effective Period</TableHead>
+                        <TableHead>Priority</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {bonusRules.map((rule: any) => (
                         <TableRow key={rule.id}>
                           <TableCell className="font-medium">
                             {rule.ruleName}
                           </TableCell>
                           <TableCell>
-                            {solicitor
-                              ? `${solicitor.firstName} ${solicitor.lastName}`
-                              : "Unknown"}
+                            {rule.solicitorFirstName} {rule.solicitorLastName}
                           </TableCell>
                           <TableCell>{rule.bonusPercentage}%</TableCell>
                           <TableCell>
                             <Badge variant="outline">{rule.paymentType}</Badge>
                           </TableCell>
                           <TableCell>
-                            $
-                            {Number.parseFloat(rule.minAmount).toLocaleString()}
+                            ${Number(rule.minAmount || 0).toLocaleString()}
                           </TableCell>
                           <TableCell>
                             {rule.maxAmount
-                              ? `$${Number.parseFloat(
-                                  rule.maxAmount
-                                ).toLocaleString()}`
+                              ? `$${Number(rule.maxAmount).toLocaleString()}`
                               : "No limit"}
                           </TableCell>
                           <TableCell>
@@ -585,11 +461,11 @@ export default function SolicitorDashboard() {
                             </Badge>
                           </TableCell>
                         </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -599,51 +475,44 @@ export default function SolicitorDashboard() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                Bonus Calculations ({mockBonusCalculations.length})
+                Bonus Calculations ({bonusCalculations.length})
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Payment ID</TableHead>
-                      <TableHead>Solicitor</TableHead>
-                      <TableHead>Payment Amount</TableHead>
-                      <TableHead>Bonus %</TableHead>
-                      <TableHead>Bonus Amount</TableHead>
-                      <TableHead>Calculated</TableHead>
-                      <TableHead>Payment Status</TableHead>
-                      <TableHead>Notes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {mockBonusCalculations.map((calc) => {
-                      const solicitor = mockSolicitors.find(
-                        (s) => s.id === calc.solicitorId
-                      );
-                      return (
+              {bonusCalculationsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Payment ID</TableHead>
+                        <TableHead>Solicitor</TableHead>
+                        <TableHead>Payment Amount</TableHead>
+                        <TableHead>Bonus %</TableHead>
+                        <TableHead>Bonus Amount</TableHead>
+                        <TableHead>Calculated</TableHead>
+                        <TableHead>Payment Status</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {bonusCalculations.map((calc: any) => (
                         <TableRow key={calc.id}>
                           <TableCell className="font-mono">
                             #{calc.paymentId}
                           </TableCell>
                           <TableCell>
-                            {solicitor
-                              ? `${solicitor.firstName} ${solicitor.lastName}`
-                              : "Unknown"}
+                            {calc.solicitorFirstName} {calc.solicitorLastName}
                           </TableCell>
                           <TableCell>
-                            $
-                            {Number.parseFloat(
-                              calc.paymentAmount
-                            ).toLocaleString()}
+                            ${Number(calc.paymentAmount).toLocaleString()}
                           </TableCell>
                           <TableCell>{calc.bonusPercentage}%</TableCell>
                           <TableCell className="font-medium text-green-600">
-                            $
-                            {Number.parseFloat(
-                              calc.bonusAmount
-                            ).toLocaleString()}
+                            ${Number(calc.bonusAmount).toLocaleString()}
                           </TableCell>
                           <TableCell>
                             {new Date(calc.calculatedAt).toLocaleDateString()}
@@ -659,15 +528,44 @@ export default function SolicitorDashboard() {
                               {calc.isPaid ? "Paid" : "Pending"}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-sm">
-                            {calc.notes}
+                          <TableCell>
+                            <div className="flex gap-2">
+                              {!calc.isPaid && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleMarkBonusPaid(calc.id)}
+                                  disabled={markBonusPaidMutation.isPending}
+                                >
+                                  {markBonusPaidMutation.isPending ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    "Mark Paid"
+                                  )}
+                                </Button>
+                              )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  handleRecalculateBonus(calc.paymentId)
+                                }
+                                disabled={recalculateBonusMutation.isPending}
+                              >
+                                {recalculateBonusMutation.isPending ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  "Recalculate"
+                                )}
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -680,26 +578,28 @@ export default function SolicitorDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>ID</TableHead>
-                      <TableHead>Contact</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Solicitor</TableHead>
-                      <TableHead>Bonus %</TableHead>
-                      <TableHead>Bonus Amount</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {assignedPayments.map((payment) => {
-                      const solicitor = mockSolicitors.find(
-                        (s) => s.id === payment.solicitorId
-                      );
-                      return (
+              {assignedPaymentsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>ID</TableHead>
+                        <TableHead>Contact</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Solicitor</TableHead>
+                        <TableHead>Bonus %</TableHead>
+                        <TableHead>Bonus Amount</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {assignedPayments.map((payment: any) => (
                         <TableRow key={payment.id}>
                           <TableCell className="font-medium">
                             #{payment.id}
@@ -719,8 +619,8 @@ export default function SolicitorDashboard() {
                             <div>
                               <div className="font-medium">
                                 $
-                                {Number.parseFloat(
-                                  payment.amountUsd
+                                {Number(
+                                  payment.amountUsd || 0
                                 ).toLocaleString()}
                               </div>
                               <div className="text-sm text-muted-foreground">
@@ -729,25 +629,19 @@ export default function SolicitorDashboard() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {solicitor ? (
-                              <div>
-                                <div className="font-medium">
-                                  {solicitor.firstName} {solicitor.lastName}
-                                </div>
-                                <div className="text-sm text-muted-foreground">
-                                  {solicitor.solicitorCode}
-                                </div>
+                            <div>
+                              <div className="font-medium">
+                                {payment.solicitorFirstName}{" "}
+                                {payment.solicitorLastName}
                               </div>
-                            ) : (
-                              "Unknown"
-                            )}
+                              <div className="text-sm text-muted-foreground">
+                                {payment.solicitorCode}
+                              </div>
+                            </div>
                           </TableCell>
                           <TableCell>{payment.bonusPercentage}%</TableCell>
                           <TableCell className="text-green-600 font-medium">
-                            $
-                            {Number.parseFloat(
-                              payment.bonusAmount || "0"
-                            ).toLocaleString()}
+                            ${Number(payment.bonusAmount || 0).toLocaleString()}
                           </TableCell>
                           <TableCell>
                             {new Date(payment.paymentDate).toLocaleDateString()}
@@ -759,12 +653,26 @@ export default function SolicitorDashboard() {
                               {payment.paymentStatus}
                             </Badge>
                           </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleUnassignPayment(payment.id)}
+                              disabled={unassignPaymentMutation.isPending}
+                            >
+                              {unassignPaymentMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                "Unassign"
+                              )}
+                            </Button>
+                          </TableCell>
                         </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -777,7 +685,11 @@ export default function SolicitorDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {unassignedPayments.length > 0 ? (
+              {unassignedPaymentsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : unassignedPayments.length > 0 ? (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -792,7 +704,7 @@ export default function SolicitorDashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {unassignedPayments.map((payment) => (
+                      {unassignedPayments.map((payment: any) => (
                         <TableRow key={payment.id}>
                           <TableCell className="font-medium">
                             #{payment.id}
@@ -812,8 +724,8 @@ export default function SolicitorDashboard() {
                             <div>
                               <div className="font-medium">
                                 $
-                                {Number.parseFloat(
-                                  payment.amountUsd
+                                {Number(
+                                  payment.amountUsd || 0
                                 ).toLocaleString()}
                               </div>
                               <div className="text-sm text-muted-foreground">
@@ -837,9 +749,31 @@ export default function SolicitorDashboard() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Button variant="outline" size="sm">
-                              Assign Solicitor
-                            </Button>
+                            <Select
+                              onValueChange={(solicitorId) =>
+                                handleAssignPayment(
+                                  payment.id,
+                                  parseInt(solicitorId)
+                                )
+                              }
+                            >
+                              <SelectTrigger className="w-48">
+                                <SelectValue placeholder="Assign Solicitor" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {solicitors
+                                  .filter((s: any) => s.status === "active")
+                                  .map((solicitor: any) => (
+                                    <SelectItem
+                                      key={solicitor.id}
+                                      value={solicitor.id.toString()}
+                                    >
+                                      {solicitor.firstName} {solicitor.lastName}{" "}
+                                      ({solicitor.solicitorCode})
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
                           </TableCell>
                         </TableRow>
                       ))}
