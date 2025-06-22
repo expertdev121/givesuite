@@ -275,7 +275,16 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                     <React.Fragment key={payment.id}>
                       <TableRow className="hover:bg-gray-50">
                         <TableCell className="font-medium">
-                          {formatDate(payment.receiptIssuedDate)}
+                          {payment.receivedDate
+                            ? formatDate(
+                                new Date(
+                                  new Date(payment.receivedDate).setDate(
+                                    new Date(payment.receivedDate).getDate() +
+                                      14
+                                  )
+                                ).toISOString()
+                              )
+                            : "N/A"}
                         </TableCell>
                         <TableCell className="font-medium">
                           {formatDate(payment.paymentDate)}
