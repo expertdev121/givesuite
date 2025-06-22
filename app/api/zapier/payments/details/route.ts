@@ -15,7 +15,6 @@ export async function GET() {
   try {
     const paymentsWithDetails = await db
       .select({
-        // Payment core details
         id: payment.id,
         amount: payment.amount,
         amountUsd: payment.amountUsd,
@@ -29,15 +28,11 @@ export async function GET() {
         receiptNumber: payment.receiptNumber,
         receiptType: payment.receiptType,
         receiptIssued: payment.receiptIssued,
-
-        // Pledge details
         pledgeId: pledge.id,
         pledgeDescription: pledge.description,
         pledgeOriginalAmount: pledge.originalAmount,
         pledgeCurrency: pledge.currency,
         pledgeBalance: pledge.balance,
-
-        // Contact (Donor) details
         contactId: contact.id,
         contactFirstName: contact.firstName,
         contactLastName: contact.lastName,

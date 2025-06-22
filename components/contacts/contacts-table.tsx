@@ -29,6 +29,7 @@ import { useGetContacts } from "@/lib/query/useContacts";
 import ContactFormDialog from "../forms/contact-form";
 import ContactsSummaryCards from "./contact-summary";
 import { useRouter } from "next/navigation";
+import ExportDataDialog from "../export";
 
 const QueryParamsSchema = z.object({
   page: z.number().min(1).default(1),
@@ -187,6 +188,10 @@ export default function ContactsTable() {
         </Select>
 
         <ContactFormDialog />
+        <ExportDataDialog
+          triggerText="Export All Data"
+          triggerVariant="secondary"
+        />
       </div>
 
       {/* Table */}

@@ -3,7 +3,14 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -13,7 +20,13 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FileSpreadsheet, FileText, Loader2, AlertCircle } from "lucide-react";
+import {
+  FileSpreadsheet,
+  FileText,
+  Loader2,
+  AlertCircle,
+  Download,
+} from "lucide-react";
 import * as XLSX from "xlsx";
 import {
   getContacts,
@@ -24,7 +37,7 @@ import {
   getStudentRoles,
   getSolicitors,
   getCategories,
-} from "./queries";
+} from "@/app/contacts/[contactId]/exports/queries";
 
 const dataTypes = [
   { value: "contacts", label: "Contacts", query: getContacts },
@@ -45,17 +58,32 @@ const dataTypes = [
   { value: "categories", label: "Categories", query: getCategories },
 ];
 
-export default function ExportData() {
+interface ExportDataDialogProps {
+  triggerText?: string;
+  triggerVariant?:
+    | "default"
+    | "destructive"
+    | "outline"
+    | "secondary"
+    | "ghost"
+    | "link";
+}
+
+export default function ExportDataDialog({
+  triggerText = "Export Data",
+  triggerVariant = "outline",
+}: ExportDataDialogProps) {
   const [selectedDataType, setSelectedDataType] = useState("contacts");
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
 
   const currentDataType = dataTypes.find((dt) => dt.value === selectedDataType);
 
   const { data, isLoading, error } = useQuery({
     queryKey: [selectedDataType],
     queryFn: currentDataType?.query || (() => Promise.resolve([])),
-    enabled: !!currentDataType,
+    enabled: !!currentDataType && open,
   });
 
   const formatDataForExport = (data: any[]) => {
@@ -103,6 +131,9 @@ export default function ExportData() {
       const timestamp = new Date().toISOString().split("T")[0];
       const filename = `${selectedDataType}_export_${timestamp}.xlsx`;
       XLSX.writeFile(wb, filename);
+
+      // Close dialog after successful export
+      setTimeout(() => setOpen(false), 1000);
     } catch (error) {
       console.error("Export to XLSX failed:", error);
       setExportError("Failed to export to XLSX.");
@@ -144,6 +175,9 @@ export default function ExportData() {
       link.download = filename;
       link.click();
       URL.revokeObjectURL(link.href);
+
+      // Close dialog after successful export
+      setTimeout(() => setOpen(false), 1000);
     } catch (error) {
       console.error("Export to CSV failed:", error);
       setExportError("Failed to export to CSV.");
@@ -152,12 +186,35 @@ export default function ExportData() {
     }
   };
 
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    if (!newOpen) {
+      // Reset state when dialog closes
+      setExportError(null);
+      setIsExporting(false);
+    }
+  };
+
   return (
-    <div className="w-full mx-auto p-6">
-      <Card>
-        <CardContent className="p-6">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button variant={triggerVariant} className="gap-2">
+          <Download className="h-4 w-4" />
+          {triggerText}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Export Data</DialogTitle>
+          <DialogDescription>
+            Select the data type you want to export and choose your preferred
+            format.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6">
           {(error || exportError) && (
-            <Alert variant="destructive" className="mb-6">
+            <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 {error ? "Failed to load data from database." : exportError}
@@ -165,63 +222,71 @@ export default function ExportData() {
             </Alert>
           )}
 
-          <div className="flex items-center justify-between mb-6">
-            <Select
-              value={selectedDataType}
-              onValueChange={setSelectedDataType}
-            >
-              <SelectTrigger className="w-64">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {dataTypes.map((dataType) => (
-                  <SelectItem key={dataType.value} value={dataType.value}>
-                    {dataType.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Data Type</label>
+              <Select
+                value={selectedDataType}
+                onValueChange={setSelectedDataType}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {dataTypes.map((dataType) => (
+                    <SelectItem key={dataType.value} value={dataType.value}>
+                      {dataType.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            {isLoading ? (
-              <Badge variant="secondary">
-                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                Loading...
-              </Badge>
-            ) : (
-              <Badge variant="outline">{data?.length || 0} records</Badge>
-            )}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">
+                Records available:
+              </span>
+              {isLoading ? (
+                <Badge variant="secondary">
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  Loading...
+                </Badge>
+              ) : (
+                <Badge variant="outline">{data?.length || 0} records</Badge>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col gap-3">
             <Button
               onClick={exportToXLSX}
               disabled={isExporting || !data?.length || isLoading}
-              className="bg-black text-white hover:bg-gray-800"
+              className="w-full"
             >
               {isExporting ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <FileSpreadsheet className="h-4 w-4 mr-2" />
               )}
-              Export XLSX
+              Export as XLSX
             </Button>
 
             <Button
               onClick={exportToCSV}
               disabled={isExporting || !data?.length || isLoading}
               variant="outline"
-              className="bg-white text-black border-gray-300 hover:bg-gray-50"
+              className="w-full"
             >
               {isExporting ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <FileText className="h-4 w-4 mr-2" />
               )}
-              Export CSV
+              Export as CSV
             </Button>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

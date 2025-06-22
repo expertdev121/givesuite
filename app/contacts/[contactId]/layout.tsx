@@ -55,7 +55,6 @@ export default function SettingsLayout({
               <TabLink href={`/contacts/${contactId}/relationships`}>
                 Relationships
               </TabLink>
-              <TabLink href={`/contacts/${contactId}/exports`}>Exports</TabLink>
             </nav>
           </div>
           <div className="p-6">{children}</div>
