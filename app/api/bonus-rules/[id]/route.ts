@@ -5,12 +5,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
+  const ruleId = parseInt(id, 10);
   try {
     const body = await request.json();
-    const ruleId = parseInt(params.id);
-
     const updatedRule = await db
       .update(bonusRule)
       .set({
@@ -39,11 +39,11 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
+  const ruleId = parseInt(id, 10);
   try {
-    const ruleId = parseInt(params.id);
-
     const deletedRule = await db
       .delete(bonusRule)
       .where(eq(bonusRule.id, ruleId))

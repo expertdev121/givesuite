@@ -5,11 +5,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
+  const paymentId = parseInt(id, 10);
   try {
-    const paymentId = parseInt(params.id);
-
     // Remove bonus calculation if exists
     await db
       .delete(bonusCalculation)
