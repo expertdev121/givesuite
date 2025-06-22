@@ -57,6 +57,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import SolicitorDashboard from "@/components/solicitor-dashboard";
 
 const solicitorSchema = z.object({
   solicitorCode: z.string().optional(),
@@ -385,8 +386,6 @@ export default function SolicitorPage() {
           <AlertDescription>{displayError}</AlertDescription>
         </Alert>
       )}
-
-      {/* No Solicitor State */}
       {!isSolicitor && !isCreating && !isError && (
         <Card>
           <CardHeader>
@@ -398,8 +397,6 @@ export default function SolicitorPage() {
           </CardHeader>
         </Card>
       )}
-
-      {/* Solicitor Form */}
       {(isSolicitor || isCreating) && (
         <Card>
           <CardHeader>
@@ -723,8 +720,6 @@ export default function SolicitorPage() {
           </CardContent>
         </Card>
       )}
-
-      {/* Solicitor Info Summary */}
       {solicitor && isViewing && (
         <Card>
           <CardHeader>
@@ -760,6 +755,7 @@ export default function SolicitorPage() {
           </CardContent>
         </Card>
       )}
+      <SolicitorDashboard />
     </div>
   );
 }
