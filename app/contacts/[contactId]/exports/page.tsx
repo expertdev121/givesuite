@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -152,74 +153,75 @@ export default function ExportData() {
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto p-6 space-y-4">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold">Export Data</h1>
-      </div>
-
-      {(error || exportError) && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            {error ? "Failed to load data from database." : exportError}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <div className="flex items-center gap-4">
-        <div className="flex-1">
-          <Select value={selectedDataType} onValueChange={setSelectedDataType}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {dataTypes.map((dataType) => (
-                <SelectItem key={dataType.value} value={dataType.value}>
-                  {dataType.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {isLoading ? (
-          <Badge variant="secondary">
-            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-            Loading...
-          </Badge>
-        ) : (
-          <Badge variant="outline">{data?.length || 0} records</Badge>
-        )}
-      </div>
-
-      <div className="flex gap-3">
-        <Button
-          onClick={exportToXLSX}
-          disabled={isExporting || !data?.length || isLoading}
-          className="flex-1"
-        >
-          {isExporting ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <FileSpreadsheet className="h-4 w-4 mr-2" />
+    <div className="w-full mx-auto p-6">
+      <Card>
+        <CardContent className="p-6">
+          {(error || exportError) && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {error ? "Failed to load data from database." : exportError}
+              </AlertDescription>
+            </Alert>
           )}
-          Export XLSX
-        </Button>
 
-        <Button
-          onClick={exportToCSV}
-          disabled={isExporting || !data?.length || isLoading}
-          variant="outline"
-          className="flex-1"
-        >
-          {isExporting ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <FileText className="h-4 w-4 mr-2" />
-          )}
-          Export CSV
-        </Button>
-      </div>
+          <div className="flex items-center justify-between mb-6">
+            <Select
+              value={selectedDataType}
+              onValueChange={setSelectedDataType}
+            >
+              <SelectTrigger className="w-64">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {dataTypes.map((dataType) => (
+                  <SelectItem key={dataType.value} value={dataType.value}>
+                    {dataType.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {isLoading ? (
+              <Badge variant="secondary">
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                Loading...
+              </Badge>
+            ) : (
+              <Badge variant="outline">{data?.length || 0} records</Badge>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            <Button
+              onClick={exportToXLSX}
+              disabled={isExporting || !data?.length || isLoading}
+              className="bg-black text-white hover:bg-gray-800"
+            >
+              {isExporting ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+              )}
+              Export XLSX
+            </Button>
+
+            <Button
+              onClick={exportToCSV}
+              disabled={isExporting || !data?.length || isLoading}
+              variant="outline"
+              className="bg-white text-black border-gray-300 hover:bg-gray-50"
+            >
+              {isExporting ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <FileText className="h-4 w-4 mr-2" />
+              )}
+              Export CSV
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
