@@ -27,7 +27,6 @@ import {
   Users,
   DollarSign,
   TrendingUp,
-  UserPlus,
   AlertCircle,
   Award,
   Calculator,
@@ -273,10 +272,10 @@ export default function SolicitorDashboard() {
               </Select>
             </div>
 
-            <Button className="flex items-center gap-2">
+            {/* <Button className="flex items-center gap-2">
               <UserPlus className="h-4 w-4" />
               Add Solicitor
-            </Button>
+            </Button> */}
           </div>
         </CardContent>
       </Card>
@@ -287,8 +286,8 @@ export default function SolicitorDashboard() {
           <TabsTrigger value="solicitors">Solicitors</TabsTrigger>
           <TabsTrigger value="assigned">Assigned Payments</TabsTrigger>
           <TabsTrigger value="unassigned">Unassigned</TabsTrigger>
-          <TabsTrigger value="bonus-rules">Bonus Rules</TabsTrigger>
-          <TabsTrigger value="calculations">Calculations</TabsTrigger>
+          {/* <TabsTrigger value="bonus-rules">Bonus Rules</TabsTrigger>
+          <TabsTrigger value="calculations">Calculations</TabsTrigger> */}
         </TabsList>
 
         <TabsContent value="solicitors">
@@ -313,7 +312,7 @@ export default function SolicitorDashboard() {
                         <TableHead>Total Raised</TableHead>
                         <TableHead>Bonus Earned</TableHead>
                         <TableHead>Hire Date</TableHead>
-                        <TableHead>Actions</TableHead>
+                        {/* <TableHead>Actions</TableHead> */}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -360,7 +359,7 @@ export default function SolicitorDashboard() {
                                 ).toLocaleDateString()
                               : "N/A"}
                           </TableCell>
-                          <TableCell>
+                          {/* <TableCell>
                             <div className="flex gap-2">
                               <Button variant="outline" size="sm">
                                 View
@@ -369,7 +368,7 @@ export default function SolicitorDashboard() {
                                 Edit
                               </Button>
                             </div>
-                          </TableCell>
+                          </TableCell> */}
                         </TableRow>
                       ))}
                     </TableBody>
