@@ -28,6 +28,7 @@ import { LinkButton } from "../ui/next-link";
 import { useGetContacts } from "@/lib/query/useContacts";
 import ContactFormDialog from "../forms/contact-form";
 import ContactsSummaryCards from "./contact-summary";
+import { useRouter } from "next/navigation";
 
 const QueryParamsSchema = z.object({
   page: z.number().min(1).default(1),
@@ -60,6 +61,8 @@ export default function ContactsTable() {
     parse: (value) => (value === "asc" || value === "desc" ? value : "desc"),
     serialize: (value) => value,
   });
+
+  const router = useRouter();
 
   const currentPage = page ?? 1;
   const currentLimit = limit ?? 10;
@@ -246,6 +249,9 @@ export default function ContactsTable() {
                 <TableRow
                   key={`${contact.id}-${contact.createdAt}`}
                   className="hover:bg-gray-50"
+                  onClick={() => {
+                    router.push(`/contacts/${contact.id}`);
+                  }}
                 >
                   <TableCell className="font-medium">
                     {contact.lastName}
