@@ -611,7 +611,7 @@ export default function PaymentPlansTable({
                               <PaymentPlanDialog
                                 mode="edit"
                                 paymentPlanId={plan.id}
-                                pledgeId={32}
+                                pledgeId={plan.pledgeId}
                                 onSuccess={handleSuccess}
                                 trigger={
                                   <Button size="sm" variant="outline">

@@ -86,6 +86,7 @@ export async function GET(
       .select({
         id: paymentPlan.id,
         planName: paymentPlan.planName,
+        pledgeId: paymentPlan.pledgeId,
         frequency: paymentPlan.frequency,
         totalPlannedAmount: paymentPlan.totalPlannedAmount,
         currency: paymentPlan.currency,

@@ -261,16 +261,10 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
     limit: 100,
   });
 
-  console.log("contactID in PAYMENT PLAN DIALOG", contactId);
-
   const pledgeDataId = isEditMode ? props.pledgeId : selectedPledgeId;
-
-  console.log("pledgeDataId", pledgeDataId);
 
   const { data: pledgeData, isLoading: isLoadingPledge } =
     usePledgeDetailsQuery(pledgeDataId as number);
-
-  console.log(pledgeData, "pledgeData");
 
   const createPaymentPlanMutation = useCreatePaymentPlanMutation();
   const updatePaymentPlanMutation = useUpdatePaymentPlanMutation();

@@ -83,10 +83,8 @@ export const usePaymentPlans = ({
       let url: string;
 
       if (pledgeId) {
-        // Use existing endpoint for pledge-specific payment plans
         url = `/api/payment-plans/${pledgeId}`;
       } else if (contactId) {
-        // Use contact endpoint for contact-specific payment plans
         url = `/api/contacts/${contactId}/payment-plans`;
       } else {
         throw new Error("Either pledgeId or contactId must be provided");
