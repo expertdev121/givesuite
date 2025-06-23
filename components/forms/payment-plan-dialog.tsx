@@ -838,37 +838,6 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
               />
             )}
 
-            {/* Display selected pledge info when not showing selector or in edit mode */}
-            {(!showPledgeSelector || isEditMode) && selectedPledgeId && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <h4 className="font-medium text-blue-900 mb-1">
-                  Selected Pledge
-                </h4>
-                <div className="text-sm text-blue-800">
-                  <div>Pledge #{selectedPledgeId}</div>
-                  {pledgeData?.pledge && (
-                    <>
-                      <div>
-                        Description:{" "}
-                        {pledgeData.pledge.description || "No description"}
-                      </div>
-                      <div>
-                        Original Amount: {pledgeData.pledge.currency}{" "}
-                        {pledgeData.pledge.originalAmount?.toLocaleString()}
-                      </div>
-                      <div>
-                        Remaining Balance: {pledgeData.pledge.currency}{" "}
-                        {pledgeData.pledge.remainingBalance?.toLocaleString()}
-                      </div>
-                      {pledgeData.contact && (
-                        <div>Contact: {pledgeData.contact.fullName}</div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-
             <FormField
               control={form.control}
               name="planName"
