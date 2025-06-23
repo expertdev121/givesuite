@@ -39,8 +39,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const validatedData = paymentPlanSchema.parse(body);
-
-    // First, verify the pledge exists
     const currentPledge = await db
       .select()
       .from(pledge)
@@ -51,7 +49,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Pledge not found" }, { status: 404 });
     }
 
-    // Prepare the new payment plan
     const newPaymentPlan = {
       pledgeId: validatedData.pledgeId,
       planName: validatedData.planName || null,
