@@ -283,7 +283,6 @@ export default function PaymentPlansTable({
                   <TableHead className="font-semibold text-gray-900">
                     Notes
                   </TableHead>
-                  <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -435,59 +434,6 @@ export default function PaymentPlansTable({
                         </TableCell>
                         <TableCell>
                           {plan.notes || plan.internalNotes || "-"}
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="p-1">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              {/* Edit Payment Plan */}
-                              <PaymentPlanDialog
-                                mode="edit"
-                                paymentPlanId={plan.id}
-                                onSuccess={handleSuccess}
-                                trigger={
-                                  <DropdownMenuItem
-                                    onSelect={(e) => e.preventDefault()}
-                                  >
-                                    <Edit className="h-4 w-4 mr-2" />
-                                    Edit Payment Plan
-                                  </DropdownMenuItem>
-                                }
-                              />
-
-                              {/* View Details - Opens expanded row */}
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  const newExpanded = new Set(expandedRows);
-                                  newExpanded.add(plan.id);
-                                  setExpandedRows(newExpanded);
-                                }}
-                              >
-                                <Eye className="h-4 w-4 mr-2" />
-                                View Details
-                              </DropdownMenuItem>
-
-                              {/* Delete Payment Plan */}
-                              <PaymentPlanDialog
-                                mode="edit"
-                                paymentPlanId={plan.id}
-                                onSuccess={handleSuccess}
-                                trigger={
-                                  <DropdownMenuItem
-                                    onSelect={(e) => e.preventDefault()}
-                                    className="text-red-600 focus:text-red-600"
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Delete Payment Plan
-                                  </DropdownMenuItem>
-                                }
-                              />
-                            </DropdownMenuContent>
-                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
 
