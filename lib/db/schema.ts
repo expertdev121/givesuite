@@ -21,6 +21,7 @@ export const titleEnum = pgEnum("title", [
   "prof",
   "eng",
   "other",
+  "rabbi",
 ]);
 
 export const genderEnum = pgEnum("gender", ["male", "female"]);
@@ -165,7 +166,7 @@ export const contact = pgTable("contact", {
   lastName: text("last_name").notNull(),
   email: text("email").unique(),
   phone: text("phone"),
-  title: titleEnum("title"),
+  title: text("title"),
   gender: genderEnum("gender"),
   address: text("address"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
