@@ -56,8 +56,6 @@ export default function PaymentPlansTable({
       value !== null && value !== undefined ? value.toString() : "",
   });
 
-  console.log(pledgeId);
-
   const [page, setPage] = useQueryState("page", {
     parse: (value) => parseInt(value) || 1,
     serialize: (value) => value.toString(),
