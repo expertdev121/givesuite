@@ -18,26 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  MoreHorizontal,
-  Search,
-  ChevronDown,
-  ChevronRight,
-  Edit,
-  Eye,
-  Trash2,
-} from "lucide-react";
+import { Search, ChevronDown, ChevronRight, Edit } from "lucide-react";
 import { usePaymentPlans } from "@/lib/query/usePaymentPlan";
 import PaymentPlanDialog from "../forms/payment-plan-dialog";
 
