@@ -1,3 +1,4 @@
+// app/components/CurrentBreadcrumb.tsx
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
@@ -25,7 +26,9 @@ export function CurrentBreadcrumb() {
       const href = "/" + array.slice(0, index + 1).join("/");
       const label = decodeURIComponent(segment).replace(/-/g, " ");
       return { label: label.charAt(0).toUpperCase() + label.slice(1), href };
-    });
+    })
+    // Filter out segments containing numbers
+    .filter((segment) => !/\d/.test(segment.label.toLowerCase()));
 
   const shouldShowBackButton = pathname !== "/" && pathname !== "/contacts";
 
@@ -63,9 +66,11 @@ export function CurrentBreadcrumb() {
             </BreadcrumbLink>
           </BreadcrumbItem>
 
-          <BreadcrumbSeparator>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          </BreadcrumbSeparator>
+          {segments.length > 0 && (
+            <BreadcrumbSeparator>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </BreadcrumbSeparator>
+          )}
 
           {segments.map((segment, index) => (
             <React.Fragment key={segment.href}>
