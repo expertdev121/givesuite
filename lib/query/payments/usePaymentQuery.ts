@@ -165,6 +165,7 @@ export const useCreatePaymentMutation = () => {
   return useMutation({
     mutationFn: createPayment,
     onSuccess: (data, variables) => {
+      queryClient.invalidateQueries();
       queryClient.invalidateQueries({ queryKey: paymentKeys.all });
       queryClient.invalidateQueries({
         queryKey: paymentKeys.list({ pledgeId: variables.pledgeId }),

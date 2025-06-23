@@ -117,12 +117,13 @@ export const useCreatePaymentPlanMutation = () => {
       return response.json();
     },
     onSuccess: (data, variables) => {
+      queryClient.invalidateQueries();
       queryClient.invalidateQueries({ queryKey: ["paymentPlans"] });
       queryClient.invalidateQueries({
-        queryKey: ["payment-plans", variables.pledgeId],
+        queryKey: ["paymentPlans", variables.pledgeId],
       });
       queryClient.invalidateQueries({
-        queryKey: ["pledge-details", variables.pledgeId],
+        queryKey: ["pledges", variables.pledgeId],
       });
       queryClient.invalidateQueries({ queryKey: ["pledges"] });
 

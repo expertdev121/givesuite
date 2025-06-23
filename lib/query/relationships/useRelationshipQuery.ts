@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-// Types based on your schema
 export interface RelationshipFormData {
   contactId: number;
   relatedContactId: number;
@@ -61,7 +60,6 @@ export interface Relationship {
   notes?: string;
   createdAt: string;
   updatedAt: string;
-  // Populated fields when joined with contacts
   relatedContact?: {
     id: number;
     firstName: string;
@@ -115,10 +113,8 @@ export interface ContactSearchResult {
   };
 }
 
-// Relationship Mutations
 export const useCreateRelationshipMutation = () => {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (data: RelationshipFormData) => {
       const response = await fetch("/api/relationships", {
@@ -135,7 +131,6 @@ export const useCreateRelationshipMutation = () => {
       return response.json();
     },
     onSuccess: (data, variables) => {
-      // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ["relationships"] });
       queryClient.invalidateQueries({
         queryKey: ["relationships", variables.contactId],
@@ -162,7 +157,6 @@ export const useCreateRelationshipMutation = () => {
   });
 };
 
-// Relationship Queries
 export const useRelationshipsQuery = (params?: {
   contactId?: number;
   relatedContactId?: number;
@@ -204,7 +198,7 @@ export const useRelationshipsQuery = (params?: {
 
       return response.json();
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 };
 
@@ -212,7 +206,6 @@ export const useRelationshipsByContactQuery = (contactId: number) => {
   return useRelationshipsQuery({ contactId, limit: 100 });
 };
 
-// Contact Search Query (for finding related contacts)
 export const useContactSearchQuery = (
   searchTerm: string,
   options?: { enabled?: boolean }
@@ -235,11 +228,10 @@ export const useContactSearchQuery = (
       return response.json();
     },
     enabled: options?.enabled ?? true,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
   });
 };
 
-// Contact Details Query (for the dialog)
 export const useContactDetailsQuery = (contactId: number) => {
   return useQuery({
     queryKey: ["contact-details", contactId],
@@ -254,11 +246,10 @@ export const useContactDetailsQuery = (contactId: number) => {
       return response.json();
     },
     enabled: !!contactId && contactId > 0,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
   });
 };
 
-// Update Relationship Mutation
 export const useUpdateRelationshipMutation = () => {
   const queryClient = useQueryClient();
 
@@ -284,6 +275,7 @@ export const useUpdateRelationshipMutation = () => {
       return response.json();
     },
     onSuccess: (data, variables) => {
+      queryClient.invalidateQueries();
       queryClient.invalidateQueries({ queryKey: ["relationships"] });
       queryClient.invalidateQueries({
         queryKey: ["relationships", variables.id],
@@ -300,7 +292,6 @@ export const useUpdateRelationshipMutation = () => {
   });
 };
 
-// Delete Relationship Mutation
 export const useDeleteRelationshipMutation = () => {
   const queryClient = useQueryClient();
 
@@ -331,10 +322,8 @@ export const useDeleteRelationshipMutation = () => {
   });
 };
 
-// Deactivate Relationship Mutation
 export const useDeactivateRelationshipMutation = () => {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (relationshipId: number) => {
       const response = await fetch(
@@ -367,7 +356,6 @@ export const useDeactivateRelationshipMutation = () => {
   });
 };
 
-// Get Relationship Network (family tree data)
 export const useRelationshipNetworkQuery = (contactId: number, depth = 2) => {
   return useQuery({
     queryKey: ["relationshipNetwork", contactId, depth],
@@ -386,6 +374,6 @@ export const useRelationshipNetworkQuery = (contactId: number, depth = 2) => {
       return response.json();
     },
     enabled: !!contactId && contactId > 0,
-    staleTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 10 * 60 * 1000,
   });
 };

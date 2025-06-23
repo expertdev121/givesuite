@@ -51,7 +51,6 @@ const PaymentPlansResponseSchema = z.object({
 
 type PaymentPlansResponse = z.infer<typeof PaymentPlansResponseSchema>;
 
-// Updated interface to support either pledgeId or contactId
 interface UsePaymentPlansParams {
   pledgeId?: number;
   contactId?: number;

@@ -218,7 +218,7 @@ export const useCreatePledgeMutation = () => {
   return useMutation({
     mutationFn: createPledge,
     onSuccess: (data, variables) => {
-      // Invalidate all pledge queries
+      queryClient.invalidateQueries();
       queryClient.invalidateQueries({ queryKey: pledgeKeys.all });
 
       // Specifically invalidate queries for this contact
@@ -245,7 +245,7 @@ export const useCreatePaymentMutation = () => {
   return useMutation({
     mutationFn: createPayment,
     onSuccess: (data, variables) => {
-      // Invalidate all payment queries
+      queryClient.invalidateQueries();
       queryClient.invalidateQueries({ queryKey: paymentKeys.all });
 
       // Invalidate payments for this specific pledge
@@ -278,7 +278,7 @@ export const useCreatePledgeAndPayMutation = () => {
       return { ...result, shouldRedirectToPay };
     },
     onSuccess: (data, variables) => {
-      // Invalidate queries same as create pledge
+      queryClient.invalidateQueries();
       queryClient.invalidateQueries({ queryKey: pledgeKeys.all });
       queryClient.invalidateQueries({
         queryKey: pledgeKeys.list({ contactId: variables.contactId }),
