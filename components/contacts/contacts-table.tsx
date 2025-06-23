@@ -78,7 +78,6 @@ export default function ContactsTable() {
 
   const { data, isLoading, error } = useGetContacts(queryParams);
 
-  // Calculate summary data from the contacts
   const summaryData = useMemo(() => {
     if (!data?.contacts) return undefined;
 
@@ -92,7 +91,6 @@ export default function ContactsTable() {
       return !isNaN(amount) && amount > 0;
     }).length;
 
-    // Calculate recent contacts (contacts added in the last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -130,7 +128,6 @@ export default function ContactsTable() {
 
   return (
     <div className="py-4">
-      {/* Summary Cards */}
       <ContactsSummaryCards
         data={summaryData}
         showViewAll={true}

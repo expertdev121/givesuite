@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       createdAt: contact.createdAt,
       updatedAt: contact.updatedAt,
       totalPledgedUsd:
-        sql<number>`COALESCE(SUM(${pledge.originalAmount}), 0)`.as(
+        sql<number>`COALESCE(SUM(${pledge.originalAmountUsd}), 0)`.as(
           "totalPledgedUsd"
         ),
       totalPaidUsd: sql<number>`COALESCE(SUM(${pledge.totalPaidUsd}), 0)`.as(
