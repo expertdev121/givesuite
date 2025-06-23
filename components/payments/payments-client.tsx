@@ -27,9 +27,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Search,
-  Plus,
   BadgeDollarSignIcon,
   MoreHorizontal,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { usePaymentsQuery } from "@/lib/query/usePayments";
 import { LinkButton } from "../ui/next-link";
@@ -109,6 +110,19 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
   };
 
   const { data, isLoading, error } = usePaymentsQuery(queryParams);
+
+  // Function to toggle expanded row
+  const toggleExpandedRow = (paymentId: number) => {
+    setExpandedRows((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(paymentId)) {
+        newSet.delete(paymentId);
+      } else {
+        newSet.add(paymentId);
+      }
+      return newSet;
+    });
+  };
 
   const formatCurrency = (amount: string, currency: string) => {
     return new Intl.NumberFormat("en-US", {
@@ -239,6 +253,9 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                         <Skeleton className="h-4 w-4" />
                       </TableCell>
                       <TableCell>
+                        <Skeleton className="h-4 w-4" />
+                      </TableCell>
+                      <TableCell>
                         <Skeleton className="h-4 w-20" />
                       </TableCell>
                       <TableCell>
@@ -264,7 +281,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                 ) : data?.payments.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={9}
                       className="text-center py-8 text-gray-500"
                     >
                       No payments found
@@ -298,47 +315,26 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                         <TableCell>{payment.paymentMethod || "-"}</TableCell>
                         <TableCell>{payment.referenceNumber || "-"}</TableCell>
                         <TableCell>{payment.notes || "-"}</TableCell>
-
                         <TableCell>
-                          <Link
-                            className="font-medium text-primary hover:underline hover:text-primary-dark transition-colors duration-200"
-                            href={`/contacts/1/payment-plans?pledgeId=${
-                              pledgeId || payment.pledgeId
-                            }`}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleExpandedRow(payment.id)}
+                            className="p-1 h-6 w-6"
                           >
-                            View
-                          </Link>
-                        </TableCell>
-
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Actions</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem>Edit Details</DropdownMenuItem>
-                              <DropdownMenuItem variant="destructive">
-                                <Link
-                                  className="font-medium text-primary hover:underline hover:text-primary-dark transition-colors duration-200"
-                                  href={`/contacts/1/payment-plans?pledgeId=${
-                                    pledgeId || payment.pledgeId
-                                  }`}
-                                >
-                                  View
-                                </Link>
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                            {expandedRows.has(payment.id) ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </Button>
                         </TableCell>
                       </TableRow>
 
                       {/* Expanded Row Content */}
                       {expandedRows.has(payment.id) && (
                         <TableRow>
-                          <TableCell colSpan={8} className="bg-gray-50 p-6">
+                          <TableCell colSpan={9} className="bg-gray-50 p-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               {/* USD Amounts */}
                               <div className="space-y-3">
@@ -431,7 +427,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                             <div className="mt-6 pt-4 flex justify-end gap-2 border-t">
                               <LinkButton
                                 variant="secondary"
-                                href={`/contacts/1/payment-plans?pledgeId=${
+                                href={`/contacts/${contactId}/payment-plans?pledgeId=${
                                   pledgeId || payment.pledgeId
                                 }`}
                                 className="flex items-center gap-2"
