@@ -62,7 +62,7 @@ import {
   usePledgeDetailsQuery,
   usePauseResumePaymentPlanMutation,
   useDeletePaymentPlanMutation,
-} from "@/lib/query/payment-plans/usePaymenetPlanQuery";
+} from "@/lib/query/payment-plans/usePaymentPlanQuery";
 import { usePledgesQuery } from "@/lib/query/usePledgeData";
 import {
   AlertDialog,

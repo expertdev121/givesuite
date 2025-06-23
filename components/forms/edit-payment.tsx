@@ -49,7 +49,7 @@ import { useExchangeRates } from "@/lib/query/useExchangeRates";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useCreatePaymentMutation } from "@/lib/query/payments/usePaymentQuery";
-import { usePledgeDetailsQuery } from "@/lib/query/payment-plans/usePaymenetPlanQuery";
+import { usePledgeDetailsQuery } from "@/lib/query/payment-plans/usePaymentPlanQuery";
 import { usePledgesQuery } from "@/lib/query/usePledgeData";
 
 const supportedCurrencies = [
