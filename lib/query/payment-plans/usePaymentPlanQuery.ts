@@ -240,7 +240,7 @@ export const useUpdatePaymentPlanMutation = () => {
       return response.json();
     },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["paymentPlans"] });
+      queryClient.invalidateQueries();
       queryClient.invalidateQueries({
         queryKey: ["payment-plan", variables.id],
       });
