@@ -144,15 +144,11 @@ interface StudentRoleDialogProps {
 }
 
 export default function StudentRoleDialog(props: StudentRoleDialogProps) {
-  const { contactId, contactName, contactEmail, triggerButton } = props;
+  const { contactId, triggerButton } = props;
   const [open, setOpen] = useState(false);
 
   const { data: contactData, isLoading: isLoadingContact } =
     useContactDetailsQuery(contactId);
-
-  const effectiveContactName =
-    contactName || (contactData?.contact.fullName ?? `Contact #${contactId}`);
-  const effectiveContactEmail = contactEmail || contactData?.contact.email;
 
   const createStudentRoleMutation = useCreateStudentRoleMutation();
 
