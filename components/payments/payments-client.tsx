@@ -425,6 +425,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
 
                             {/* Action Button */}
                             <div className="mt-6 pt-4 flex justify-end gap-2 border-t">
+                              <Button>Edit</Button>
                               <LinkButton
                                 variant="secondary"
                                 href={`/contacts/${contactId}/payment-plans?pledgeId=${
