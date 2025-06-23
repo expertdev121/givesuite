@@ -43,10 +43,7 @@ import PledgeDialog from "../forms/pledge-form";
 import PaymentDialogClientt from "../forms/payment-dialog";
 import PaymentPlanDialog from "../forms/payment-plan-dialog";
 import Link from "next/link";
-
-interface PledgesTableProps {
-  contactId: number;
-}
+import useContactId from "@/hooks/use-contact-id";
 
 const QueryParamsSchema = z.object({
   contactId: z.number().positive(),
@@ -61,7 +58,7 @@ const QueryParamsSchema = z.object({
 
 type StatusType = "fullyPaid" | "partiallyPaid" | "unpaid";
 
-export default function PledgesTable({ contactId }: PledgesTableProps) {
+export default function PledgesTable() {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
   const [categoryId] = useQueryState("categoryId", {
@@ -101,8 +98,10 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
   const currentPage = page ?? 1;
   const currentLimit = limit ?? 10;
 
+  const contactId = useContactId();
+
   const queryParams = QueryParamsSchema.parse({
-    contactId,
+    contactId: contactId,
     categoryId: categoryId !== null ? categoryId : undefined,
     page: currentPage,
     limit: currentLimit,
@@ -113,6 +112,8 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
   });
 
   const { data, isLoading, error } = usePledgesQuery(queryParams as any);
+
+  console.log("contactID in PAYMENT PLAN DIALOG", queryParams.contactId);
 
   const toggleRowExpansion = (pledgeId: number) => {
     const newExpanded = new Set(expandedRows);
@@ -196,7 +197,7 @@ export default function PledgesTable({ contactId }: PledgesTableProps) {
                 <SelectItem value="unpaid">Unpaid</SelectItem>
               </SelectContent>
             </Select>
-            <PledgeDialog contactId={contactId} />
+            <PledgeDialog contactId={contactId as number} />
           </div>
 
           {/* Table */}

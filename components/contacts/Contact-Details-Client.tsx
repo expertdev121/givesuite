@@ -8,14 +8,12 @@ import React from "react";
 import { useContactCategories } from "@/lib/query/useContactCategories";
 import ContactOverviewTab from "./Contact-Overview-Tab";
 import PledgesTable from "../pledges/Pledges-Client";
+import useContactId from "@/hooks/use-contact-id";
 
-export default function ContactDetailsClient({
-  contactId,
-}: {
-  contactId: number;
-}) {
+export default function ContactDetailsClient() {
+  const contactId = useContactId();
   const { data, isLoading, isError, error } = useContactQuery({
-    contactId,
+    contactId: contactId ?? 0,
     page: 1,
     limit: 10,
   });
@@ -24,7 +22,7 @@ export default function ContactDetailsClient({
     data: categories,
     isLoading: isLoadingCategory,
     isError: isCategoryError,
-  } = useContactCategories(contactId);
+  } = useContactCategories(contactId ?? 0);
 
   if (isLoading || isLoadingCategory) {
     return (

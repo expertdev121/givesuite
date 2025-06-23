@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
-import { z } from "zod";
 
 interface PledgeResponse {
   id: number;
@@ -23,35 +22,30 @@ interface ApiResponse {
   pledges: PledgeResponse[];
 }
 
-const QueryParamsSchema = z.object({
-  contactId: z.number().positive().optional(),
-  categoryId: z.number().positive().optional(),
-  page: z.number().min(1).default(1),
-  limit: z.number().min(1).max(100).default(10),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  status: z.enum(["fullyPaid", "partiallyPaid", "unpaid"]).optional(),
-  search: z.string().optional(),
-});
-
-type QueryParams = z.infer<typeof QueryParamsSchema>;
+interface QueryParams {
+  contactId?: number;
+  categoryId?: number;
+  page?: number;
+  limit?: number;
+  startDate?: string;
+  endDate?: string;
+  status?: "fullyPaid" | "partiallyPaid" | "unpaid";
+  search?: string;
+}
 
 const fetchPledges = async (params: QueryParams): Promise<ApiResponse> => {
-  const validatedParams = QueryParamsSchema.parse(params);
   const queryParams = {
-    ...(validatedParams.categoryId && {
-      categoryId: validatedParams.categoryId,
-    }),
-    page: validatedParams.page,
-    limit: validatedParams.limit,
-    ...(validatedParams.startDate && { startDate: validatedParams.startDate }),
-    ...(validatedParams.endDate && { endDate: validatedParams.endDate }),
-    ...(validatedParams.status && { status: validatedParams.status }),
-    ...(validatedParams.search && { search: validatedParams.search }),
+    ...(params.categoryId && { categoryId: params.categoryId }),
+    page: params.page || 1,
+    limit: params.limit || 10,
+    ...(params.startDate && { startDate: params.startDate }),
+    ...(params.endDate && { endDate: params.endDate }),
+    ...(params.status && { status: params.status }),
+    ...(params.search && { search: params.search }),
   };
 
   try {
-    const url = `/api/contacts/${validatedParams.contactId}/pledges`;
+    const url = `/api/contacts/${params.contactId}/pledges`;
     const response = await axios.get<ApiResponse>(url, {
       params: queryParams,
     });

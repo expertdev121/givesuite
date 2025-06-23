@@ -63,7 +63,6 @@ import {
   usePauseResumePaymentPlanMutation,
   useDeletePaymentPlanMutation,
 } from "@/lib/query/payment-plans/usePaymentPlanQuery";
-import { usePledgesQuery } from "@/lib/query/usePledgeData";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -75,6 +74,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import useContactId from "@/hooks/use-contact-id";
+import { usePledgesQuery } from "@/lib/query/pledge/usePledgeQuery";
 
 const supportedCurrencies = [
   "USD",
@@ -227,7 +228,6 @@ const calculateEndDate = (
 export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
   const {
     pledgeId: initialPledgeId,
-    contactId,
     pledgeAmount,
     pledgeCurrency,
     pledgeDescription,
@@ -254,14 +254,17 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
   const { data: existingPlanData, isLoading: isLoadingPlan } =
     usePaymentPlanQuery(paymentPlanId || 0);
 
-  // Queries for create mode
+  const contactId = useContactId();
   const { data: pledgesData, isLoading: isLoadingPledges } = usePledgesQuery({
-    contactId: contactId,
+    contactId: contactId ?? 1,
     page: 1,
     limit: 100,
     status: undefined,
   });
 
+  console.log("contactID in PAYMENT PLAN DIALOG", contactId);
+
+  // Query for selected pledge data - this will be used for both create and edit modes
   const { data: pledgeData, isLoading: isLoadingPledge } =
     usePledgeDetailsQuery(selectedPledgeId || 0);
 
@@ -274,33 +277,65 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
   // Extract plan data for edit mode
   const existingPlan = existingPlanData?.paymentPlan;
 
-  // Determine effective values
-  const effectivePledgeAmount = isEditMode
-    ? parseFloat(existingPlan?.pledgeOriginalAmount?.toString() || "0")
-    : pledgeAmount || (pledgeData?.pledge.originalAmount ?? 0);
+  // Set selectedPledgeId from existing plan in edit mode
+  useEffect(() => {
+    if (isEditMode && existingPlan && !selectedPledgeId) {
+      setSelectedPledgeId(existingPlan.pledgeId);
+    }
+  }, [existingPlan, isEditMode, selectedPledgeId]);
 
-  const effectivePledgeCurrency = isEditMode
-    ? existingPlan?.currency
-    : pledgeCurrency || (pledgeData?.pledge.currency ?? "USD");
+  // Set first pledge as default when no initialPledgeId is provided
+  useEffect(() => {
+    if (
+      !isEditMode &&
+      !initialPledgeId &&
+      !selectedPledgeId &&
+      pledgesData?.pledges?.length
+    ) {
+      const firstPledge = pledgesData.pledges[0];
+      setSelectedPledgeId(firstPledge.id);
+    }
+  }, [pledgesData, isEditMode, initialPledgeId, selectedPledgeId]);
 
-  const effectivePledgeDescription = isEditMode
-    ? existingPlan?.pledgeDescription || `Pledge #${existingPlan?.pledgeId}`
-    : pledgeDescription ||
-      (pledgeData?.pledge.description ?? `Pledge #${selectedPledgeId}`);
+  // Determine effective values - prioritize props in create mode, existing plan in edit mode
+  const effectivePledgeAmount =
+    isEditMode && existingPlan
+      ? parseFloat(existingPlan?.pledgeOriginalAmount?.toString() || "0")
+      : pledgeAmount || (pledgeData?.pledge.originalAmount ?? 0);
 
-  const effectiveRemainingBalance = isEditMode
-    ? parseFloat(existingPlan?.remainingAmount?.toString() || "0")
-    : remainingBalance ||
-      (pledgeData?.pledge.remainingBalance ?? effectivePledgeAmount);
+  const effectivePledgeCurrency =
+    isEditMode && existingPlan
+      ? existingPlan?.currency
+      : pledgeCurrency || (pledgeData?.pledge.currency ?? "USD");
+
+  const effectivePledgeDescription =
+    isEditMode && existingPlan
+      ? existingPlan?.pledgeDescription || `Pledge #${existingPlan?.pledgeId}`
+      : pledgeDescription ||
+        (pledgeData?.pledge.description ?? `Pledge #${selectedPledgeId}`);
+
+  const effectiveRemainingBalance =
+    isEditMode && existingPlan
+      ? parseFloat(existingPlan?.remainingAmount?.toString() || "0")
+      : remainingBalance ||
+        (pledgeData?.pledge.remainingBalance ?? effectivePledgeAmount);
 
   const defaultAmount = effectiveRemainingBalance || effectivePledgeAmount;
+
+  // Helper function to get default pledge ID
+  const getDefaultPledgeId = () => {
+    if (selectedPledgeId) return selectedPledgeId;
+    if (initialPledgeId) return initialPledgeId;
+    if (!isEditMode && pledgesData?.pledges?.length) {
+      return pledgesData.pledges[0].id;
+    }
+    return 0;
+  };
 
   const form = useForm({
     resolver: zodResolver(paymentPlanSchema),
     defaultValues: {
-      pledgeId: isEditMode
-        ? existingPlan?.pledgeId || 0
-        : selectedPledgeId || 0,
+      pledgeId: getDefaultPledgeId(),
       planName: "",
       frequency: "monthly" as const,
       totalPlannedAmount: defaultAmount,
@@ -326,7 +361,6 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
   // Update form when existing plan data loads (edit mode)
   useEffect(() => {
     if (isEditMode && existingPlan && !form.formState.isDirty) {
-      setSelectedPledgeId(existingPlan.pledgeId);
       form.reset({
         pledgeId: existingPlan.pledgeId,
         planName: existingPlan.planName || "",
@@ -366,6 +400,13 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
       form.setValue("currency", pledgeData.pledge.currency as any);
     }
   }, [pledgeData, form, isEditMode]);
+
+  // Initialize selectedPledgeId when component mounts in create mode
+  useEffect(() => {
+    if (!isEditMode && initialPledgeId && !selectedPledgeId) {
+      setSelectedPledgeId(initialPledgeId);
+    }
+  }, [initialPledgeId, isEditMode, selectedPledgeId]);
 
   // Calculate installment amount automatically when not in manual mode
   useEffect(() => {
@@ -455,8 +496,13 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
       // Reset to create mode defaults
       const newDefaultAmount =
         effectiveRemainingBalance || effectivePledgeAmount;
+      const defaultPledgeId =
+        selectedPledgeId ||
+        initialPledgeId ||
+        (pledgesData?.pledges?.length ? pledgesData.pledges[0].id : 0);
+
       form.reset({
-        pledgeId: selectedPledgeId || 0,
+        pledgeId: defaultPledgeId,
         planName: "",
         frequency: "monthly" as const,
         totalPlannedAmount: newDefaultAmount,
@@ -633,8 +679,8 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
               "Loading pledge details..."
             ) : (
               <div>
-                {isEditMode ? "Update the" : "Set up a"} payment plan for
-                pledge: {effectivePledgeDescription}
+                {isEditMode ? "Update the payment plan" : "Set up a"} payment
+                plan for pledge: {effectivePledgeDescription}
                 {effectiveRemainingBalance > 0 && (
                   <span className="block mt-1 text-sm text-muted-foreground">
                     Remaining Balance: {effectivePledgeCurrency}{" "}
@@ -790,6 +836,37 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                   </FormItem>
                 )}
               />
+            )}
+
+            {/* Display selected pledge info when not showing selector or in edit mode */}
+            {(!showPledgeSelector || isEditMode) && selectedPledgeId && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <h4 className="font-medium text-blue-900 mb-1">
+                  Selected Pledge
+                </h4>
+                <div className="text-sm text-blue-800">
+                  <div>Pledge #{selectedPledgeId}</div>
+                  {pledgeData?.pledge && (
+                    <>
+                      <div>
+                        Description:{" "}
+                        {pledgeData.pledge.description || "No description"}
+                      </div>
+                      <div>
+                        Original Amount: {pledgeData.pledge.currency}{" "}
+                        {pledgeData.pledge.originalAmount?.toLocaleString()}
+                      </div>
+                      <div>
+                        Remaining Balance: {pledgeData.pledge.currency}{" "}
+                        {pledgeData.pledge.remainingBalance?.toLocaleString()}
+                      </div>
+                      {pledgeData.contact && (
+                        <div>Contact: {pledgeData.contact.fullName}</div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
             )}
 
             <FormField

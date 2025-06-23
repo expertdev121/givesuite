@@ -52,6 +52,7 @@ import { useCreatePaymentMutation } from "@/lib/query/payments/usePaymentQuery";
 import { usePledgeDetailsQuery } from "@/lib/query/payment-plans/usePaymentPlanQuery";
 import { PlusCircleIcon } from "lucide-react";
 import { usePledgesQuery } from "@/lib/query/usePledgeData";
+import useContactId from "@/hooks/use-contact-id";
 
 const supportedCurrencies = [
   "USD",
@@ -119,7 +120,6 @@ interface PaymentDialogProps {
 
 export default function PaymentFormDialog({
   pledgeId: initialPledgeId,
-  contactId,
   pledgeAmount,
   pledgeCurrency,
   pledgeDescription,
@@ -137,12 +137,16 @@ export default function PaymentFormDialog({
     initialPledgeId
   );
 
+  const contactId = useContactId();
+
   const { data: pledgesData, isLoading: isLoadingPledges } = usePledgesQuery({
-    contactId: contactId,
+    contactId: contactId as number,
     page: 1,
     limit: 100,
     status: undefined,
   });
+
+  console.log("contactID in PAYMENT DIALOG", contactId);
 
   const { data: pledgeData, isLoading: isLoadingPledge } =
     usePledgeDetailsQuery(selectedPledgeId!);
