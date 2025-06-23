@@ -231,12 +231,6 @@ export default function StudentRoleDialog(props: StudentRoleDialogProps) {
               "Loading contact details..."
             ) : (
               <div>
-                Assign a student role to: {effectiveContactName}
-                {effectiveContactEmail && (
-                  <span className="block mt-1 text-sm text-muted-foreground">
-                    {effectiveContactEmail}
-                  </span>
-                )}
                 {contactData?.activeStudentRoles &&
                   contactData.activeStudentRoles.length > 0 && (
                     <div className="mt-2">

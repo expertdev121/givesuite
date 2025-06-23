@@ -50,7 +50,7 @@ export default function SettingsLayout({
                 Contact Roles
               </TabLink>
               <TabLink href={`/contacts/${contactId}/student-roles`}>
-                Student Roles
+                Enrollment
               </TabLink>
               <TabLink href={`/contacts/${contactId}/relationships`}>
                 Relationships

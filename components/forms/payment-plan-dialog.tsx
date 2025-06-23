@@ -75,7 +75,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import useContactId from "@/hooks/use-contact-id";
-import { usePledgesQuery } from "@/lib/query/pledge/usePledgeQuery";
+import { usePledgesQuery } from "@/lib/query/usePledgeData";
 
 const supportedCurrencies = [
   "USD",
@@ -256,19 +256,22 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
 
   const contactId = useContactId();
   const { data: pledgesData, isLoading: isLoadingPledges } = usePledgesQuery({
-    contactId: contactId ?? 1,
+    contactId: contactId as number,
     page: 1,
     limit: 100,
-    status: undefined,
   });
 
   console.log("contactID in PAYMENT PLAN DIALOG", contactId);
 
-  // Query for selected pledge data - this will be used for both create and edit modes
-  const { data: pledgeData, isLoading: isLoadingPledge } =
-    usePledgeDetailsQuery(selectedPledgeId || 0);
+  const pledgeDataId = isEditMode ? props.pledgeId : selectedPledgeId;
 
-  // Mutations
+  console.log("pledgeDataId", pledgeDataId);
+
+  const { data: pledgeData, isLoading: isLoadingPledge } =
+    usePledgeDetailsQuery(pledgeDataId as number);
+
+  console.log(pledgeData, "pledgeData");
+
   const createPaymentPlanMutation = useCreatePaymentPlanMutation();
   const updatePaymentPlanMutation = useUpdatePaymentPlanMutation();
   const pauseResumeMutation = usePauseResumePaymentPlanMutation();
