@@ -199,13 +199,19 @@ export async function GET(request: NextRequest) {
         nextPaymentDate: paymentPlan.nextPaymentDate,
         installmentsPaid: paymentPlan.installmentsPaid,
         totalPaid: paymentPlan.totalPaid,
+        totalPaidUsd: paymentPlan.totalPaidUsd,
         remainingAmount: paymentPlan.remainingAmount,
         planStatus: paymentPlan.planStatus,
         autoRenew: paymentPlan.autoRenew,
         isActive: paymentPlan.isActive,
         notes: paymentPlan.notes,
+        internalNotes: paymentPlan.internalNotes,
         createdAt: paymentPlan.createdAt,
         updatedAt: paymentPlan.updatedAt,
+        // Add exchange rate from pledge table
+        exchangeRate: sql<string>`(
+          SELECT exchange_rate FROM ${pledge} WHERE id = ${paymentPlan.pledgeId}
+        )`.as("exchangeRate"),
         pledgeDescription: sql<string>`(
           SELECT description FROM ${pledge} WHERE id = ${paymentPlan.pledgeId}
         )`.as("pledgeDescription"),

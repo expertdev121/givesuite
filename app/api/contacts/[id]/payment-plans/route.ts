@@ -65,7 +65,7 @@ export async function GET(
 
     const pledgeIds = pledges.map((p) => p.id);
 
-    // Build the payment plans query
+    // Build the payment plans query with proper join to get exchange rate
     let query = db
       .select({
         id: paymentPlan.id,
@@ -92,8 +92,10 @@ export async function GET(
         internalNotes: paymentPlan.internalNotes,
         createdAt: paymentPlan.createdAt,
         updatedAt: paymentPlan.updatedAt,
+        exchangeRate: pledge.exchangeRate,
       })
       .from(paymentPlan)
+      .innerJoin(pledge, eq(paymentPlan.pledgeId, pledge.id))
       .where(inArray(paymentPlan.pledgeId, pledgeIds))
       .$dynamic();
 

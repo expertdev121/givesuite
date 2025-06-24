@@ -122,6 +122,28 @@ export default function PaymentPlansTable({
     return { symbol: currencySymbol, amount: numericAmount };
   };
 
+  // Helper function to convert currency using exchange rate
+  const convertToUSD = (amount: string, exchangeRate: string | null) => {
+    if (!exchangeRate || exchangeRate === "0" || !amount) return null;
+    const convertedAmount = parseFloat(amount) / parseFloat(exchangeRate);
+    return convertedAmount.toString();
+  };
+
+  // Helper function to get USD equivalent with fallback
+  const getUSDAmount = (
+    originalAmount: string,
+    usdAmount: string | null,
+    exchangeRate: string | null
+  ) => {
+    // If we have a USD amount from the database, use it
+    if (usdAmount && usdAmount !== "0") {
+      return usdAmount;
+    }
+    // Otherwise, calculate using exchange rate
+    const converted = convertToUSD(originalAmount, exchangeRate);
+    return converted || originalAmount; // Fallback to original if conversion fails
+  };
+
   const formatDate = (dateString: string | null) => {
     return dateString ? new Date(dateString).toLocaleDateString() : "N/A";
   };
@@ -325,465 +347,454 @@ export default function PaymentPlansTable({
                       <TableCell>
                         <Skeleton className="h-4 w-32" />
                       </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-4" />
-                      </TableCell>
                     </TableRow>
                   ))
                 ) : data?.paymentPlans.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={16}
+                      colSpan={15}
                       className="text-center py-8 text-gray-500"
                     >
                       No payment plans found
                     </TableCell>
                   </TableRow>
                 ) : (
-                  data?.paymentPlans.map((plan) => (
-                    <React.Fragment key={plan.id}>
-                      <TableRow className="hover:bg-gray-50">
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => toggleRowExpansion(plan.id)}
-                            className="p-1"
-                          >
-                            {expandedRows.has(plan.id) ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {formatDate(plan.startDate)}
-                        </TableCell>
-                        <TableCell>{plan.notes || "N/A"}</TableCell>
-                        <TableCell>
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(
-                              plan.planStatus
-                            )}`}
-                          >
-                            {plan.planStatus || "N/A"}
-                          </span>
-                        </TableCell>
-                        <TableCell>{formatDate(plan.startDate)}</TableCell>
-                        <TableCell>
-                          {formatDate(plan.nextPaymentDate)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex justify-evenly">
-                            <span>
-                              {
-                                formatCurrency(
-                                  plan.totalPaidUsd
-                                    ? plan.totalPaidUsd
-                                    : plan.totalPlannedAmount,
-                                  "USD"
-                                ).symbol
-                              }
+                  data?.paymentPlans.map((plan) => {
+                    // Calculate USD amounts using exchange rate
+                    const pledgeUSD = getUSDAmount(
+                      plan.totalPlannedAmount,
+                      plan.totalPaidUsd,
+                      plan.exchangeRate
+                    );
+                    const paidUSD = getUSDAmount(
+                      plan.totalPaid,
+                      plan.totalPaidUsd,
+                      plan.exchangeRate
+                    );
+                    const remainingUSD =
+                      pledgeUSD && paidUSD
+                        ? (
+                            parseFloat(pledgeUSD) - parseFloat(paidUSD)
+                          ).toString()
+                        : getUSDAmount(
+                            plan.remainingAmount,
+                            null,
+                            plan.exchangeRate
+                          );
+
+                    return (
+                      <React.Fragment key={plan.id}>
+                        <TableRow className="hover:bg-gray-50">
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleRowExpansion(plan.id)}
+                              className="p-1"
+                            >
+                              {expandedRows.has(plan.id) ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {formatDate(plan.startDate)}
+                          </TableCell>
+                          <TableCell>{plan.notes || "N/A"}</TableCell>
+                          <TableCell>
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(
+                                plan.planStatus
+                              )}`}
+                            >
+                              {plan.planStatus || "N/A"}
                             </span>
-                            <span>
-                              {
-                                formatCurrency(
-                                  plan.totalPaidUsd
-                                    ? plan.totalPaidUsd
-                                    : plan.totalPlannedAmount,
-                                  "USD"
-                                ).amount
-                              }
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex justify-evenly">
-                            <span>
-                              {
-                                formatCurrency(
-                                  plan.totalPlannedAmount,
-                                  plan.currency
-                                ).symbol
-                              }
-                            </span>
-                            <span>
-                              {
-                                formatCurrency(
-                                  plan.totalPlannedAmount,
-                                  plan.currency
-                                ).amount
-                              }
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {plan.totalPaidUsd ? (
+                          </TableCell>
+                          <TableCell>{formatDate(plan.startDate)}</TableCell>
+                          <TableCell>
+                            {formatDate(plan.nextPaymentDate)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex justify-evenly">
+                              <span>
+                                {formatCurrency(pledgeUSD || "0", "USD").symbol}
+                              </span>
+                              <span>
+                                {formatCurrency(pledgeUSD || "0", "USD").amount}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
                             <div className="flex justify-evenly">
                               <span>
                                 {
-                                  formatCurrency(plan.totalPaidUsd, "USD")
+                                  formatCurrency(
+                                    plan.totalPlannedAmount,
+                                    plan.currency
+                                  ).symbol
+                                }
+                              </span>
+                              <span>
+                                {
+                                  formatCurrency(
+                                    plan.totalPlannedAmount,
+                                    plan.currency
+                                  ).amount
+                                }
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex justify-evenly">
+                              <span>
+                                {formatCurrency(paidUSD || "0", "USD").symbol}
+                              </span>
+                              <span>
+                                {formatCurrency(paidUSD || "0", "USD").amount}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex justify-evenly">
+                              <span>
+                                {
+                                  formatCurrency(plan.totalPaid, plan.currency)
                                     .symbol
                                 }
                               </span>
                               <span>
                                 {
-                                  formatCurrency(plan.totalPaidUsd, "USD")
+                                  formatCurrency(plan.totalPaid, plan.currency)
                                     .amount
                                 }
                               </span>
                             </div>
-                          ) : (
-                            "N/A"
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex justify-evenly">
-                            <span>
-                              {
-                                formatCurrency(plan.totalPaid, plan.currency)
-                                  .symbol
-                              }
-                            </span>
-                            <span>
-                              {
-                                formatCurrency(plan.totalPaid, plan.currency)
-                                  .amount
-                              }
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex justify-evenly">
-                            <span>
-                              {
-                                formatCurrency(
-                                  plan.totalPaidUsd
-                                    ? (
-                                        parseFloat(plan.totalPlannedAmount) -
-                                        parseFloat(plan.totalPaidUsd)
-                                      ).toString()
-                                    : plan.remainingAmount,
-                                  "USD"
-                                ).symbol
-                              }
-                            </span>
-                            <span>
-                              {
-                                formatCurrency(
-                                  plan.totalPaidUsd
-                                    ? (
-                                        parseFloat(plan.totalPlannedAmount) -
-                                        parseFloat(plan.totalPaidUsd)
-                                      ).toString()
-                                    : plan.remainingAmount,
-                                  "USD"
-                                ).amount
-                              }
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex justify-evenly">
-                            <span>
-                              {
-                                formatCurrency(
-                                  plan.remainingAmount,
-                                  plan.currency
-                                ).symbol
-                              }
-                            </span>
-                            <span>
-                              {
-                                formatCurrency(
-                                  plan.remainingAmount,
-                                  plan.currency
-                                ).amount
-                              }
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex justify-evenly">
-                            <span>
-                              {
-                                formatCurrency(
-                                  plan.installmentAmount,
-                                  plan.currency
-                                ).symbol
-                              }
-                            </span>
-                            <span>
-                              {
-                                formatCurrency(
-                                  plan.installmentAmount,
-                                  plan.currency
-                                ).amount
-                              }
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex justify-evenly">
-                            <span>
-                              {
-                                formatCurrency(
-                                  (
-                                    parseFloat(plan.remainingAmount) -
-                                    parseFloat(plan.installmentAmount)
-                                  ).toString(),
-                                  plan.currency
-                                ).symbol
-                              }
-                            </span>
-                            <span>
-                              {
-                                formatCurrency(
-                                  (
-                                    parseFloat(plan.remainingAmount) -
-                                    parseFloat(plan.installmentAmount)
-                                  ).toString(),
-                                  plan.currency
-                                ).amount
-                              }
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {plan.notes || plan.internalNotes || "-"}
-                        </TableCell>
-                      </TableRow>
-
-                      {/* Expanded Row Content */}
-                      {expandedRows.has(plan.id) && (
-                        <TableRow>
-                          <TableCell colSpan={16} className="bg-gray-50 p-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                              {/* Financial Details */}
-                              <div className="space-y-3">
-                                <h4 className="font-semibold text-gray-900">
-                                  Financial Details
-                                </h4>
-                                <div className="space-y-2 text-sm">
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      Installment Amount:
-                                    </span>
-                                    <span className="font-medium">
-                                      {formatCurrency(
-                                        plan.installmentAmount,
-                                        plan.currency
-                                      ).symbol +
-                                        formatCurrency(
-                                          plan.installmentAmount,
-                                          plan.currency
-                                        ).amount}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      Total Paid:
-                                    </span>
-                                    <span className="font-medium">
-                                      {formatCurrency(
-                                        plan.totalPaid,
-                                        plan.currency
-                                      ).symbol +
-                                        formatCurrency(
-                                          plan.totalPaid,
-                                          plan.currency
-                                        ).amount}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      Total Paid (USD):
-                                    </span>
-                                    <span className="font-medium">
-                                      {plan.totalPaidUsd
-                                        ? formatCurrency(
-                                            plan.totalPaidUsd,
-                                            "USD"
-                                          ).symbol +
-                                          formatCurrency(
-                                            plan.totalPaidUsd,
-                                            "USD"
-                                          ).amount
-                                        : "N/A"}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      Remaining Amount:
-                                    </span>
-                                    <span className="font-medium">
-                                      {formatCurrency(
-                                        plan.remainingAmount,
-                                        plan.currency
-                                      ).symbol +
-                                        formatCurrency(
-                                          plan.remainingAmount,
-                                          plan.currency
-                                        ).amount}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Schedule Details */}
-                              <div className="space-y-3">
-                                <h4 className="font-semibold text-gray-900">
-                                  Schedule Details
-                                </h4>
-                                <div className="space-y-2 text-sm">
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      Frequency:
-                                    </span>
-                                    <span className="font-medium capitalize">
-                                      {plan.frequency}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      Number of Installments:
-                                    </span>
-                                    <span className="font-medium">
-                                      {plan.numberOfInstallments}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      Installments Paid:
-                                    </span>
-                                    <span className="font-medium">
-                                      {plan.installmentsPaid}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      End Date:
-                                    </span>
-                                    <span className="font-medium">
-                                      {formatDate(plan.endDate)}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      Next Payment Date:
-                                    </span>
-                                    <span className="font-medium">
-                                      {formatDate(plan.nextPaymentDate)}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Additional Details */}
-                              <div className="space-y-3">
-                                <h4 className="font-semibold text-gray-900">
-                                  Additional Details
-                                </h4>
-                                <div className="space-y-2 text-sm">
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      Auto Renew:
-                                    </span>
-                                    <span className="font-medium">
-                                      {plan.autoRenew ? "Yes" : "No"}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      Reminders Sent:
-                                    </span>
-                                    <span className="font-medium">
-                                      {plan.remindersSent || 0}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      Last Reminder:
-                                    </span>
-                                    <span className="font-medium">
-                                      {formatDate(plan.lastReminderDate)}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      Created:
-                                    </span>
-                                    <span className="font-medium">
-                                      {formatDate(plan.createdAt)}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      Last Updated:
-                                    </span>
-                                    <span className="font-medium">
-                                      {formatDate(plan.updatedAt)}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                {/* Notes Section */}
-                                {(plan.notes || plan.internalNotes) && (
-                                  <div className="pt-2 border-t border-gray-200">
-                                    {plan.notes && (
-                                      <div className="mb-2">
-                                        <span className="text-gray-600 text-xs">
-                                          Notes:
-                                        </span>
-                                        <p className="text-sm font-medium mt-1">
-                                          {plan.notes}
-                                        </p>
-                                      </div>
-                                    )}
-                                    {plan.internalNotes && (
-                                      <div>
-                                        <span className="text-gray-600 text-xs">
-                                          Internal Notes:
-                                        </span>
-                                        <p className="text-sm font-medium mt-1">
-                                          {plan.internalNotes}
-                                        </p>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Quick Actions in Expanded Row */}
-                            <div className="flex gap-2 mt-4 pt-4 border-t border-gray-200">
-                              <PaymentPlanDialog
-                                mode="edit"
-                                paymentPlanId={plan.id}
-                                pledgeId={plan.pledgeId}
-                                onSuccess={handleSuccess}
-                                trigger={
-                                  <Button size="sm" variant="outline">
-                                    <Edit className="h-4 w-4 mr-2" />
-                                    Edit Plan
-                                  </Button>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex justify-evenly">
+                              <span>
+                                {
+                                  formatCurrency(remainingUSD || "0", "USD")
+                                    .symbol
                                 }
-                              />
-
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => toggleRowExpansion(plan.id)}
-                              >
-                                Collapse
-                              </Button>
+                              </span>
+                              <span>
+                                {
+                                  formatCurrency(remainingUSD || "0", "USD")
+                                    .amount
+                                }
+                              </span>
                             </div>
                           </TableCell>
+                          <TableCell>
+                            <div className="flex justify-evenly">
+                              <span>
+                                {
+                                  formatCurrency(
+                                    plan.remainingAmount,
+                                    plan.currency
+                                  ).symbol
+                                }
+                              </span>
+                              <span>
+                                {
+                                  formatCurrency(
+                                    plan.remainingAmount,
+                                    plan.currency
+                                  ).amount
+                                }
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex justify-evenly">
+                              <span>
+                                {
+                                  formatCurrency(
+                                    plan.installmentAmount,
+                                    plan.currency
+                                  ).symbol
+                                }
+                              </span>
+                              <span>
+                                {
+                                  formatCurrency(
+                                    plan.installmentAmount,
+                                    plan.currency
+                                  ).amount
+                                }
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex justify-evenly">
+                              <span>
+                                {
+                                  formatCurrency(
+                                    (
+                                      parseFloat(plan.remainingAmount) -
+                                      parseFloat(plan.installmentAmount)
+                                    ).toString(),
+                                    plan.currency
+                                  ).symbol
+                                }
+                              </span>
+                              <span>
+                                {
+                                  formatCurrency(
+                                    (
+                                      parseFloat(plan.remainingAmount) -
+                                      parseFloat(plan.installmentAmount)
+                                    ).toString(),
+                                    plan.currency
+                                  ).amount
+                                }
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {plan.notes || plan.internalNotes || "-"}
+                          </TableCell>
                         </TableRow>
-                      )}
-                    </React.Fragment>
-                  ))
+
+                        {/* Expanded Row Content */}
+                        {expandedRows.has(plan.id) && (
+                          <TableRow>
+                            <TableCell colSpan={15} className="bg-gray-50 p-6">
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {/* Financial Details */}
+                                <div className="space-y-3">
+                                  <h4 className="font-semibold text-gray-900">
+                                    Financial Details
+                                  </h4>
+                                  <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Exchange Rate:
+                                      </span>
+                                      <span className="font-medium">
+                                        {plan.exchangeRate
+                                          ? parseFloat(
+                                              plan.exchangeRate
+                                            ).toFixed(4)
+                                          : "N/A"}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Installment Amount:
+                                      </span>
+                                      <span className="font-medium">
+                                        {formatCurrency(
+                                          plan.installmentAmount,
+                                          plan.currency
+                                        ).symbol +
+                                          formatCurrency(
+                                            plan.installmentAmount,
+                                            plan.currency
+                                          ).amount}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Total Paid:
+                                      </span>
+                                      <span className="font-medium">
+                                        {formatCurrency(
+                                          plan.totalPaid,
+                                          plan.currency
+                                        ).symbol +
+                                          formatCurrency(
+                                            plan.totalPaid,
+                                            plan.currency
+                                          ).amount}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Total Paid (USD):
+                                      </span>
+                                      <span className="font-medium">
+                                        {formatCurrency(paidUSD || "0", "USD")
+                                          .symbol +
+                                          formatCurrency(paidUSD || "0", "USD")
+                                            .amount}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Remaining Amount:
+                                      </span>
+                                      <span className="font-medium">
+                                        {formatCurrency(
+                                          plan.remainingAmount,
+                                          plan.currency
+                                        ).symbol +
+                                          formatCurrency(
+                                            plan.remainingAmount,
+                                            plan.currency
+                                          ).amount}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Schedule Details */}
+                                <div className="space-y-3">
+                                  <h4 className="font-semibold text-gray-900">
+                                    Schedule Details
+                                  </h4>
+                                  <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Frequency:
+                                      </span>
+                                      <span className="font-medium capitalize">
+                                        {plan.frequency}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Number of Installments:
+                                      </span>
+                                      <span className="font-medium">
+                                        {plan.numberOfInstallments}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Installments Paid:
+                                      </span>
+                                      <span className="font-medium">
+                                        {plan.installmentsPaid}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        End Date:
+                                      </span>
+                                      <span className="font-medium">
+                                        {formatDate(plan.endDate)}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Next Payment Date:
+                                      </span>
+                                      <span className="font-medium">
+                                        {formatDate(plan.nextPaymentDate)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Additional Details */}
+                                <div className="space-y-3">
+                                  <h4 className="font-semibold text-gray-900">
+                                    Additional Details
+                                  </h4>
+                                  <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Auto Renew:
+                                      </span>
+                                      <span className="font-medium">
+                                        {plan.autoRenew ? "Yes" : "No"}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Reminders Sent:
+                                      </span>
+                                      <span className="font-medium">
+                                        {plan.remindersSent || 0}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Last Reminder:
+                                      </span>
+                                      <span className="font-medium">
+                                        {formatDate(plan.lastReminderDate)}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Created:
+                                      </span>
+                                      <span className="font-medium">
+                                        {formatDate(plan.createdAt)}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Last Updated:
+                                      </span>
+                                      <span className="font-medium">
+                                        {formatDate(plan.updatedAt)}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Notes Section */}
+                                  {(plan.notes || plan.internalNotes) && (
+                                    <div className="pt-2 border-t border-gray-200">
+                                      {plan.notes && (
+                                        <div className="mb-2">
+                                          <span className="text-gray-600 text-xs">
+                                            Notes:
+                                          </span>
+                                          <p className="text-sm font-medium mt-1">
+                                            {plan.notes}
+                                          </p>
+                                        </div>
+                                      )}
+                                      {plan.internalNotes && (
+                                        <div>
+                                          <span className="text-gray-600 text-xs">
+                                            Internal Notes:
+                                          </span>
+                                          <p className="text-sm font-medium mt-1">
+                                            {plan.internalNotes}
+                                          </p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Quick Actions in Expanded Row */}
+                              <div className="flex gap-2 mt-4 pt-4 border-t border-gray-200">
+                                <PaymentPlanDialog
+                                  mode="edit"
+                                  paymentPlanId={plan.id}
+                                  pledgeId={plan.pledgeId}
+                                  onSuccess={handleSuccess}
+                                  trigger={
+                                    <Button size="sm" variant="outline">
+                                      <Edit className="h-4 w-4 mr-2" />
+                                      Edit Plan
+                                    </Button>
+                                  }
+                                />
+
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => toggleRowExpansion(plan.id)}
+                                >
+                                  Collapse
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>

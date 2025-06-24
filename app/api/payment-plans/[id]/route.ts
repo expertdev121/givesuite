@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { db } from "@/lib/db";
-import { paymentPlan } from "@/lib/db/schema";
+import { paymentPlan, pledge } from "@/lib/db/schema";
 import { ErrorHandler } from "@/lib/error-handler";
 import { eq, desc, or, ilike, and, SQL, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
@@ -108,6 +108,10 @@ export async function GET(
         internalNotes: paymentPlan.internalNotes,
         createdAt: paymentPlan.createdAt,
         updatedAt: paymentPlan.updatedAt,
+        // Add exchange rate from pledge table
+        exchangeRate: sql<string>`(
+          SELECT exchange_rate FROM ${pledge} WHERE id = ${paymentPlan.pledgeId}
+        )`.as("exchangeRate"),
       })
       .from(paymentPlan)
       .where(eq(paymentPlan.pledgeId, pledgeId))
