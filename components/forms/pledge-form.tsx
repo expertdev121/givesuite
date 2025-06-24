@@ -168,7 +168,7 @@ export default function PledgeDialog({
 
   const onSubmit = async (data: PledgeFormData, shouldOpenPayment = false) => {
     try {
-      // Extract only the fields that should be submitted (exclude exchangeRateDate)
+      // Include exchangeRate in the submission data
       const pledgeData = {
         contactId: data.contactId,
         categoryId: data.categoryId,
@@ -177,6 +177,7 @@ export default function PledgeDialog({
         originalAmount: data.originalAmount,
         currency: data.currency,
         originalAmountUsd: data.originalAmountUsd,
+        exchangeRate: data.exchangeRate, // Now included in submission
         notes: data.notes,
         // exchangeRateDate is excluded - it's only used for fetching rates
       };

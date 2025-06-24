@@ -72,6 +72,7 @@ export interface Pledge {
   totalPaidUsd: string | null;
   balance: string;
   balanceUsd: string | null;
+  exchangeRate: string | null;
   isActive: boolean;
   notes: string | null;
   createdAt: string;
@@ -109,6 +110,7 @@ export interface CreatePledgeData {
   originalAmount: number;
   currency: string;
   originalAmountUsd: number;
+  exchangeRate: number; // Added exchange rate field
   notes?: string;
 }
 
