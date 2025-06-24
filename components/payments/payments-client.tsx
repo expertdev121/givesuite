@@ -35,14 +35,7 @@ import {
 import { usePaymentsQuery } from "@/lib/query/usePayments";
 import { LinkButton } from "../ui/next-link";
 import FactsDialog from "../facts-iframe";
-import Link from "next/link";
 import PaymentFormDialog from "../forms/payment-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
 
 const PaymentStatusEnum = z.enum([
   "pending",
@@ -125,12 +118,18 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
   };
 
   const formatCurrency = (amount: string, currency: string) => {
-    return new Intl.NumberFormat("en-US", {
+    const formatted = new Intl.NumberFormat("en-US", {
       style: "currency",
       currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(parseFloat(amount));
+
+    // Extract currency symbol and amount
+    const currencySymbol = formatted.replace(/[\d,.\s]/g, "");
+    const numericAmount = formatted.replace(/[^\d,.\s]/g, "").trim();
+
+    return { symbol: currencySymbol, amount: numericAmount };
   };
 
   const formatDate = (dateString: string | null) => {
@@ -220,16 +219,16 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="font-semibold text-gray-900">
+                  <TableHead className="font-semibold  text-gray-900">
                     Scheduled
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
                     Effective
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">
+                  <TableHead className="font-semibold text-center text-gray-900">
                     Total
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">
+                  <TableHead className="font-semibold text-center text-gray-900">
                     Applied
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
@@ -271,9 +270,6 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                         <Skeleton className="h-4 w-20" />
                       </TableCell>
                       <TableCell>
-                        <Skeleton className="h-4 w-32" />
-                      </TableCell>
-                      <TableCell>
                         <Skeleton className="h-4 w-4" />
                       </TableCell>
                     </TableRow>
@@ -281,7 +277,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                 ) : data?.payments.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={9}
+                      colSpan={8}
                       className="text-center py-8 text-gray-500"
                     >
                       No payments found
@@ -307,10 +303,36 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                           {formatDate(payment.paymentDate)}
                         </TableCell>
                         <TableCell>
-                          {formatCurrency(payment.amount, payment.currency)}
+                          <div className="flex justify-evenly">
+                            <span>
+                              {
+                                formatCurrency(payment.amount, payment.currency)
+                                  .symbol
+                              }
+                            </span>
+                            <span>
+                              {
+                                formatCurrency(payment.amount, payment.currency)
+                                  .amount
+                              }
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell>
-                          {formatCurrency(payment.amount, payment.currency)}
+                          <div className="flex justify-evenly">
+                            <span>
+                              {
+                                formatCurrency(payment.amount, payment.currency)
+                                  .symbol
+                              }
+                            </span>
+                            <span>
+                              {
+                                formatCurrency(payment.amount, payment.currency)
+                                  .amount
+                              }
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell>{payment.paymentMethod || "-"}</TableCell>
                         <TableCell>{payment.referenceNumber || "-"}</TableCell>
@@ -334,7 +356,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                       {/* Expanded Row Content */}
                       {expandedRows.has(payment.id) && (
                         <TableRow>
-                          <TableCell colSpan={9} className="bg-gray-50 p-6">
+                          <TableCell colSpan={8} className="bg-gray-50 p-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               {/* USD Amounts */}
                               <div className="space-y-3">
