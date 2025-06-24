@@ -19,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,14 +27,15 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Search,
   BadgeDollarSignIcon,
-  MoreHorizontal,
   ChevronDown,
   ChevronRight,
+  Edit,
 } from "lucide-react";
-import { usePaymentsQuery } from "@/lib/query/usePayments";
+import { usePaymentsQuery } from "@/lib/query/payments/usePaymentQuery";
 import { LinkButton } from "../ui/next-link";
 import FactsDialog from "../facts-iframe";
 import PaymentFormDialog from "../forms/payment-dialog";
+import EditPaymentDialog from "@/app/contacts/[contactId]/payments/__components/edit-payment";
 
 const PaymentStatusEnum = z.enum([
   "pending",
@@ -104,7 +104,6 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
 
   const { data, isLoading, error } = usePaymentsQuery(queryParams);
 
-  // Function to toggle expanded row
   const toggleExpandedRow = (paymentId: number) => {
     setExpandedRows((prev) => {
       const newSet = new Set(prev);
@@ -136,6 +135,25 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
     return dateString ? new Date(dateString).toLocaleDateString() : "N/A";
   };
 
+  const getStatusBadgeColor = (status: string) => {
+    switch (status) {
+      case "completed":
+        return "bg-green-100 text-green-800";
+      case "pending":
+        return "bg-yellow-100 text-yellow-800";
+      case "processing":
+        return "bg-blue-100 text-blue-800";
+      case "failed":
+        return "bg-red-100 text-red-800";
+      case "cancelled":
+        return "bg-gray-100 text-gray-800";
+      case "refunded":
+        return "bg-orange-100 text-orange-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
   if (error) {
     return (
       <Alert className="mx-4 my-6">
@@ -156,7 +174,6 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
       </Alert>
     );
   }
-
   return (
     <div className="space-y-6 p-4">
       {/* Filters */}
@@ -178,7 +195,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
             </div>
 
             <Select
-              value={paymentStatus ?? ""}
+              value={paymentStatus ?? "payment"}
               onValueChange={(value) => {
                 if (
                   value === "pending" ||
@@ -219,65 +236,40 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="font-semibold  text-gray-900">
-                    Scheduled
+                  <TableHead className="font-semibold text-gray-900">
+                    Payment Date
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Effective
-                  </TableHead>
-                  <TableHead className="font-semibold text-center text-gray-900">
-                    Total
-                  </TableHead>
-                  <TableHead className="font-semibold text-center text-gray-900">
-                    Applied
+                    Amount
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Method Detail
+                    Status
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Receipt Number
+                    Method
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Notes
+                    Reference
                   </TableHead>
                   <TableHead className="w-12">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  // Loading skeleton with safe limit value
+                  // Loading skeleton
                   Array.from({ length: currentLimit }).map((_, index) => (
                     <TableRow key={index}>
-                      <TableCell>
-                        <Skeleton className="h-4 w-4" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-4" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-20" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-24" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-16" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-24" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-20" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-4" />
-                      </TableCell>
+                      {Array.from({ length: 7 }).map((_, cellIndex) => (
+                        <TableCell key={cellIndex}>
+                          <Skeleton className="h-4 w-20" />
+                        </TableCell>
+                      ))}
                     </TableRow>
                   ))
                 ) : data?.payments.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={7}
                       className="text-center py-8 text-gray-500"
                     >
                       No payments found
@@ -288,55 +280,45 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                     <React.Fragment key={payment.id}>
                       <TableRow className="hover:bg-gray-50">
                         <TableCell className="font-medium">
-                          {payment.receivedDate
-                            ? formatDate(
-                                new Date(
-                                  new Date(payment.receivedDate).setDate(
-                                    new Date(payment.receivedDate).getDate() +
-                                      14
-                                  )
-                                ).toISOString()
-                              )
-                            : "N/A"}
-                        </TableCell>
-                        <TableCell className="font-medium">
                           {formatDate(payment.paymentDate)}
                         </TableCell>
                         <TableCell>
-                          <div className="flex justify-evenly">
-                            <span>
+                          <div className="flex flex-col">
+                            <span className="font-medium">
                               {
                                 formatCurrency(payment.amount, payment.currency)
                                   .symbol
                               }
-                            </span>
-                            <span>
                               {
                                 formatCurrency(payment.amount, payment.currency)
                                   .amount
                               }
                             </span>
+                            {payment.amountUsd && (
+                              <span className="text-sm text-gray-500">
+                                $
+                                {parseFloat(payment.amountUsd).toLocaleString()}
+                              </span>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex justify-evenly">
-                            <span>
-                              {
-                                formatCurrency(payment.amount, payment.currency)
-                                  .symbol
-                              }
-                            </span>
-                            <span>
-                              {
-                                formatCurrency(payment.amount, payment.currency)
-                                  .amount
-                              }
-                            </span>
-                          </div>
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeColor(
+                              payment.paymentStatus
+                            )}`}
+                          >
+                            {payment.paymentStatus}
+                          </span>
                         </TableCell>
-                        <TableCell>{payment.paymentMethod || "-"}</TableCell>
-                        <TableCell>{payment.referenceNumber || "-"}</TableCell>
-                        <TableCell>{payment.notes || "-"}</TableCell>
+                        <TableCell className="capitalize">
+                          {payment.paymentMethod?.replace("_", " ") || "-"}
+                        </TableCell>
+                        <TableCell>
+                          {payment.referenceNumber ||
+                            payment.checkNumber ||
+                            "-"}
+                        </TableCell>
                         <TableCell>
                           <Button
                             variant="ghost"
@@ -356,35 +338,22 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                       {/* Expanded Row Content */}
                       {expandedRows.has(payment.id) && (
                         <TableRow>
-                          <TableCell colSpan={8} className="bg-gray-50 p-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              {/* USD Amounts */}
+                          <TableCell colSpan={7} className="bg-gray-50 p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                              {/* Payment Details */}
                               <div className="space-y-3">
                                 <h4 className="font-semibold text-gray-900">
-                                  USD Amounts
+                                  Payment Details
                                 </h4>
                                 <div className="space-y-2 text-sm">
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Amount (USD):
+                                      Payment Date:
                                     </span>
                                     <span className="font-medium">
-                                      {payment.amountUsd
-                                        ? `$${parseFloat(
-                                            payment.amountUsd
-                                          ).toLocaleString()}`
-                                        : "N/A"}
+                                      {formatDate(payment.paymentDate)}
                                     </span>
                                   </div>
-                                </div>
-                              </div>
-
-                              {/* Additional Details */}
-                              <div className="space-y-3">
-                                <h4 className="font-semibold text-gray-900">
-                                  Additional Details
-                                </h4>
-                                <div className="space-y-2 text-sm">
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
                                       Received Date:
@@ -395,20 +364,33 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Processed Date:
+                                      Exchange Rate:
                                     </span>
                                     <span className="font-medium">
-                                      {formatDate(payment.processedDate)}
+                                      {payment.exchangeRate
+                                        ? parseFloat(
+                                            payment.exchangeRate
+                                          ).toFixed(4)
+                                        : "N/A"}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Check Number:
+                                      Payment Plan:
                                     </span>
                                     <span className="font-medium">
-                                      {payment.checkNumber || "N/A"}
+                                      {payment.paymentPlanId || "N/A"}
                                     </span>
                                   </div>
+                                </div>
+                              </div>
+
+                              {/* Receipt Information */}
+                              <div className="space-y-3">
+                                <h4 className="font-semibold text-gray-900">
+                                  Receipt Information
+                                </h4>
+                                <div className="space-y-2 text-sm">
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
                                       Receipt Number:
@@ -419,35 +401,110 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
+                                      Receipt Type:
+                                    </span>
+                                    <span className="font-medium capitalize">
+                                      {payment.receiptType || "N/A"}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
                                       Receipt Issued:
                                     </span>
-                                    <span className="font-medium">
+                                    <span
+                                      className={`font-medium ${
+                                        payment.receiptIssued
+                                          ? "text-green-600"
+                                          : "text-red-600"
+                                      }`}
+                                    >
                                       {payment.receiptIssued ? "Yes" : "No"}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Receipt Issued Date:
+                                      Check Number:
                                     </span>
                                     <span className="font-medium">
-                                      {formatDate(payment.receiptIssuedDate)}
+                                      {payment.checkNumber || "N/A"}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Solicitor Commission */}
+                              <div className="space-y-3">
+                                <h4 className="font-semibold text-gray-900">
+                                  Solicitor Commission
+                                </h4>
+                                <div className="space-y-2 text-sm">
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
+                                      Solicitor:
+                                    </span>
+                                    <span className="font-medium">
+                                      {payment.solicitorName || "None"}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Payment Plan ID:
+                                      Commission Rate:
                                     </span>
                                     <span className="font-medium">
-                                      {payment.paymentPlanId || "N/A"}
+                                      {payment.bonusPercentage
+                                        ? `${parseFloat(
+                                            payment.bonusPercentage
+                                          )}%`
+                                        : "N/A"}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
+                                      Commission Amount:
+                                    </span>
+                                    <span className="font-medium text-green-600">
+                                      {payment.bonusAmount
+                                        ? `${payment.currency} ${parseFloat(
+                                            payment.bonusAmount
+                                          ).toLocaleString()}`
+                                        : "N/A"}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
+                                      Bonus Rule ID:
+                                    </span>
+                                    <span className="font-medium">
+                                      {payment.bonusRuleId || "N/A"}
                                     </span>
                                   </div>
                                 </div>
                               </div>
                             </div>
 
-                            {/* Action Button */}
+                            {/* Notes */}
+                            {payment.notes && (
+                              <div className="mt-6 pt-4 border-t">
+                                <h4 className="font-semibold text-gray-900 mb-2">
+                                  Notes
+                                </h4>
+                                <p className="text-sm text-gray-700 bg-white p-3 rounded border">
+                                  {payment.notes}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Action Buttons */}
                             <div className="mt-6 pt-4 flex justify-end gap-2 border-t">
-                              <Button>Edit</Button>
+                              <EditPaymentDialog
+                                payment={payment}
+                                trigger={
+                                  <Button variant="outline" size="sm">
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    Edit Payment
+                                  </Button>
+                                }
+                              />
                               <LinkButton
                                 variant="secondary"
                                 href={`/contacts/${contactId}/payment-plans?pledgeId=${
@@ -469,33 +526,37 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
             </Table>
           </div>
 
-          {/* Pagination with safe values */}
-          {data && data.payments.length > 0 && (
+          {/* Updated Pagination */}
+          {data && data.pagination && (
             <div className="flex items-center justify-between mt-6">
               <div className="text-sm text-gray-600">
-                Showing {(currentPage - 1) * currentLimit + 1} to{" "}
-                {Math.min(currentPage * currentLimit, data.payments.length)} of{" "}
-                {data.payments.length} payments
+                Showing {(data.pagination.page - 1) * data.pagination.limit + 1}{" "}
+                to{" "}
+                {Math.min(
+                  data.pagination.page * data.pagination.limit,
+                  data.pagination.totalCount
+                )}{" "}
+                of {data.pagination.totalCount} payments
               </div>
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setPage(currentPage - 1)}
-                  disabled={currentPage <= 1}
+                  disabled={!data.pagination.hasPreviousPage}
                 >
                   Previous
                 </Button>
                 <div className="flex items-center gap-1">
                   <span className="text-sm text-gray-600">
-                    Page {currentPage}
+                    Page {data.pagination.page} of {data.pagination.totalPages}
                   </span>
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setPage(currentPage + 1)}
-                  disabled={data.payments.length < currentLimit}
+                  disabled={!data.pagination.hasNextPage}
                 >
                   Next
                 </Button>
