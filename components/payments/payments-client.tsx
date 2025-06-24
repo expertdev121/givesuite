@@ -237,19 +237,25 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead className="font-semibold text-gray-900">
-                    Payment Date
+                    Scheduled
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Amount
+                    Effective
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Status
+                    Total
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Method
+                    Applied
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Reference
+                    Method Detail
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Receipt Number
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Notes
                   </TableHead>
                   <TableHead className="w-12">Actions</TableHead>
                 </TableRow>
@@ -282,6 +288,9 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                         <TableCell className="font-medium">
                           {formatDate(payment.paymentDate)}
                         </TableCell>
+                        <TableCell className="font-medium">
+                          {formatDate(payment.receivedDate)}
+                        </TableCell>
                         <TableCell>
                           <div className="flex flex-col">
                             <span className="font-medium">
@@ -294,12 +303,6 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                   .amount
                               }
                             </span>
-                            {payment.amountUsd && (
-                              <span className="text-sm text-gray-500">
-                                $
-                                {parseFloat(payment.amountUsd).toLocaleString()}
-                              </span>
-                            )}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -319,6 +322,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                             payment.checkNumber ||
                             "-"}
                         </TableCell>
+                        <TableCell>{payment.notes || "-"}</TableCell>
                         <TableCell>
                           <Button
                             variant="ghost"

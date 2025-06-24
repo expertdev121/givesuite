@@ -359,8 +359,8 @@ export default function EditPaymentDialog({
   // Format solicitor options
   const solicitorOptions =
     solicitorsData?.solicitors?.map((solicitor: any) => ({
-      label: `${solicitor.contact?.firstName} ${solicitor.contact?.lastName}${
-        solicitor.solicitorCode ? ` (${solicitor.solicitorCode})` : ""
+      label: `${solicitor?.firstName} ${solicitor?.lastName}${
+        solicitor.id ? ` (${solicitor.id})` : ""
       }`,
       value: solicitor.id,
       commissionRate: solicitor.commissionRate,
@@ -381,7 +381,7 @@ export default function EditPaymentDialog({
           <DialogTitle>Edit Payment</DialogTitle>
           <DialogDescription>
             <div>
-              Edit payment #{payment.id} for pledge{" "}
+              Edit payment for pledge{" "}
               {payment.pledgeDescription
                 ? `"${payment.pledgeDescription}"`
                 : `#${payment.pledgeId}`}
