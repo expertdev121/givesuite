@@ -126,12 +126,18 @@ export default function PledgesTable() {
   };
 
   const formatCurrency = (amount: string, currency: string) => {
-    return new Intl.NumberFormat("en-US", {
+    const formatted = new Intl.NumberFormat("en-US", {
       style: "currency",
       currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(parseFloat(amount));
+
+    // Extract currency symbol and amount
+    const currencySymbol = formatted.replace(/[\d,.\s]/g, "");
+    const numericAmount = formatted.replace(/[^\d,.\s]/g, "").trim();
+
+    return { symbol: currencySymbol, amount: numericAmount };
   };
 
   const formatDate = (dateString: string) => {
@@ -212,22 +218,22 @@ export default function PledgesTable() {
                   <TableHead className="font-semibold text-gray-900">
                     Pledge Detail
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">
+                  <TableHead className="font-semibold text-gray-900 text-right">
                     Pledge Amount
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">
+                  <TableHead className="font-semibold text-gray-900 text-right">
                     Paid
                   </TableHead>
-                  <TableHead className="font-semibold text-red-400">
+                  <TableHead className="font-semibold text-red-400 text-right">
                     Balance
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
                     Progress
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">
+                  <TableHead className="font-semibold text-gray-900 text-right">
                     Scheduled
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">
+                  <TableHead className="font-semibold text-gray-900 text-right">
                     Unscheduled
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
@@ -250,20 +256,23 @@ export default function PledgesTable() {
                       <TableCell>
                         <Skeleton className="h-4 w-32" />
                       </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-24" />
+                      <TableCell className="text-right">
+                        <Skeleton className="h-4 w-24 ml-auto" />
                       </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-24" />
+                      <TableCell className="text-right">
+                        <Skeleton className="h-4 w-24 ml-auto" />
                       </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-24" />
+                      <TableCell className="text-right">
+                        <Skeleton className="h-4 w-24 ml-auto" />
                       </TableCell>
                       <TableCell>
                         <Skeleton className="h-4 w-20" />
                       </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-16" />
+                      <TableCell className="text-right">
+                        <Skeleton className="h-4 w-16 ml-auto" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Skeleton className="h-4 w-16 ml-auto" />
                       </TableCell>
                       <TableCell>
                         <Skeleton className="h-4 w-4" />
@@ -273,7 +282,7 @@ export default function PledgesTable() {
                 ) : data?.pledges.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={9}
+                      colSpan={11}
                       className="text-center py-8 text-gray-500"
                     >
                       No pledges found
@@ -305,17 +314,61 @@ export default function PledgesTable() {
                           {pledge.description || "-"}
                         </TableCell>
 
-                        <TableCell>
-                          {formatCurrency(
-                            pledge.originalAmount,
-                            pledge.currency
-                          )}
+                        <TableCell className="text-right">
+                          <div className="flex justify-evenly">
+                            <span>
+                              {
+                                formatCurrency(
+                                  pledge.originalAmount,
+                                  pledge.currency
+                                ).symbol
+                              }
+                            </span>
+                            <span>
+                              {
+                                formatCurrency(
+                                  pledge.originalAmount,
+                                  pledge.currency
+                                ).amount
+                              }
+                            </span>
+                          </div>
                         </TableCell>
-                        <TableCell>
-                          {formatCurrency(pledge.totalPaid, pledge.currency)}
+                        <TableCell className="text-right">
+                          <div className="flex justify-evenly">
+                            <span>
+                              {
+                                formatCurrency(
+                                  pledge.totalPaid,
+                                  pledge.currency
+                                ).symbol
+                              }
+                            </span>
+                            <span>
+                              {
+                                formatCurrency(
+                                  pledge.totalPaid,
+                                  pledge.currency
+                                ).amount
+                              }
+                            </span>
+                          </div>
                         </TableCell>
-                        <TableCell>
-                          {formatCurrency(pledge.balance, pledge.currency)}
+                        <TableCell className="text-right">
+                          <div className="flex justify-evenly">
+                            <span>
+                              {
+                                formatCurrency(pledge.balance, pledge.currency)
+                                  .symbol
+                              }
+                            </span>
+                            <span>
+                              {
+                                formatCurrency(pledge.balance, pledge.currency)
+                                  .amount
+                              }
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -337,14 +390,41 @@ export default function PledgesTable() {
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell>
-                          {formatCurrency(pledge.balance, pledge.currency)}
+                        <TableCell className="text-right">
+                          <div className="flex justify-evenly">
+                            <span>
+                              {
+                                formatCurrency(pledge.balance, pledge.currency)
+                                  .symbol
+                              }
+                            </span>
+                            <span>
+                              {
+                                formatCurrency(pledge.balance, pledge.currency)
+                                  .amount
+                              }
+                            </span>
+                          </div>
                         </TableCell>
-                        <TableCell>
-                          {formatCurrency(
-                            pledge.originalAmount,
-                            pledge.currency
-                          )}
+                        <TableCell className="text-right">
+                          <div className="flex justify-evenly">
+                            <span>
+                              {
+                                formatCurrency(
+                                  pledge.originalAmount,
+                                  pledge.currency
+                                ).symbol
+                              }
+                            </span>
+                            <span>
+                              {
+                                formatCurrency(
+                                  pledge.originalAmount,
+                                  pledge.currency
+                                ).amount
+                              }
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell className="font-medium">
                           {pledge.notes}
@@ -379,7 +459,7 @@ export default function PledgesTable() {
                       {/* Expanded Row Content */}
                       {expandedRows.has(pledge.id) && (
                         <TableRow>
-                          <TableCell colSpan={9} className="bg-gray-50 p-6">
+                          <TableCell colSpan={11} className="bg-gray-50 p-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               {/* USD Amounts */}
                               <div className="space-y-3">
