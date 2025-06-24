@@ -166,7 +166,47 @@ export default function PaymentDialog({
 
   const onSubmit = async (data: PaymentFormData) => {
     try {
-      await createPaymentMutation.mutateAsync(data);
+      let convertedAmount = data.amount;
+      const inputCurrency = data.currency;
+      const targetPledgeCurrency =
+        (pledgeCurrency as (typeof supportedCurrencies)[number]) || "USD";
+
+      // Validate that pledge currency is supported
+      if (!supportedCurrencies.includes(targetPledgeCurrency as any)) {
+        toast.error(`Unsupported pledge currency: ${targetPledgeCurrency}`);
+        return;
+      }
+
+      // Convert amount to pledge currency if different
+      if (
+        inputCurrency !== targetPledgeCurrency &&
+        exchangeRatesData?.data?.rates
+      ) {
+        // Convert input currency to USD first
+        const inputToUsdRate =
+          parseFloat(exchangeRatesData.data.rates[inputCurrency]) || 1;
+        const usdAmount = data.amount * inputToUsdRate;
+
+        // Convert USD to pledge currency
+        const usdToPledgeRate =
+          parseFloat(exchangeRatesData.data.rates[targetPledgeCurrency]) || 1;
+        convertedAmount = usdAmount / usdToPledgeRate;
+        convertedAmount = Math.round(convertedAmount * 100) / 100; // Round to 2 decimal places
+      }
+
+      // Create payload with converted amount and pledge currency
+      const payload = {
+        ...data,
+        amount: convertedAmount,
+        currency: targetPledgeCurrency,
+        // Keep the original input for reference in amountUsd calculation
+        amountUsd: data.amountUsd, // This stays as calculated
+      };
+
+      console.log("Original amount:", data.amount, data.currency);
+      console.log("Converted amount:", convertedAmount, targetPledgeCurrency);
+
+      await createPaymentMutation.mutateAsync(payload);
 
       toast.success("Payment created successfully!");
 
@@ -225,6 +265,9 @@ export default function PaymentDialog({
           <DialogDescription>
             Record a payment for pledge:{" "}
             {pledgeDescription || `Pledge #${pledgeId}`}
+            <span className="block mt-1 text-sm text-muted-foreground">
+              Target currency: {pledgeCurrency} (amount will be auto-converted)
+            </span>
           </DialogDescription>
         </DialogHeader>
 
@@ -259,7 +302,7 @@ export default function PaymentDialog({
               name="currency"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Currency *</FormLabel>
+                  <FormLabel>Input Currency *</FormLabel>
                   <Select
                     onValueChange={field.onChange}
                     defaultValue={field.value}
@@ -291,6 +334,34 @@ export default function PaymentDialog({
                 </FormItem>
               )}
             />
+
+            {/* Show conversion preview if currencies are different */}
+            {watchedCurrency &&
+              watchedCurrency !== pledgeCurrency &&
+              watchedAmount > 0 &&
+              exchangeRatesData?.data?.rates && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="text-sm text-blue-800">
+                    <strong>Conversion Preview:</strong>
+                    <br />
+                    {watchedAmount.toLocaleString()} {watchedCurrency} →{" "}
+                    {(() => {
+                      const inputToUsdRate =
+                        parseFloat(
+                          exchangeRatesData.data.rates[watchedCurrency]
+                        ) || 1;
+                      const usdAmount = watchedAmount * inputToUsdRate;
+                      const usdToPledgeRate =
+                        parseFloat(
+                          exchangeRatesData.data.rates[pledgeCurrency]
+                        ) || 1;
+                      const convertedAmount = usdAmount / usdToPledgeRate;
+                      return Math.round(convertedAmount * 100) / 100;
+                    })().toLocaleString()}{" "}
+                    {pledgeCurrency}
+                  </div>
+                </div>
+              )}
 
             {/* Exchange Rate (Read-only) */}
             <FormField
