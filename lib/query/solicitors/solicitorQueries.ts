@@ -21,6 +21,23 @@ export const useSolicitors = (params: SolicitorsParams = {}) => {
   });
 };
 
+export const useSolicitor = (solicitorId: number) => {
+  return useQuery({
+    queryKey: ["solicitor", solicitorId],
+    queryFn: async () => {
+      const response = await fetch(`/api/solicitor/${solicitorId}`);
+      if (!response.ok) throw new Error("Failed to fetch solicitor");
+      return response.json();
+    },
+    enabled: !!solicitorId,
+  });
+};
+
+// Hook specifically for active solicitors (commonly used)
+export const useActiveSolicitors = () => {
+  return useSolicitors({ status: "active" });
+};
+
 export const useCreateSolicitor = () => {
   const queryClient = useQueryClient();
 

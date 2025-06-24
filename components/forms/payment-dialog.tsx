@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Check, ChevronsUpDown } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -45,6 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { useExchangeRates } from "@/lib/query/useExchangeRates";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -54,6 +56,28 @@ import { PlusCircleIcon } from "lucide-react";
 import { usePledgesQuery } from "@/lib/query/usePledgeData";
 import useContactId from "@/hooks/use-contact-id";
 
+// Solicitors hook and types
+interface SolicitorsParams {
+  search?: string;
+  status?: "active" | "inactive" | "suspended";
+}
+
+const useSolicitors = (params: SolicitorsParams = {}) => {
+  return useQuery({
+    queryKey: ["solicitors", params],
+    queryFn: async () => {
+      const searchParams = new URLSearchParams();
+      if (params.search) searchParams.set("search", params.search);
+      if (params.status) searchParams.set("status", params.status);
+
+      const response = await fetch(`/api/solicitor?${searchParams}`);
+      if (!response.ok) throw new Error("Failed to fetch solicitors");
+      return response.json();
+    },
+  });
+};
+
+// Constants
 const supportedCurrencies = [
   "USD",
   "ILS",
@@ -82,6 +106,16 @@ const receiptTypes = [
   { value: "other", label: "Other" },
 ] as const;
 
+const paymentStatuses = [
+  { value: "pending", label: "Pending" },
+  { value: "completed", label: "Completed" },
+  { value: "failed", label: "Failed" },
+  { value: "cancelled", label: "Cancelled" },
+  { value: "refunded", label: "Refunded" },
+  { value: "processing", label: "Processing" },
+] as const;
+
+// Schema with solicitor fields
 const paymentSchema = z.object({
   pledgeId: z.number().positive(),
   amount: z.number().positive("Payment amount must be positive"),
@@ -89,6 +123,7 @@ const paymentSchema = z.object({
   amountUsd: z.number().positive("Payment amount in USD must be positive"),
   exchangeRate: z.number().positive("Exchange rate must be positive"),
   paymentDate: z.string().min(1, "Payment date is required"),
+  receivedDate: z.string().optional(),
   paymentMethod: z.enum([
     "credit_card",
     "cash",
@@ -98,13 +133,30 @@ const paymentSchema = z.object({
     "wire_transfer",
     "other",
   ]),
+  paymentStatus: z
+    .enum([
+      "pending",
+      "completed",
+      "failed",
+      "cancelled",
+      "refunded",
+      "processing",
+    ])
+    .default("completed"),
   referenceNumber: z.string().optional(),
   checkNumber: z.string().optional(),
   receiptNumber: z.string().optional(),
   receiptType: z
     .enum(["invoice", "confirmation", "receipt", "other"])
     .optional(),
+  receiptIssued: z.boolean().default(false),
+  // Solicitor fields
+  solicitorId: z.number().positive().optional(),
+  bonusPercentage: z.number().min(0).max(100).optional(),
+  bonusAmount: z.number().min(0).optional(),
+  bonusRuleId: z.number().positive().optional(),
   notes: z.string().optional(),
+  paymentPlanId: z.number().positive().optional(),
 });
 
 type PaymentFormData = z.infer<typeof paymentSchema>;
@@ -125,32 +177,34 @@ export default function PaymentFormDialog({
   pledgeDescription,
   showPledgeSelector = false,
 }: PaymentDialogProps) {
+  // Queries
   const {
     data: exchangeRatesData,
     isLoading: isLoadingRates,
     error: ratesError,
   } = useExchangeRates();
-
+  const { data: solicitorsData, isLoading: isLoadingSolicitors } =
+    useSolicitors({ status: "active" });
   const createPaymentMutation = useCreatePaymentMutation();
+
+  // State
   const [open, setOpen] = useState(false);
   const [selectedPledgeId, setSelectedPledgeId] = useState<number | undefined>(
     initialPledgeId
   );
+  const [showSolicitorSection, setShowSolicitorSection] = useState(false);
 
   const contactId = useContactId();
-
   const { data: pledgesData, isLoading: isLoadingPledges } = usePledgesQuery({
     contactId: contactId as number,
     page: 1,
     limit: 100,
     status: undefined,
   });
-
-  console.log("contactID in PAYMENT DIALOG", contactId);
-
   const { data: pledgeData, isLoading: isLoadingPledge } =
     usePledgeDetailsQuery(selectedPledgeId!);
 
+  // Derived values
   const effectivePledgeAmount =
     pledgeAmount || (pledgeData?.pledge.originalAmount ?? 0);
   const effectivePledgeCurrency =
@@ -159,6 +213,7 @@ export default function PaymentFormDialog({
     pledgeDescription ||
     (pledgeData?.pledge.description ?? `Pledge #${selectedPledgeId}`);
 
+  // Form setup
   const form = useForm({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
@@ -168,19 +223,32 @@ export default function PaymentFormDialog({
       amountUsd: 0,
       amount: effectivePledgeAmount || 0,
       paymentDate: new Date().toISOString().split("T")[0],
+      receivedDate: "",
       paymentMethod: "cash" as const,
+      paymentStatus: "completed" as const,
       referenceNumber: "",
       checkNumber: "",
       receiptNumber: "",
+      receiptType: undefined,
+      receiptIssued: false,
+      solicitorId: undefined,
+      bonusPercentage: undefined,
+      bonusAmount: undefined,
+      bonusRuleId: undefined,
       notes: "",
+      paymentPlanId: undefined,
     },
   });
 
+  // Watch values
   const watchedCurrency = form.watch("currency");
   const watchedAmount = form.watch("amount");
   const watchedPaymentDate = form.watch("paymentDate");
   const watchedPaymentMethod = form.watch("paymentMethod");
+  const watchedSolicitorId = form.watch("solicitorId");
+  const watchedBonusPercentage = form.watch("bonusPercentage");
 
+  // Effects
   useEffect(() => {
     if (selectedPledgeId) {
       form.setValue("pledgeId", selectedPledgeId);
@@ -190,14 +258,12 @@ export default function PaymentFormDialog({
   useEffect(() => {
     if (pledgeData?.pledge) {
       form.setValue("currency", pledgeData.pledge.currency as any);
-      // Optionally set the amount to remaining balance or original amount
       const suggestedAmount =
         pledgeData.pledge.remainingBalance || pledgeData.pledge.originalAmount;
       form.setValue("amount", suggestedAmount);
     }
   }, [pledgeData, form]);
 
-  // Update exchange rate when currency or date changes
   useEffect(() => {
     if (
       watchedCurrency &&
@@ -210,17 +276,22 @@ export default function PaymentFormDialog({
     }
   }, [watchedCurrency, watchedPaymentDate, exchangeRatesData, form]);
 
-  // Auto-calculate USD amount when amount or exchange rate changes
   useEffect(() => {
     const exchangeRate = form.getValues("exchangeRate");
     if (watchedAmount && exchangeRate) {
-      // Since exchange rates are now inverted (currency to USD conversion rates),
-      // we multiply instead of divide
       const usdAmount = watchedAmount * exchangeRate;
       form.setValue("amountUsd", Math.round(usdAmount * 100) / 100);
     }
   }, [watchedAmount, form.watch("exchangeRate"), form]);
 
+  useEffect(() => {
+    if (watchedBonusPercentage && watchedAmount) {
+      const bonusAmount = (watchedAmount * watchedBonusPercentage) / 100;
+      form.setValue("bonusAmount", Math.round(bonusAmount * 100) / 100);
+    }
+  }, [watchedBonusPercentage, watchedAmount, form]);
+
+  // Handlers
   const resetForm = () => {
     form.reset({
       pledgeId: selectedPledgeId || 0,
@@ -229,21 +300,28 @@ export default function PaymentFormDialog({
       amountUsd: 0,
       amount: effectivePledgeAmount || 0,
       paymentDate: new Date().toISOString().split("T")[0],
+      receivedDate: "",
       paymentMethod: "cash" as const,
+      paymentStatus: "completed" as const,
       referenceNumber: "",
       checkNumber: "",
       receiptNumber: "",
+      receiptType: undefined,
+      receiptIssued: false,
+      solicitorId: undefined,
+      bonusPercentage: undefined,
+      bonusAmount: undefined,
+      bonusRuleId: undefined,
       notes: "",
+      paymentPlanId: undefined,
     });
+    setShowSolicitorSection(false);
   };
 
   const onSubmit = async (data: PaymentFormData) => {
     try {
       await createPaymentMutation.mutateAsync(data);
-
       toast.success("Payment created successfully!");
-
-      // Reset form and close dialog
       resetForm();
       setOpen(false);
     } catch (error) {
@@ -261,7 +339,7 @@ export default function PaymentFormDialog({
     }
   };
 
-  // Format pledge options for the combobox
+  // Format options
   const pledgeOptions =
     pledgesData?.pledges?.map((pledge: any) => ({
       label: `#${pledge.id} - ${pledge.description || "No description"} (${
@@ -274,6 +352,17 @@ export default function PaymentFormDialog({
       originalAmount: parseFloat(pledge.originalAmount),
     })) || [];
 
+  const solicitorOptions =
+    solicitorsData?.solicitors?.map((solicitor: any) => ({
+      label: `${solicitor.firstName} ${solicitor.lastName}${
+        solicitor.id ? ` (${solicitor.id})` : ""
+      }`,
+      value: solicitor.id,
+      commissionRate: solicitor.commissionRate,
+      contact: solicitor.contact,
+    })) || [];
+
+  console.log(solicitorsData);
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
@@ -282,7 +371,7 @@ export default function PaymentFormDialog({
           New Payment
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add Payment</DialogTitle>
           <DialogDescription>
@@ -309,6 +398,7 @@ export default function PaymentFormDialog({
 
         <Form {...form}>
           <div className="space-y-4">
+            {/* Pledge Selector */}
             {showPledgeSelector && (
               <FormField
                 control={form.control}
@@ -379,229 +469,491 @@ export default function PaymentFormDialog({
               />
             )}
 
-            {/* Payment Amount */}
-            <FormField
-              control={form.control}
-              name="amount"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Payment Amount ({watchedCurrency}) *</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      {...field}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        field.onChange(value ? parseFloat(value) : 0);
-                      }}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Currency */}
-            <FormField
-              control={form.control}
-              name="currency"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Currency *</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    disabled={isLoadingRates}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue
-                          placeholder={
-                            isLoadingRates
-                              ? "Loading currencies..."
-                              : "Select currency"
-                          }
-                        />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {supportedCurrencies.map((curr) => (
-                        <SelectItem key={curr} value={curr}>
-                          {curr}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {ratesError && (
-                    <FormMessage>Error loading exchange rates</FormMessage>
-                  )}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Exchange Rate (Read-only) */}
-            <FormField
-              control={form.control}
-              name="exchangeRate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Exchange Rate (to USD)</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      step="0.0001"
-                      {...field}
-                      readOnly
-                      className="bg-gray-50"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Amount USD (Read-only) */}
-            <FormField
-              control={form.control}
-              name="amountUsd"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Payment Amount (USD)</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      {...field}
-                      readOnly
-                      className="bg-gray-50"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Payment Date */}
-            <FormField
-              control={form.control}
-              name="paymentDate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Payment Date *</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Payment Method */}
-            <FormField
-              control={form.control}
-              name="paymentMethod"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Payment Method *</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select payment method" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {paymentMethods.map((method) => (
-                        <SelectItem key={method.value} value={method.value}>
-                          {method.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Reference Number */}
-            <FormField
-              control={form.control}
-              name="referenceNumber"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Reference Number</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      placeholder="Transaction reference number"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Check Number - only show if payment method is check */}
-            {watchedPaymentMethod === "check" && (
+            {/* Amount and Currency Row */}
+            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="checkNumber"
+                name="amount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Check Number</FormLabel>
+                    <FormLabel>Payment Amount ({watchedCurrency}) *</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Check number" />
+                      <Input
+                        type="number"
+                        step="0.01"
+                        {...field}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          field.onChange(value ? parseFloat(value) : 0);
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            )}
 
-            {/* Receipt Number */}
-            <FormField
-              control={form.control}
-              name="receiptNumber"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Receipt Number</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="Receipt number" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+              <FormField
+                control={form.control}
+                name="currency"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Currency *</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                      disabled={isLoadingRates}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={
+                              isLoadingRates
+                                ? "Loading currencies..."
+                                : "Select currency"
+                            }
+                          />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {supportedCurrencies.map((curr) => (
+                          <SelectItem key={curr} value={curr}>
+                            {curr}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {ratesError && (
+                      <FormMessage>Error loading exchange rates</FormMessage>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
-            {/* Receipt Type */}
-            <FormField
-              control={form.control}
-              name="receiptType"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Receipt Type</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+            {/* Exchange Rate and USD Amount Row */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="exchangeRate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Exchange Rate (to USD)</FormLabel>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select receipt type" />
-                      </SelectTrigger>
+                      <Input
+                        type="number"
+                        step="0.0001"
+                        {...field}
+                        readOnly
+                        className="bg-gray-50"
+                      />
                     </FormControl>
-                    <SelectContent>
-                      {receiptTypes.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="amountUsd"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Payment Amount (USD)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        {...field}
+                        readOnly
+                        className="bg-gray-50"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Payment Date and Received Date Row */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="paymentDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Payment Date *</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="receivedDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Received Date</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Payment Method and Status Row */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="paymentMethod"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Payment Method *</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select payment method" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {paymentMethods.map((method) => (
+                          <SelectItem key={method.value} value={method.value}>
+                            {method.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="paymentStatus"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Payment Status *</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select payment status" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {paymentStatuses.map((status) => (
+                          <SelectItem key={status.value} value={status.value}>
+                            {status.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Reference Numbers Row */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="referenceNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Reference Number</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder="Transaction reference number"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {watchedPaymentMethod === "check" ? (
+                <FormField
+                  control={form.control}
+                  name="checkNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Check Number</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Check number" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <FormField
+                  control={form.control}
+                  name="receiptNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Receipt Number</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Receipt number" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               )}
-            />
+            </div>
+
+            {/* Receipt Type and Receipt Issued Row */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="receiptType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Receipt Type</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select receipt type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {receiptTypes.map((type) => (
+                          <SelectItem key={type.value} value={type.value}>
+                            {type.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="receiptIssued"
+                render={({ field }) => (
+                  <FormItem className="flex items-center space-x-2 pt-6">
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormLabel className="!mt-0">Receipt Issued</FormLabel>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <div className="border-t pt-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium">
+                  Add Solicitor Commission
+                </label>
+                <Switch
+                  checked={showSolicitorSection}
+                  onCheckedChange={(checked) => {
+                    setShowSolicitorSection(checked);
+                    if (!checked) {
+                      form.setValue("solicitorId", undefined);
+                      form.setValue("bonusPercentage", undefined);
+                      form.setValue("bonusAmount", undefined);
+                      form.setValue("bonusRuleId", undefined);
+                    }
+                  }}
+                />
+              </div>
+            </div>
+            {showSolicitorSection && (
+              <div className="space-y-4 bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h4 className="font-medium text-blue-900">
+                  Solicitor Commission Details
+                </h4>
+                <FormField
+                  control={form.control}
+                  name="solicitorId"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Select Solicitor</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className={cn(
+                                "w-full justify-between",
+                                !field.value && "text-muted-foreground"
+                              )}
+                              disabled={isLoadingSolicitors}
+                            >
+                              {field.value
+                                ? solicitorOptions.find(
+                                    (solicitor: any) =>
+                                      solicitor.value === field.value
+                                  )?.label
+                                : isLoadingSolicitors
+                                ? "Loading solicitors..."
+                                : "Select solicitor"}
+                              <ChevronsUpDown className="opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0">
+                          <Command>
+                            <CommandInput
+                              placeholder="Search solicitors..."
+                              className="h-9"
+                            />
+                            <CommandList>
+                              <CommandEmpty>No solicitor found.</CommandEmpty>
+                              <CommandGroup>
+                                {solicitorOptions.map((solicitor: any) => (
+                                  <CommandItem
+                                    value={solicitor.label}
+                                    key={solicitor.value}
+                                    onSelect={() => {
+                                      form.setValue(
+                                        "solicitorId",
+                                        solicitor.value
+                                      );
+                                      if (solicitor.commissionRate) {
+                                        form.setValue(
+                                          "bonusPercentage",
+                                          parseFloat(solicitor.commissionRate)
+                                        );
+                                      }
+                                    }}
+                                  >
+                                    {solicitor.label}
+                                    <Check
+                                      className={cn(
+                                        "ml-auto",
+                                        solicitor.value === field.value
+                                          ? "opacity-100"
+                                          : "opacity-0"
+                                      )}
+                                    />
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="bonusPercentage"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Commission Percentage (%)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            {...field}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              field.onChange(
+                                value ? parseFloat(value) : undefined
+                              );
+                            }}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="bonusAmount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          Commission Amount ({watchedCurrency})
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            {...field}
+                            readOnly
+                            className="bg-gray-50"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="bonusRuleId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Bonus Rule ID (Optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          {...field}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            field.onChange(value ? parseInt(value) : undefined);
+                          }}
+                          placeholder="Reference to specific bonus rule"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {watchedSolicitorId && watchedBonusPercentage && (
+                  <div className="bg-blue-100 border border-blue-300 rounded p-3 mt-4">
+                    <h5 className="font-medium text-blue-900 mb-2">
+                      Commission Summary
+                    </h5>
+                    <div className="text-sm text-blue-800 space-y-1">
+                      <div>
+                        Solicitor:{" "}
+                        {
+                          solicitorOptions.find(
+                            (s: { value: number }) =>
+                              s.value === watchedSolicitorId
+                          )?.label
+                        }
+                      </div>
+                      <div>Commission Rate: {watchedBonusPercentage}%</div>
+                      <div>
+                        Commission Amount: {watchedCurrency}{" "}
+                        {form.watch("bonusAmount")?.toLocaleString() || "0"}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Notes */}
             <FormField
@@ -648,6 +1000,20 @@ export default function PaymentFormDialog({
                       )?.label
                     }
                   </div>
+                  <div>
+                    Status:{" "}
+                    {
+                      paymentStatuses.find(
+                        (s) => s.value === form.watch("paymentStatus")
+                      )?.label
+                    }
+                  </div>
+                  {showSolicitorSection && watchedSolicitorId && (
+                    <div>
+                      Commission: {form.watch("currency")}{" "}
+                      {form.watch("bonusAmount")?.toLocaleString() || "0"}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -669,7 +1035,8 @@ export default function PaymentFormDialog({
                   createPaymentMutation.isPending ||
                   isLoadingRates ||
                   !selectedPledgeId ||
-                  (showPledgeSelector && isLoadingPledges)
+                  (showPledgeSelector && isLoadingPledges) ||
+                  (showSolicitorSection && isLoadingSolicitors)
                 }
                 className="bg-green-600 hover:bg-green-700"
               >

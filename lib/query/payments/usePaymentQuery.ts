@@ -327,7 +327,7 @@ export const useDeletePaymentMutation = (pledgeId: number) => {
 
   return useMutation({
     mutationFn: (data: DeletePaymentData) => deletePayment(pledgeId, data),
-    onSuccess: (data, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries();
     },
     onError: (error) => {
