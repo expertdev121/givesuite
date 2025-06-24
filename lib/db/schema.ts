@@ -301,6 +301,7 @@ export const pledge = pgTable("pledge", {
   totalPaidUsd: numeric("total_paid_usd", { precision: 10, scale: 2 }).default(
     "0"
   ),
+  exchangeRate: numeric("exchange_rate", { precision: 10, scale: 2 }),
   balanceUsd: numeric("balance_usd", { precision: 10, scale: 2 }),
   isActive: boolean("is_active").default(true).notNull(),
   notes: text("notes"),
@@ -481,7 +482,6 @@ export const bonusCalculation = pgTable(
 export type BonusCalculation = typeof bonusCalculation.$inferSelect;
 export type NewBonusCalculation = typeof bonusCalculation.$inferInsert;
 
-// *** UPDATED PAYMENT TABLE (with new solicitor fields) ***
 export const payment = pgTable(
   "payment",
   {
@@ -544,7 +544,6 @@ export const payment = pgTable(
 export type Payment = typeof payment.$inferSelect;
 export type NewPayment = typeof payment.$inferInsert;
 
-// EXISTING AUDIT LOG TABLE (unchanged)
 export const auditLog = pgTable("audit_log", {
   id: serial("id").primaryKey(),
   tableName: text("table_name").notNull(),

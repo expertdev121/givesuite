@@ -360,7 +360,7 @@ export default function PaymentPlansTable({
                         <TableCell className="font-medium">
                           {formatDate(plan.startDate)}
                         </TableCell>
-                        <TableCell>{plan.planName || "N/A"}</TableCell>
+                        <TableCell>{plan.notes || "N/A"}</TableCell>
                         <TableCell>
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(

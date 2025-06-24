@@ -32,6 +32,7 @@ const PaymentPlanSchema = z.object({
   installmentsPaid: z.number(),
   totalPaid: z.string(),
   totalPaidUsd: z.string().nullable(),
+  exchangeRate: z.string(),
   remainingAmount: z.string(),
   planStatus: PlanStatusEnum,
   autoRenew: z.boolean(),
