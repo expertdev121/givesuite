@@ -108,12 +108,18 @@ export default function PaymentPlansTable({
   };
 
   const formatCurrency = (amount: string, currency: string) => {
-    return new Intl.NumberFormat("en-US", {
+    const formatted = new Intl.NumberFormat("en-US", {
       style: "currency",
       currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(parseFloat(amount));
+
+    // Extract currency symbol and amount
+    const currencySymbol = formatted.replace(/[\d,.\s]/g, "");
+    const numericAmount = formatted.replace(/[^\d,.\s]/g, "").trim();
+
+    return { symbol: currencySymbol, amount: numericAmount };
   };
 
   const formatDate = (dateString: string | null) => {
@@ -369,52 +375,180 @@ export default function PaymentPlansTable({
                           {formatDate(plan.nextPaymentDate)}
                         </TableCell>
                         <TableCell>
-                          {plan.totalPaidUsd
-                            ? formatCurrency(plan.totalPaidUsd, "USD")
-                            : formatCurrency(plan.totalPlannedAmount, "USD")}
+                          <div className="flex justify-evenly">
+                            <span>
+                              {
+                                formatCurrency(
+                                  plan.totalPaidUsd
+                                    ? plan.totalPaidUsd
+                                    : plan.totalPlannedAmount,
+                                  "USD"
+                                ).symbol
+                              }
+                            </span>
+                            <span>
+                              {
+                                formatCurrency(
+                                  plan.totalPaidUsd
+                                    ? plan.totalPaidUsd
+                                    : plan.totalPlannedAmount,
+                                  "USD"
+                                ).amount
+                              }
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell>
-                          {formatCurrency(
-                            plan.totalPlannedAmount,
-                            plan.currency
+                          <div className="flex justify-evenly">
+                            <span>
+                              {
+                                formatCurrency(
+                                  plan.totalPlannedAmount,
+                                  plan.currency
+                                ).symbol
+                              }
+                            </span>
+                            <span>
+                              {
+                                formatCurrency(
+                                  plan.totalPlannedAmount,
+                                  plan.currency
+                                ).amount
+                              }
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {plan.totalPaidUsd ? (
+                            <div className="flex justify-evenly">
+                              <span>
+                                {
+                                  formatCurrency(plan.totalPaidUsd, "USD")
+                                    .symbol
+                                }
+                              </span>
+                              <span>
+                                {
+                                  formatCurrency(plan.totalPaidUsd, "USD")
+                                    .amount
+                                }
+                              </span>
+                            </div>
+                          ) : (
+                            "N/A"
                           )}
                         </TableCell>
                         <TableCell>
-                          {plan.totalPaidUsd
-                            ? formatCurrency(plan.totalPaidUsd, "USD")
-                            : "N/A"}
+                          <div className="flex justify-evenly">
+                            <span>
+                              {
+                                formatCurrency(plan.totalPaid, plan.currency)
+                                  .symbol
+                              }
+                            </span>
+                            <span>
+                              {
+                                formatCurrency(plan.totalPaid, plan.currency)
+                                  .amount
+                              }
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell>
-                          {formatCurrency(plan.totalPaid, plan.currency)}
+                          <div className="flex justify-evenly">
+                            <span>
+                              {
+                                formatCurrency(
+                                  plan.totalPaidUsd
+                                    ? (
+                                        parseFloat(plan.totalPlannedAmount) -
+                                        parseFloat(plan.totalPaidUsd)
+                                      ).toString()
+                                    : plan.remainingAmount,
+                                  "USD"
+                                ).symbol
+                              }
+                            </span>
+                            <span>
+                              {
+                                formatCurrency(
+                                  plan.totalPaidUsd
+                                    ? (
+                                        parseFloat(plan.totalPlannedAmount) -
+                                        parseFloat(plan.totalPaidUsd)
+                                      ).toString()
+                                    : plan.remainingAmount,
+                                  "USD"
+                                ).amount
+                              }
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell>
-                          {plan.totalPaidUsd
-                            ? formatCurrency(
-                                (
-                                  parseFloat(plan.totalPlannedAmount) -
-                                  parseFloat(plan.totalPaidUsd)
-                                ).toString(),
-                                "USD"
-                              )
-                            : formatCurrency(plan.remainingAmount, "USD")}
+                          <div className="flex justify-evenly">
+                            <span>
+                              {
+                                formatCurrency(
+                                  plan.remainingAmount,
+                                  plan.currency
+                                ).symbol
+                              }
+                            </span>
+                            <span>
+                              {
+                                formatCurrency(
+                                  plan.remainingAmount,
+                                  plan.currency
+                                ).amount
+                              }
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell>
-                          {formatCurrency(plan.remainingAmount, plan.currency)}
+                          <div className="flex justify-evenly">
+                            <span>
+                              {
+                                formatCurrency(
+                                  plan.installmentAmount,
+                                  plan.currency
+                                ).symbol
+                              }
+                            </span>
+                            <span>
+                              {
+                                formatCurrency(
+                                  plan.installmentAmount,
+                                  plan.currency
+                                ).amount
+                              }
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell>
-                          {formatCurrency(
-                            plan.installmentAmount,
-                            plan.currency
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {formatCurrency(
-                            (
-                              parseFloat(plan.remainingAmount) -
-                              parseFloat(plan.installmentAmount)
-                            ).toString(),
-                            plan.currency
-                          )}
+                          <div className="flex justify-evenly">
+                            <span>
+                              {
+                                formatCurrency(
+                                  (
+                                    parseFloat(plan.remainingAmount) -
+                                    parseFloat(plan.installmentAmount)
+                                  ).toString(),
+                                  plan.currency
+                                ).symbol
+                              }
+                            </span>
+                            <span>
+                              {
+                                formatCurrency(
+                                  (
+                                    parseFloat(plan.remainingAmount) -
+                                    parseFloat(plan.installmentAmount)
+                                  ).toString(),
+                                  plan.currency
+                                ).amount
+                              }
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell>
                           {plan.notes || plan.internalNotes || "-"}
@@ -440,7 +574,11 @@ export default function PaymentPlansTable({
                                       {formatCurrency(
                                         plan.installmentAmount,
                                         plan.currency
-                                      )}
+                                      ).symbol +
+                                        formatCurrency(
+                                          plan.installmentAmount,
+                                          plan.currency
+                                        ).amount}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
@@ -451,7 +589,11 @@ export default function PaymentPlansTable({
                                       {formatCurrency(
                                         plan.totalPaid,
                                         plan.currency
-                                      )}
+                                      ).symbol +
+                                        formatCurrency(
+                                          plan.totalPaid,
+                                          plan.currency
+                                        ).amount}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
@@ -463,7 +605,11 @@ export default function PaymentPlansTable({
                                         ? formatCurrency(
                                             plan.totalPaidUsd,
                                             "USD"
-                                          )
+                                          ).symbol +
+                                          formatCurrency(
+                                            plan.totalPaidUsd,
+                                            "USD"
+                                          ).amount
                                         : "N/A"}
                                     </span>
                                   </div>
@@ -475,7 +621,11 @@ export default function PaymentPlansTable({
                                       {formatCurrency(
                                         plan.remainingAmount,
                                         plan.currency
-                                      )}
+                                      ).symbol +
+                                        formatCurrency(
+                                          plan.remainingAmount,
+                                          plan.currency
+                                        ).amount}
                                     </span>
                                   </div>
                                 </div>
