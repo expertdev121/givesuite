@@ -319,9 +319,48 @@ export default function PaymentFormDialog({
     setShowSolicitorSection(false);
   };
 
+  // Only modify the onSubmit function to auto-convert amount to pledge currency
+
   const onSubmit = async (data: PaymentFormData) => {
     try {
-      await createPaymentMutation.mutateAsync(data);
+      let convertedAmount = data.amount;
+      const inputCurrency = data.currency;
+      const pledgeCurrency = (effectivePledgeCurrency ||
+        "USD") as (typeof supportedCurrencies)[number];
+
+      // Validate that pledge currency is supported
+      if (!supportedCurrencies.includes(pledgeCurrency as any)) {
+        toast.error(`Unsupported pledge currency: ${pledgeCurrency}`);
+        return;
+      }
+
+      // Convert amount to pledge currency if different
+      if (inputCurrency !== pledgeCurrency && exchangeRatesData?.data?.rates) {
+        // Convert input currency to USD first
+        const inputToUsdRate =
+          parseFloat(exchangeRatesData.data.rates[inputCurrency]) || 1;
+        const usdAmount = data.amount * inputToUsdRate;
+
+        // Convert USD to pledge currency
+        const usdToPledgeRate =
+          parseFloat(exchangeRatesData.data.rates[pledgeCurrency]) || 1;
+        convertedAmount = usdAmount / usdToPledgeRate;
+        convertedAmount = Math.round(convertedAmount * 100) / 100; // Round to 2 decimal places
+      }
+
+      // Create payload with converted amount and pledge currency
+      const payload = {
+        ...data,
+        amount: convertedAmount,
+        currency: pledgeCurrency,
+        // Keep the original input for reference in amountUsd calculation
+        amountUsd: data.amountUsd, // This stays as calculated
+      };
+
+      console.log("Original amount:", data.amount, data.currency);
+      console.log("Converted amount:", convertedAmount, pledgeCurrency);
+
+      await createPaymentMutation.mutateAsync(payload);
       toast.success("Payment created successfully!");
       resetForm();
       setOpen(false);
