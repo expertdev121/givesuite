@@ -12,6 +12,7 @@ const paymentSchema = z.object({
   amountUsd: z.number().positive("Payment amount in USD must be positive"),
   exchangeRate: z.number().positive("Exchange rate must be positive"),
   paymentDate: z.string().min(1, "Payment date is required"),
+  receivedDate: z.string().optional(),
   paymentMethod: z.enum([
     "credit_card",
     "cash",
@@ -21,13 +22,30 @@ const paymentSchema = z.object({
     "wire_transfer",
     "other",
   ]),
+  paymentStatus: z
+    .enum([
+      "pending",
+      "completed",
+      "failed",
+      "cancelled",
+      "refunded",
+      "processing",
+    ])
+    .default("completed"),
   referenceNumber: z.string().optional(),
   checkNumber: z.string().optional(),
   receiptNumber: z.string().optional(),
   receiptType: z
     .enum(["invoice", "confirmation", "receipt", "other"])
     .optional(),
+  receiptIssued: z.boolean().default(false),
+  // NEW SOLICITOR FIELDS
+  solicitorId: z.number().positive().optional(),
+  bonusPercentage: z.number().min(0).max(100).optional(),
+  bonusAmount: z.number().min(0).optional(),
+  bonusRuleId: z.number().positive().optional(),
   notes: z.string().optional(),
+  paymentPlanId: z.number().positive().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -58,7 +76,7 @@ export async function POST(request: NextRequest) {
     const newBalance = originalAmount - newTotalPaid;
     const newBalanceUsd = originalAmountUsd - newTotalPaidUsd;
 
-    // Prepare the new payment - only include fields that exist in your actual database
+    // Prepare the new payment with all schema fields
     const newPayment = {
       pledgeId: validatedData.pledgeId,
       amount: validatedData.amount.toString(),
@@ -66,15 +84,21 @@ export async function POST(request: NextRequest) {
       amountUsd: validatedData.amountUsd.toString(),
       exchangeRate: validatedData.exchangeRate.toString(),
       paymentDate: validatedData.paymentDate,
-      receivedDate: validatedData.paymentDate,
+      receivedDate: validatedData.receivedDate || validatedData.paymentDate,
       paymentMethod: validatedData.paymentMethod,
-      paymentStatus: "completed" as const,
+      paymentStatus: validatedData.paymentStatus,
       referenceNumber: validatedData.referenceNumber || null,
       checkNumber: validatedData.checkNumber || null,
       receiptNumber: validatedData.receiptNumber || null,
       receiptType: validatedData.receiptType || null,
-      receiptIssued: false,
+      receiptIssued: validatedData.receiptIssued,
+      // NEW SOLICITOR FIELDS
+      solicitorId: validatedData.solicitorId || null,
+      bonusPercentage: validatedData.bonusPercentage?.toString() || null,
+      bonusAmount: validatedData.bonusAmount?.toString() || null,
+      bonusRuleId: validatedData.bonusRuleId || null,
       notes: validatedData.notes || null,
+      paymentPlanId: validatedData.paymentPlanId || null,
     };
 
     // Create the payment first
@@ -149,6 +173,7 @@ export async function POST(request: NextRequest) {
 const querySchema = z.object({
   pledgeId: z.number().positive().optional(),
   contactId: z.number().positive().optional(),
+  solicitorId: z.number().positive().optional(), // NEW: Filter by solicitor
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(10),
   search: z.string().optional(),
@@ -175,6 +200,7 @@ const querySchema = z.object({
     .optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+  hasSolicitor: z.coerce.boolean().optional(), // NEW: Filter payments with/without solicitor
 });
 
 export async function GET(request: NextRequest) {
@@ -187,6 +213,9 @@ export async function GET(request: NextRequest) {
       contactId: searchParams.get("contactId")
         ? parseInt(searchParams.get("contactId")!)
         : undefined,
+      solicitorId: searchParams.get("solicitorId")
+        ? parseInt(searchParams.get("solicitorId")!)
+        : undefined,
       page: searchParams.get("page") ?? undefined,
       limit: searchParams.get("limit") ?? undefined,
       search: searchParams.get("search") ?? undefined,
@@ -194,6 +223,7 @@ export async function GET(request: NextRequest) {
       paymentStatus: searchParams.get("paymentStatus") ?? undefined,
       startDate: searchParams.get("startDate") ?? undefined,
       endDate: searchParams.get("endDate") ?? undefined,
+      hasSolicitor: searchParams.get("hasSolicitor") ?? undefined,
     });
 
     if (!parsedParams.success) {
@@ -212,6 +242,7 @@ export async function GET(request: NextRequest) {
     const {
       pledgeId,
       contactId,
+      solicitorId,
       page,
       limit,
       search,
@@ -219,6 +250,7 @@ export async function GET(request: NextRequest) {
       paymentStatus,
       startDate,
       endDate,
+      hasSolicitor,
     } = parsedParams.data;
     const offset = (page - 1) * limit;
     const conditions = [];
@@ -233,13 +265,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // NEW: Filter by solicitor
+    if (solicitorId) {
+      conditions.push(eq(payment.solicitorId, solicitorId));
+    }
+
+    // NEW: Filter by whether payment has a solicitor or not
+    if (hasSolicitor !== undefined) {
+      if (hasSolicitor) {
+        conditions.push(sql`${payment.solicitorId} IS NOT NULL`);
+      } else {
+        conditions.push(sql`${payment.solicitorId} IS NULL`);
+      }
+    }
+
     if (search) {
       conditions.push(
         sql`${payment.referenceNumber} ILIKE ${"%" + search + "%"} OR ${
           payment.checkNumber
         } ILIKE ${"%" + search + "%"} OR ${payment.notes} ILIKE ${
           "%" + search + "%"
-        }`
+        } OR ${payment.receiptNumber} ILIKE ${"%" + search + "%"}`
       );
     }
 
@@ -263,12 +309,12 @@ export async function GET(request: NextRequest) {
 
     const paymentsQuery = db
       .select({
-        pledgeId: payment.pledgeId,
-        notes: payment.notes,
         id: payment.id,
+        pledgeId: payment.pledgeId,
         amount: payment.amount,
         currency: payment.currency,
         amountUsd: payment.amountUsd,
+        exchangeRate: payment.exchangeRate, // NEW
         paymentDate: payment.paymentDate,
         receivedDate: payment.receivedDate,
         paymentMethod: payment.paymentMethod,
@@ -276,10 +322,18 @@ export async function GET(request: NextRequest) {
         referenceNumber: payment.referenceNumber,
         checkNumber: payment.checkNumber,
         receiptNumber: payment.receiptNumber,
+        receiptType: payment.receiptType, // NEW
         receiptIssued: payment.receiptIssued,
+        // NEW SOLICITOR FIELDS
+        solicitorId: payment.solicitorId,
+        bonusPercentage: payment.bonusPercentage,
+        bonusAmount: payment.bonusAmount,
+        bonusRuleId: payment.bonusRuleId,
+        notes: payment.notes,
         paymentPlanId: payment.paymentPlanId,
         createdAt: payment.createdAt,
         updatedAt: payment.updatedAt,
+        // Pledge information
         pledgeDescription: sql<string>`(
           SELECT description FROM ${pledge} WHERE id = ${payment.pledgeId}
         )`.as("pledgeDescription"),
@@ -289,6 +343,13 @@ export async function GET(request: NextRequest) {
         contactId: sql<number>`(
           SELECT contact_id FROM ${pledge} WHERE id = ${payment.pledgeId}
         )`.as("contactId"),
+        // NEW: Solicitor information
+        solicitorName: sql<string>`(
+          SELECT CONCAT(c.first_name, ' ', c.last_name)
+          FROM solicitor s
+          JOIN contact c ON s.contact_id = c.id
+          WHERE s.id = ${payment.solicitorId}
+        )`.as("solicitorName"),
       })
       .from(payment)
       .where(whereClause)
@@ -324,11 +385,13 @@ export async function GET(request: NextRequest) {
       filters: {
         pledgeId,
         contactId,
+        solicitorId,
         search,
         paymentMethod,
         paymentStatus,
         startDate,
         endDate,
+        hasSolicitor,
       },
     };
 
