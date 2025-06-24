@@ -168,6 +168,11 @@ export default function PledgeDialog({
 
   const onSubmit = async (data: PledgeFormData, shouldOpenPayment = false) => {
     try {
+      // Debug logging to check exchange rate values
+      console.log("Form data before submission:", data);
+      console.log("Exchange rate value:", data.exchangeRate);
+      console.log("Exchange rate type:", typeof data.exchangeRate);
+
       // Include exchangeRate in the submission data
       const pledgeData = {
         contactId: data.contactId,
@@ -181,6 +186,8 @@ export default function PledgeDialog({
         notes: data.notes,
         // exchangeRateDate is excluded - it's only used for fetching rates
       };
+
+      console.log("Pledge data being sent to backend:", pledgeData);
 
       if (shouldOpenPayment) {
         const result = await createPledgeAndPayMutation.mutateAsync({

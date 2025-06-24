@@ -110,7 +110,7 @@ export interface CreatePledgeData {
   originalAmount: number;
   currency: string;
   originalAmountUsd: number;
-  exchangeRate: number; // Added exchange rate field
+  exchangeRate: number;
   notes?: string;
 }
 

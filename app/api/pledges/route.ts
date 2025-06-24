@@ -17,6 +17,7 @@ const pledgeSchema = z.object({
   originalAmountUsd: z
     .number()
     .positive("Pledge amount in USD must be positive"),
+  exchangeRate: z.number().positive("Exchange rate must be positive"), // Added exchange rate validation
   notes: z.string().optional(),
 });
 
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest) {
       originalAmount: validatedData.originalAmount.toString(),
       currency: validatedData.currency,
       originalAmountUsd: validatedData.originalAmountUsd.toString(),
+      exchangeRate: validatedData.exchangeRate.toString(), // Added exchange rate field
       totalPaid: "0",
       totalPaidUsd: "0",
       balance: balance.toString(),
@@ -181,6 +183,7 @@ export async function GET(request: NextRequest) {
         originalAmount: pledge.originalAmount,
         currency: pledge.currency,
         originalAmountUsd: pledge.originalAmountUsd,
+        exchangeRate: pledge.exchangeRate, // Added exchange rate to the GET response
         totalPaid: pledge.totalPaid,
         totalPaidUsd: pledge.totalPaidUsd,
         balance: pledge.balance,
