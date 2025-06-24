@@ -264,6 +264,7 @@ export default function EditPaymentDialog({
   const watchedPaymentMethod = form.watch("paymentMethod");
   const watchedSolicitorId = form.watch("solicitorId");
   const watchedBonusPercentage = form.watch("bonusPercentage");
+  const watchedExchangeRate = form.watch("exchangeRate"); // Extract for dependency array
 
   // Effects - similar to create dialog but respects existing data
   useEffect(() => {
@@ -284,7 +285,7 @@ export default function EditPaymentDialog({
       const usdAmount = watchedAmount * exchangeRate;
       form.setValue("amountUsd", Math.round(usdAmount * 100) / 100);
     }
-  }, [watchedAmount, form.watch("exchangeRate"), form]);
+  }, [watchedAmount, watchedExchangeRate, form]); // Fix: Use extracted variable
 
   useEffect(() => {
     if (watchedBonusPercentage && watchedAmount) {
@@ -331,10 +332,10 @@ export default function EditPaymentDialog({
 
   const onSubmit = async (data: EditPaymentFormData) => {
     try {
-      // Remove undefined values to only send changed fields
+      // Fix: Remove unused variable
       const updateData = Object.fromEntries(
         Object.entries(data).filter(
-          ([_, value]) => value !== undefined && value !== ""
+          ([, value]) => value !== undefined && value !== ""
         )
       );
 

@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// eslint-disable-next-line react-hooks/exhaustive-deps
 "use client";
 
 import React, { useEffect } from "react";

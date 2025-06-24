@@ -313,7 +313,7 @@ export const useUpdatePaymentMutation = (pledgeId: number) => {
 
   return useMutation({
     mutationFn: (data: UpdatePaymentData) => updatePayment(pledgeId, data),
-    onSuccess: (data, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries();
     },
     onError: (error) => {
@@ -376,34 +376,4 @@ export const usePaymentsBySolicitorStatus = (
     staleTime: options?.staleTime ?? 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
   });
-};
-
-export const useOptimisticPaymentUpdate = () => {
-  const queryClient = useQueryClient();
-
-  return {
-    optimisticUpdate: (
-      paymentId: number,
-      updates: Partial<Payment>,
-      queryParams?: PaymentQueryParams
-    ) => {
-      queryClient.setQueryData<PaymentsResponse>(
-        paymentKeys.list(queryParams || {}),
-        (old) => {
-          if (!old) return old;
-
-          return {
-            ...old,
-            payments: old.payments.map((payment) =>
-              payment.id === paymentId ? { ...payment, ...updates } : payment
-            ),
-          };
-        }
-      );
-    },
-
-    revertOptimisticUpdate: (queryParams?: PaymentQueryParams) => {
-      queryClient.invalidateQueries();
-    },
-  };
 };
