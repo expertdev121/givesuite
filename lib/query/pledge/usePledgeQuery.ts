@@ -123,7 +123,6 @@ export interface CreatePledgeAndPayData extends CreatePledgeData {
   shouldRedirectToPay: boolean;
 }
 
-// API Functions
 const createPayment = async (
   data: CreatePaymentData
 ): Promise<CreatePaymentResponse> => {
@@ -220,13 +219,9 @@ export const useCreatePledgeMutation = () => {
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries();
       queryClient.invalidateQueries({ queryKey: pledgeKeys.all });
-
-      // Specifically invalidate queries for this contact
       queryClient.invalidateQueries({
         queryKey: pledgeKeys.list({ contactId: variables.contactId }),
       });
-
-      // Invalidate category queries if applicable
       if (variables.categoryId) {
         queryClient.invalidateQueries({
           queryKey: pledgeKeys.list({ categoryId: variables.categoryId }),
