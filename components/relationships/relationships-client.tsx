@@ -222,23 +222,19 @@ export default function RelationshipsTable({
     }
   };
 
-  // Fixed: Properly implement delete functionality
   const handleDeleteClick = (relationshipId: number) => {
-    if (window.confirm("Are you sure you want to delete this relationship?")) {
-      deleteRelationship(relationshipId, {
-        onSuccess: () => {
-          console.log("Relationship deleted successfully");
-          // Optionally show a success message to the user
-        },
-        onError: (error) => {
-          console.error("Failed to delete relationship:", error);
-          // Optionally show an error message to the user
-        },
-      });
-    }
+    deleteRelationship(relationshipId, {
+      onSuccess: () => {
+        console.log("Relationship deleted successfully");
+        // Optionally show a success message to the user
+      },
+      onError: (error) => {
+        console.error("Failed to delete relationship:", error);
+        // Optionally show an error message to the user
+      },
+    });
   };
 
-  // Don't render if there's a contact ID error
   if (contactIdError) {
     return (
       <Alert className="mx-4 my-6" variant="destructive">
@@ -247,7 +243,6 @@ export default function RelationshipsTable({
     );
   }
 
-  // Don't render if there's an API error and we have valid query params
   if (error && queryParams) {
     return (
       <Alert className="mx-4 my-6" variant="destructive">
