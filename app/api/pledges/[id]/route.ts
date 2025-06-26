@@ -221,7 +221,7 @@ export async function DELETE(
     const paymentCount = Number(relatedPayments[0]?.count || 0);
     const paymentPlanCount = Number(relatedPaymentPlans[0]?.count || 0);
     const bonusCalculationCount = Number(bonusCalculations[0]?.count || 0);
-    let deletedRecords = {
+    const deletedRecords = {
       bonusCalculations: bonusCalculationCount,
       payments: paymentCount,
       paymentPlans: paymentPlanCount,

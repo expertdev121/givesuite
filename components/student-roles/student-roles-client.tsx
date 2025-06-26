@@ -3,13 +3,7 @@ import React, { useState } from "react";
 import { useQueryState } from "nuqs";
 import { z } from "zod";
 import { useStudentRoles } from "@/lib/query/useStudentRoles";
-import {
-  ChevronDown,
-  ChevronRight,
-  MoreHorizontal,
-  Plus,
-  Search,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -30,12 +24,6 @@ import { Alert, AlertDescription } from "../ui/alert";
 import { Input } from "../ui/input";
 import { Skeleton } from "../ui/skeleton";
 import { Button } from "../ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
 import StudentRoleDialog from "../forms/student-role";
 
 interface StudentRolesTableProps {

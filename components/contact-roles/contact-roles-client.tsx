@@ -19,24 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  ChevronDown,
-  ChevronRight,
-  MoreHorizontal,
-  Plus,
-  Search,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import { useContactRoles } from "@/lib/query/useContactRoles";
 import ContactRoleDialog from "../forms/contact-role-form";
 

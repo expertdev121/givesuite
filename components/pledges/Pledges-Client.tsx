@@ -678,8 +678,8 @@ export default function PledgesTable() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Pledge</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete the pledge "
-              {pledgeToDelete?.description || "Untitled Pledge"}"? This action
+              Are you sure you want to delete the pledge{" "}
+              {pledgeToDelete?.description || "Untitled Pledge"}? This action
               cannot be undone and will permanently remove the pledge and all
               associated data.
             </AlertDialogDescription>
