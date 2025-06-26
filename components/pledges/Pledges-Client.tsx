@@ -44,6 +44,7 @@ import PaymentDialogClientt from "../forms/payment-dialog";
 import PaymentPlanDialog from "../forms/payment-plan-dialog";
 import Link from "next/link";
 import useContactId from "@/hooks/use-contact-id";
+import { useDeletePledge } from "@/lib/query/pledge/usePledgeQuery";
 
 const QueryParamsSchema = z.object({
   contactId: z.number().positive(),
@@ -61,21 +62,23 @@ type StatusType = "fullyPaid" | "partiallyPaid" | "unpaid";
 export default function PledgesTable() {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
+  const { mutate: deletePledge, isPending: isDeleting } = useDeletePledge();
+
   const [categoryId] = useQueryState("categoryId", {
     parse: (value) => {
       if (!value) return null;
-      const parsed = parseInt(value);
+      const parsed = Number.parseInt(value);
       return isNaN(parsed) ? null : parsed;
     },
     serialize: (value) =>
       value !== null && value !== undefined ? value.toString() : "",
   });
   const [page, setPage] = useQueryState("page", {
-    parse: (value) => parseInt(value) || 1,
+    parse: (value) => Number.parseInt(value) || 1,
     serialize: (value) => value.toString(),
   });
   const [limit] = useQueryState("limit", {
-    parse: (value) => parseInt(value) || 10,
+    parse: (value) => Number.parseInt(value) || 10,
     serialize: (value) => value.toString(),
   });
   const [search, setSearch] = useQueryState("search");
@@ -131,7 +134,7 @@ export default function PledgesTable() {
       currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(parseFloat(amount));
+    }).format(Number.parseFloat(amount));
 
     // Extract currency symbol and amount
     const currencySymbol = formatted.replace(/[\d,.\s]/g, "");
@@ -149,6 +152,27 @@ export default function PledgesTable() {
     if (percentage >= 75) return "bg-blue-500";
     if (percentage >= 50) return "bg-yellow-500";
     return "bg-red-500";
+  };
+
+  const handleDeletePledge = (pledgeId: number, pledgeDescription: string) => {
+    if (
+      window.confirm(
+        `Are you sure you want to delete the pledge "${pledgeDescription}"? This action cannot be undone.`
+      )
+    ) {
+      deletePledge(pledgeId, {
+        onSuccess: () => {
+          // Remove from expanded rows if it was expanded
+          const newExpanded = new Set(expandedRows);
+          newExpanded.delete(pledgeId);
+          setExpandedRows(newExpanded);
+        },
+        onError: (error) => {
+          console.error("Failed to delete pledge:", error);
+          alert("Failed to delete pledge. Please try again.");
+        },
+      });
+    }
   };
 
   if (error) {
@@ -451,6 +475,18 @@ export default function PledgesTable() {
                                   View Payment Plans
                                 </Link>
                               </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-red-600 focus:text-red-600"
+                                onClick={() =>
+                                  handleDeletePledge(
+                                    pledge.id,
+                                    pledge.description || "Untitled Pledge"
+                                  )
+                                }
+                                disabled={isDeleting}
+                              >
+                                {isDeleting ? "Deleting..." : "Delete Pledge"}
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -473,7 +509,7 @@ export default function PledgesTable() {
                                     </span>
                                     <span className="font-medium">
                                       {pledge.originalAmountUsd
-                                        ? `$${parseFloat(
+                                        ? `$${Number.parseFloat(
                                             pledge.originalAmountUsd
                                           ).toLocaleString()}`
                                         : "N/A"}
@@ -485,7 +521,7 @@ export default function PledgesTable() {
                                     </span>
                                     <span className="font-medium">
                                       {pledge.totalPaidUsd
-                                        ? `$${parseFloat(
+                                        ? `$${Number.parseFloat(
                                             pledge.totalPaidUsd
                                           ).toLocaleString()}`
                                         : "N/A"}
@@ -497,7 +533,7 @@ export default function PledgesTable() {
                                     </span>
                                     <span className="font-medium">
                                       {pledge.balanceUsd
-                                        ? `$${parseFloat(
+                                        ? `$${Number.parseFloat(
                                             pledge.balanceUsd
                                           ).toLocaleString()}`
                                         : "N/A"}
@@ -538,7 +574,9 @@ export default function PledgesTable() {
                               <div className="flex gap-2">
                                 <PaymentDialogClientt
                                   pledgeId={pledge.id}
-                                  pledgeAmount={parseFloat(pledge.balance)}
+                                  pledgeAmount={Number.parseFloat(
+                                    pledge.balance
+                                  )}
                                   pledgeCurrency={pledge.currency}
                                   pledgeDescription={pledge.description ?? ""}
                                 />
