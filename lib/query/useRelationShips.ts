@@ -176,14 +176,17 @@ const createRelationship = async (
   return response.data.relationship;
 };
 
+// DELETE: Delete a relationship
 const deleteRelationship = async (id: number): Promise<Relationship> => {
   const response = await api.delete<{
+    success: boolean;
     message: string;
     relationship: Relationship;
-  }>(`?id=${id}`);
+  }>(`/${id}`);
   return response.data.relationship;
 };
 
+// PATCH: Update a relationship
 const updateRelationship = async (
   id: number,
   data: UpdateRelationship

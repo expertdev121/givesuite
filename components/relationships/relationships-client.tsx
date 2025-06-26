@@ -35,7 +35,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { useRelationships } from "@/lib/query/useRelationShips";
+import {
+  useDeleteRelationship,
+  useRelationships,
+} from "@/lib/query/useRelationShips";
 
 import { Dialog, DialogContent, DialogTitle } from "@radix-ui/react-dialog";
 import { DialogHeader, DialogFooter } from "../ui/dialog";
@@ -93,6 +96,7 @@ type Relationship = {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  relatedContactName?: string; // Added optional property
 };
 
 export default function RelationshipsTable({
@@ -102,6 +106,10 @@ export default function RelationshipsTable({
   const [editRelationship, setEditRelationship] = useState<Relationship | null>(
     null
   );
+
+  // Fixed: Use correct variable name
+  const { mutate: deleteRelationship, isPending: isDeleting } =
+    useDeleteRelationship();
 
   const [page, setPage] = useQueryState("page", {
     parse: (value) => parseInt(value) || 1,
@@ -214,13 +222,20 @@ export default function RelationshipsTable({
     }
   };
 
-  const handleSaveUpdate = () => {
-    console.log("Saving relationship update:", editRelationship);
-    setEditRelationship(null);
-  };
-
-  const handleDeleteClick = (relationship: Relationship) => {
-    console.log("Deleting relationship:", relationship);
+  // Fixed: Properly implement delete functionality
+  const handleDeleteClick = (relationshipId: number) => {
+    if (window.confirm("Are you sure you want to delete this relationship?")) {
+      deleteRelationship(relationshipId, {
+        onSuccess: () => {
+          console.log("Relationship deleted successfully");
+          // Optionally show a success message to the user
+        },
+        onError: (error) => {
+          console.error("Failed to delete relationship:", error);
+          // Optionally show an error message to the user
+        },
+      });
+    }
   };
 
   // Don't render if there's a contact ID error
@@ -243,7 +258,6 @@ export default function RelationshipsTable({
     );
   }
 
-  // Don't render data if query params are invalid (but hook still called)
   const shouldShowData = queryParams !== null;
 
   return (
@@ -413,16 +427,26 @@ export default function RelationshipsTable({
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="p-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="p-1"
+                                disabled={isDeleting}
+                              >
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem
                                 className="text-red-600"
-                                onClick={() => handleDeleteClick(relationship)}
+                                onClick={() =>
+                                  handleDeleteClick(relationship.id)
+                                }
+                                disabled={isDeleting}
                               >
-                                Delete Relationship
+                                {isDeleting
+                                  ? "Deleting..."
+                                  : "Delete Relationship"}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -604,15 +628,6 @@ export default function RelationshipsTable({
                 />
               </div>
             </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setEditRelationship(null)}
-              >
-                Cancel
-              </Button>
-              <Button onClick={handleSaveUpdate}>Save</Button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
