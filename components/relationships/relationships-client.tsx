@@ -103,7 +103,6 @@ export default function RelationshipsTable({
     null
   );
 
-  // Query state management
   const [page, setPage] = useQueryState("page", {
     parse: (value) => parseInt(value) || 1,
     serialize: (value) => value.toString(),
@@ -153,11 +152,9 @@ export default function RelationshipsTable({
     }
   );
 
-  // Parse contactId
   const parsedContactId =
     typeof contactId === "string" ? parseInt(contactId) : contactId;
 
-  // Validate query parameters
   let queryParams: QueryParams | null = null;
   let contactIdError: string | null = null;
 
@@ -218,17 +215,11 @@ export default function RelationshipsTable({
   };
 
   const handleSaveUpdate = () => {
-    // TODO: Implement update logic
     console.log("Saving relationship update:", editRelationship);
     setEditRelationship(null);
   };
 
-  const handleEditClick = (relationship: Relationship) => {
-    setEditRelationship(relationship);
-  };
-
   const handleDeleteClick = (relationship: Relationship) => {
-    // TODO: Implement delete logic
     console.log("Deleting relationship:", relationship);
   };
 
