@@ -43,57 +43,67 @@ const relationshipTypes = [
   { value: "father", label: "Father" },
   { value: "grandmother", label: "Grandmother" },
   { value: "grandfather", label: "Grandfather" },
-  { value: "sister", label: "Sister" },
-  { value: "brother", label: "Brother" },
-  { value: "spouse", label: "Spouse" },
-  { value: "partner", label: "Partner" },
-  { value: "step-brother", label: "Step-brother" },
-  { value: "step-sister", label: "Step-sister" },
+  { value: "grandparent", label: "Grandparent" },
+  { value: "parent", label: "Parent" },
+  { value: "step-parent", label: "Step-parent" },
   { value: "stepmother", label: "Stepmother" },
   { value: "stepfather", label: "Stepfather" },
-  { value: "divorced co-parent", label: "Divorced Co-parent" },
-  { value: "separated co-parent", label: "Separated Co-parent" },
-  { value: "legal guardian", label: "Legal Guardian" },
-  { value: "step-parent", label: "Step-parent" },
-  { value: "legal guardian partner", label: "Legal Guardian Partner" },
-  { value: "grandparent", label: "Grandparent" },
+  { value: "sister", label: "Sister" },
+  { value: "brother", label: "Brother" },
+  { value: "step-sister", label: "Step-sister" },
+  { value: "step-brother", label: "Step-brother" },
+  { value: "stepson", label: "Stepson" },
+  { value: "daughter", label: "Daughter" },
+  { value: "son", label: "Son" },
   { value: "aunt", label: "Aunt" },
   { value: "uncle", label: "Uncle" },
   { value: "aunt/uncle", label: "Aunt/Uncle" },
+  { value: "nephew", label: "Nephew" },
+  { value: "niece", label: "Niece" },
+  { value: "grandson", label: "Grandson" },
+  { value: "granddaughter", label: "Granddaughter" },
+  { value: "cousin (m)", label: "Cousin (M)" },
+  { value: "cousin (f)", label: "Cousin (F)" },
+  { value: "spouse", label: "Spouse" },
+  { value: "partner", label: "Partner" },
+  { value: "wife", label: "Wife" },
+  { value: "husband", label: "Husband" },
+  { value: "former husband", label: "Former Husband" },
+  { value: "former wife", label: "Former Wife" },
+  { value: "fiance", label: "Fiancé" },
+  { value: "divorced co-parent", label: "Divorced Co-parent" },
+  { value: "separated co-parent", label: "Separated Co-parent" },
+  { value: "legal guardian", label: "Legal Guardian" },
+  { value: "legal guardian partner", label: "Legal Guardian Partner" },
+  { value: "friend", label: "Friend" },
+  { value: "neighbor", label: "Neighbor" },
+  { value: "relative", label: "Relative" },
+  { value: "business", label: "Business" },
+  { value: "owner", label: "Owner" },
+  { value: "chevrusa", label: "Chevrusa" },
+  { value: "congregant", label: "Congregant" },
+  { value: "rabbi", label: "Rabbi" },
+  { value: "contact", label: "Contact" },
+  { value: "foundation", label: "Foundation" },
+  { value: "donor", label: "Donor" },
+  { value: "fund", label: "Fund" },
+  { value: "rebbi contact", label: "Rebbi Contact" },
+  { value: "rebbi contact for", label: "Rebbi Contact For" },
+  { value: "employee", label: "Employee" },
+  { value: "employer", label: "Employer" },
+  { value: "machatunim", label: "Machatunim" },
 ] as const;
+
+// Extract the values properly for the enum
+const relationshipValues = relationshipTypes.map((type) => type.value);
 
 const relationshipSchema = z
   .object({
     contactId: z.coerce.number().positive("Contact ID is required"),
     relatedContactId: z.number().positive("Related contact must be selected"),
-    relationshipType: z.enum(
-      [
-        "mother",
-        "father",
-        "grandmother",
-        "grandfather",
-        "sister",
-        "spouse",
-        "brother",
-        "partner",
-        "step-brother",
-        "step-sister",
-        "stepmother",
-        "stepfather",
-        "divorced co-parent",
-        "separated co-parent",
-        "legal guardian",
-        "step-parent",
-        "legal guardian partner",
-        "grandparent",
-        "aunt",
-        "uncle",
-        "aunt/uncle",
-      ],
-      {
-        required_error: "Relationship type is required",
-      }
-    ),
+    relationshipType: z.enum(relationshipValues as [string, ...string[]], {
+      required_error: "Relationship type is required",
+    }),
     isActive: z.boolean().default(true),
     notes: z.string().optional(),
   })
@@ -159,7 +169,7 @@ export default function RelationshipDialog(props: RelationshipDialogProps) {
 
   const onSubmit = async (data: RelationshipFormData) => {
     try {
-      await createRelationshipMutation.mutateAsync(data);
+      await createRelationshipMutation.mutateAsync(data as any);
       resetForm();
       setOpen(false);
     } catch (error) {
