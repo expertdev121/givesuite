@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { sql, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { relationships } from "@/lib/db/schema";
 import { ErrorHandler } from "@/lib/error-handler";
 
