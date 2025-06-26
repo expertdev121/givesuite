@@ -44,6 +44,16 @@ import PaymentDialogClientt from "../forms/payment-dialog";
 import PaymentPlanDialog from "../forms/payment-plan-dialog";
 import Link from "next/link";
 import useContactId from "@/hooks/use-contact-id";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useDeletePledge } from "@/lib/query/pledge/usePledgeQuery";
 
 const QueryParamsSchema = z.object({
@@ -61,6 +71,11 @@ type StatusType = "fullyPaid" | "partiallyPaid" | "unpaid";
 
 export default function PledgesTable() {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [pledgeToDelete, setPledgeToDelete] = useState<{
+    id: number;
+    description: string;
+  } | null>(null);
 
   const { mutate: deletePledge, isPending: isDeleting } = useDeletePledge();
 
@@ -155,24 +170,33 @@ export default function PledgesTable() {
   };
 
   const handleDeletePledge = (pledgeId: number, pledgeDescription: string) => {
-    if (
-      window.confirm(
-        `Are you sure you want to delete the pledge "${pledgeDescription}"? This action cannot be undone.`
-      )
-    ) {
-      deletePledge(pledgeId, {
-        onSuccess: () => {
-          // Remove from expanded rows if it was expanded
-          const newExpanded = new Set(expandedRows);
-          newExpanded.delete(pledgeId);
-          setExpandedRows(newExpanded);
-        },
-        onError: (error) => {
-          console.error("Failed to delete pledge:", error);
-          alert("Failed to delete pledge. Please try again.");
-        },
-      });
-    }
+    setPledgeToDelete({ id: pledgeId, description: pledgeDescription });
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeletePledge = () => {
+    if (!pledgeToDelete) return;
+
+    deletePledge(pledgeToDelete.id, {
+      onSuccess: () => {
+        // Remove from expanded rows if it was expanded
+        const newExpanded = new Set(expandedRows);
+        newExpanded.delete(pledgeToDelete.id);
+        setExpandedRows(newExpanded);
+        setDeleteDialogOpen(false);
+        setPledgeToDelete(null);
+      },
+      onError: (error) => {
+        console.error("Failed to delete pledge:", error);
+        // You could also show a toast notification here instead of alert
+        alert("Failed to delete pledge. Please try again.");
+      },
+    });
+  };
+
+  const cancelDeletePledge = () => {
+    setDeleteDialogOpen(false);
+    setPledgeToDelete(null);
   };
 
   if (error) {
@@ -648,6 +672,35 @@ export default function PledgesTable() {
           )}
         </CardContent>
       </Card>
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Pledge</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the pledge "
+              {pledgeToDelete?.description || "Untitled Pledge"}"? This action
+              cannot be undone and will permanently remove the pledge and all
+              associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={cancelDeletePledge}
+              disabled={isDeleting}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeletePledge}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              {isDeleting ? "Deleting..." : "Delete Pledge"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
