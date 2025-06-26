@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { sql, desc, asc, or, ilike, and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { ErrorHandler } from "@/lib/error-handler";
-import { NewStudentRole, studentRoles } from "@/lib/db/schema";
+import { studentRoles } from "@/lib/db/schema";
 import { studentRoleSchema } from "@/lib/form-schemas/student-role";
 
 const querySchema = z.object({
