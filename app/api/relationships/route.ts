@@ -42,6 +42,35 @@ const querySchema = z.object({
   relatedContactId: z.coerce.number().positive().optional(),
 });
 
+// Helper function to get the reciprocal relationship display name
+const getReciprocalRelationship = (relationshipType: string): string => {
+  const reciprocalMap: Record<string, string> = {
+    mother: "child",
+    father: "child",
+    grandmother: "grandchild",
+    grandfather: "grandchild",
+    sister: "sister", // Sister of sister is sister
+    brother: "brother", // Brother of brother is brother
+    spouse: "spouse", // Spouse is reciprocal
+    partner: "partner", // Partner is reciprocal
+    "step-brother": "step-sibling",
+    "step-sister": "step-sibling",
+    stepmother: "step-child",
+    stepfather: "step-child",
+    "divorced co-parent": "child",
+    "separated co-parent": "child",
+    "legal guardian": "ward",
+    "step-parent": "step-child",
+    "legal guardian partner": "ward",
+    grandparent: "grandchild",
+    aunt: "niece/nephew",
+    uncle: "niece/nephew",
+    "aunt/uncle": "niece/nephew",
+  };
+
+  return reciprocalMap[relationshipType] || relationshipType;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -83,6 +112,167 @@ export async function GET(request: NextRequest) {
     } = parsedParams.data;
     const offset = (page - 1) * limit;
 
+    // If querying for a specific contact's relationships, show both directions
+    if (contactId) {
+      const conditions = [];
+
+      if (search) {
+        conditions.push(
+          or(
+            ilike(relationships.relationshipType, `%${search}%`),
+            ilike(relationships.notes, `%${search}%`)
+          )
+        );
+      }
+      if (relationshipType)
+        conditions.push(eq(relationships.relationshipType, relationshipType));
+      if (isActive !== undefined)
+        conditions.push(eq(relationships.isActive, isActive));
+      if (relatedContactId)
+        conditions.push(
+          or(
+            eq(relationships.relatedContactId, relatedContactId),
+            eq(relationships.contactId, relatedContactId)
+          )
+        );
+
+      const whereClause =
+        conditions.length > 0 ? and(...conditions) : undefined;
+
+      // Get relationships where the contact is the source (contactId)
+      const forwardRelationsQuery = db
+        .select({
+          id: relationships.id,
+          contactId: sql<number>`${contactId}`.as("contactId"),
+          relatedContactId: relationships.relatedContactId,
+          relationshipType: relationships.relationshipType,
+          displayRelationshipType: relationships.relationshipType,
+          isActive: relationships.isActive,
+          notes: relationships.notes,
+          createdAt: relationships.createdAt,
+          updatedAt: relationships.updatedAt,
+          relatedContactName:
+            sql<string>`concat(${contact.firstName}, ' ', ${contact.lastName})`.as(
+              "relatedContactName"
+            ),
+          isReverse: sql<boolean>`false`.as("isReverse"),
+        })
+        .from(relationships)
+        .leftJoin(contact, eq(relationships.relatedContactId, contact.id))
+        .where(and(eq(relationships.contactId, contactId), whereClause));
+
+      // Get relationships where the contact is the target (relatedContactId)
+      const reverseRelationsQuery = db
+        .select({
+          id: sql<number>`${relationships.id} + 1000000`.as("id"), // Offset to avoid ID conflicts
+          contactId: sql<number>`${contactId}`.as("contactId"),
+          relatedContactId: relationships.contactId,
+          relationshipType: relationships.relationshipType,
+          displayRelationshipType: relationships.relationshipType, // We'll map this in JavaScript
+          isActive: relationships.isActive,
+          notes: relationships.notes,
+          createdAt: relationships.createdAt,
+          updatedAt: relationships.updatedAt,
+          relatedContactName:
+            sql<string>`concat(${contact.firstName}, ' ', ${contact.lastName})`.as(
+              "relatedContactName"
+            ),
+          isReverse: sql<boolean>`true`.as("isReverse"),
+        })
+        .from(relationships)
+        .leftJoin(contact, eq(relationships.contactId, contact.id))
+        .where(and(eq(relationships.relatedContactId, contactId), whereClause));
+
+      // Execute both queries
+      const [forwardRelations, reverseRelations] = await Promise.all([
+        forwardRelationsQuery.execute(),
+        reverseRelationsQuery.execute(),
+      ]);
+
+      // Map reverse relationships to show reciprocal types
+      const mappedReverseRelations = reverseRelations.map((rel) => ({
+        ...rel,
+        displayRelationshipType: getReciprocalRelationship(
+          rel.relationshipType
+        ),
+        notes: rel.notes
+          ? `Reciprocal: ${rel.notes}`
+          : "Auto-generated reciprocal relationship",
+      }));
+
+      // Combine results
+      const allRelations = [...forwardRelations, ...mappedReverseRelations];
+
+      // Apply sorting
+      let sortedRelations = allRelations;
+      switch (sortBy) {
+        case "relatedContactName":
+          sortedRelations = allRelations.sort((a, b) => {
+            const comparison = a.relatedContactName.localeCompare(
+              b.relatedContactName
+            );
+            return sortOrder === "asc" ? comparison : -comparison;
+          });
+          break;
+        case "relationshipType":
+          sortedRelations = allRelations.sort((a, b) => {
+            const comparison = a.displayRelationshipType.localeCompare(
+              b.displayRelationshipType
+            );
+            return sortOrder === "asc" ? comparison : -comparison;
+          });
+          break;
+        case "createdAt":
+          sortedRelations = allRelations.sort((a, b) => {
+            const comparison =
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+            return sortOrder === "asc" ? comparison : -comparison;
+          });
+          break;
+        case "updatedAt":
+        default:
+          sortedRelations = allRelations.sort((a, b) => {
+            const comparison =
+              new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+            return sortOrder === "asc" ? comparison : -comparison;
+          });
+          break;
+      }
+
+      // Apply pagination
+      const paginatedRelations = sortedRelations.slice(offset, offset + limit);
+      const totalCount = sortedRelations.length;
+      const totalPages = Math.ceil(totalCount / limit);
+
+      const response = {
+        relationships: paginatedRelations,
+        pagination: {
+          page,
+          limit,
+          totalCount,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+        filters: {
+          search,
+          relationshipType,
+          isActive,
+          contactId,
+          relatedContactId,
+          sortBy: sortBy,
+          sortOrder,
+        },
+      };
+
+      return NextResponse.json(response, {
+        headers: {
+          "X-Total-Count": response.pagination.totalCount.toString(),
+        },
+      });
+    }
+
+    // Original query logic for non-contact-specific queries
     const conditions = [];
 
     if (search) {
@@ -97,7 +287,6 @@ export async function GET(request: NextRequest) {
       conditions.push(eq(relationships.relationshipType, relationshipType));
     if (isActive !== undefined)
       conditions.push(eq(relationships.isActive, isActive));
-    if (contactId) conditions.push(eq(relationships.contactId, contactId));
     if (relatedContactId)
       conditions.push(eq(relationships.relatedContactId, relatedContactId));
 
@@ -147,13 +336,14 @@ export async function GET(request: NextRequest) {
         break;
     }
 
-    // Modified query with join to get related contact's name
+    // Original query with join to get related contact's name
     const query = db
       .select({
         id: relationships.id,
         contactId: relationships.contactId,
         relatedContactId: relationships.relatedContactId,
         relationshipType: relationships.relationshipType,
+        displayRelationshipType: relationships.relationshipType,
         isActive: relationships.isActive,
         notes: relationships.notes,
         createdAt: relationships.createdAt,
@@ -162,6 +352,7 @@ export async function GET(request: NextRequest) {
           sql<string>`concat(${contact.firstName}, ' ', ${contact.lastName})`.as(
             "relatedContactName"
           ),
+        isReverse: sql<boolean>`false`.as("isReverse"),
       })
       .from(relationships)
       .leftJoin(contact, eq(relationships.relatedContactId, contact.id))
