@@ -147,8 +147,6 @@ export default function PledgeDialog({
   useEffect(() => {
     const exchangeRate = form.getValues("exchangeRate");
     if (watchedOriginalAmount && exchangeRate) {
-      // Since exchange rates are now inverted (currency to USD conversion rates),
-      // we multiply instead of divide
       const usdAmount = watchedOriginalAmount * exchangeRate;
       form.setValue("originalAmountUsd", Math.round(usdAmount * 100) / 100);
     }
