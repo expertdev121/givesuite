@@ -42,17 +42,16 @@ const querySchema = z.object({
   relatedContactId: z.coerce.number().positive().optional(),
 });
 
-// Helper function to get the reciprocal relationship display name
 const getReciprocalRelationship = (relationshipType: string): string => {
   const reciprocalMap: Record<string, string> = {
     mother: "child",
     father: "child",
     grandmother: "grandchild",
     grandfather: "grandchild",
-    sister: "sister", // Sister of sister is sister
-    brother: "brother", // Brother of brother is brother
-    spouse: "spouse", // Spouse is reciprocal
-    partner: "partner", // Partner is reciprocal
+    sister: "sister",
+    brother: "brother",
+    spouse: "spouse",
+    partner: "partner",
     "step-brother": "step-sibling",
     "step-sister": "step-sibling",
     stepmother: "step-child",
