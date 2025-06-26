@@ -328,7 +328,7 @@ export default function RelationshipsTable({
                     Relationship Type
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Related Contact ID
+                    Related Contact
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
                     Active
@@ -404,7 +404,7 @@ export default function RelationshipsTable({
                         <TableCell className="font-medium">
                           {relationship.relationshipType}
                         </TableCell>
-                        <TableCell>{relationship.relatedContactId}</TableCell>
+                        <TableCell>{relationship.relatedContactName}</TableCell>
                         <TableCell>
                           <span
                             className={`px-2 py-1 rounded-full text-xs ${
@@ -427,11 +427,6 @@ export default function RelationshipsTable({
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() => handleEditClick(relationship)}
-                              >
-                                Edit Relationship
-                              </DropdownMenuItem>
                               <DropdownMenuItem
                                 className="text-red-600"
                                 onClick={() => handleDeleteClick(relationship)}

@@ -32,6 +32,7 @@ interface Relationship {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  relatedContactName: string;
 }
 
 interface RelationshipsResponse {

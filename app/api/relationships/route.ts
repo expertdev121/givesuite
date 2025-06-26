@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { sql, desc, asc, or, ilike, and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { ErrorHandler } from "@/lib/error-handler";
-import { relationships, NewRelationship } from "@/lib/db/schema";
+import { relationships, NewRelationship, contact } from "@/lib/db/schema";
 import { relationshipSchema } from "@/lib/form-schemas/relationships";
 
 const querySchema = z.object({
@@ -147,9 +147,24 @@ export async function GET(request: NextRequest) {
         break;
     }
 
+    // Modified query with join to get related contact's name
     const query = db
-      .select()
+      .select({
+        id: relationships.id,
+        contactId: relationships.contactId,
+        relatedContactId: relationships.relatedContactId,
+        relationshipType: relationships.relationshipType,
+        isActive: relationships.isActive,
+        notes: relationships.notes,
+        createdAt: relationships.createdAt,
+        updatedAt: relationships.updatedAt,
+        relatedContactName:
+          sql<string>`concat(${contact.firstName}, ' ', ${contact.lastName})`.as(
+            "relatedContactName"
+          ),
+      })
       .from(relationships)
+      .leftJoin(contact, eq(relationships.relatedContactId, contact.id))
       .where(whereClause)
       .orderBy(orderByClause)
       .limit(limit)
