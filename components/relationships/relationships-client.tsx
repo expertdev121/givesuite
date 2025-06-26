@@ -41,7 +41,7 @@ import {
 } from "@/lib/query/useRelationShips";
 
 import { Dialog, DialogContent, DialogTitle } from "@radix-ui/react-dialog";
-import { DialogHeader, DialogFooter } from "../ui/dialog";
+import { DialogHeader } from "../ui/dialog";
 import RelationshipDialog from "../forms/relationships-form";
 
 interface RelationshipsTableProps {
