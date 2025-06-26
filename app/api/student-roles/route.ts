@@ -261,8 +261,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const validatedData = studentRoleSchema.parse(body);
-
-    // Check for existing active role for this contact and year
     const existingRole = await db
       .select()
       .from(studentRoles)
@@ -284,16 +282,25 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
+    const today = new Date();
+    const twoYearsFromNow = new Date();
+    twoYearsFromNow.setFullYear(today.getFullYear() + 2);
 
-    // Prepare the data for insertion
+    const formattedToday = today.toISOString().split("T")[0];
+    const formattedTwoYearsFromNow = twoYearsFromNow
+      .toISOString()
+      .split("T")[0];
+
     const newStudentRole: NewStudentRole = {
       ...validatedData,
-      startDate: validatedData.startDate
-        ? new Date(validatedData.startDate).toISOString().split("T")[0]
-        : undefined,
-      endDate: validatedData.endDate
-        ? new Date(validatedData.endDate).toISOString().split("T")[0]
-        : undefined,
+      startDate:
+        validatedData.startDate && validatedData.startDate !== ""
+          ? String(validatedData.startDate)
+          : formattedToday,
+      endDate:
+        validatedData.endDate && validatedData.endDate !== ""
+          ? String(validatedData.endDate)
+          : formattedTwoYearsFromNow,
     };
 
     const result = await db
@@ -310,6 +317,7 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     if (error instanceof z.ZodError) {
+      console.error("Zod validation error:", error);
       return NextResponse.json(
         {
           error: "Validation failed",

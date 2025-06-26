@@ -424,7 +424,7 @@ export default function StudentRolesTable({
                           </span>
                         </TableCell>
                         <TableCell>{formatDate(role.createdAt)}</TableCell>
-                        <TableCell>
+                        {/* <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="sm" className="p-1">
@@ -438,7 +438,7 @@ export default function StudentRolesTable({
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
-                        </TableCell>
+                        </TableCell> */}
                       </TableRow>
                       {expandedRows.has(role.id) && (
                         <TableRow>
@@ -508,12 +508,12 @@ export default function StudentRolesTable({
                                 </div>
                               </div>
                             </div>
-                            <div className="mt-6 pt-4 flex gap-2 border-t">
+                            {/* <div className="mt-6 pt-4 flex gap-2 border-t">
                               <Button className="flex items-center gap-2">
                                 <Plus className="h-4 w-4" />
                                 Update Role
                               </Button>
-                            </div>
+                            </div> */}
                           </TableCell>
                         </TableRow>
                       )}

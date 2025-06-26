@@ -288,7 +288,7 @@ export default function ContactRolesTable({
                           </span>
                         </TableCell>
                         <TableCell>{formatDate(role.createdAt)}</TableCell>
-                        <TableCell>
+                        {/* <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="sm" className="p-1">
@@ -302,7 +302,7 @@ export default function ContactRolesTable({
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
-                        </TableCell>
+                        </TableCell> */}
                       </TableRow>
 
                       {expandedRows.has(role.id) && (
@@ -348,12 +348,12 @@ export default function ContactRolesTable({
                                 </div>
                               </div>
                             </div>
-                            <div className="mt-6 pt-4 flex gap-2 border-t">
+                            {/* <div className="mt-6 pt-4 flex gap-2 border-t">
                               <Button className="flex items-center gap-2">
                                 <Plus className="h-4 w-4" />
                                 Update Role
                               </Button>
-                            </div>
+                            </div> */}
                           </TableCell>
                         </TableRow>
                       )}

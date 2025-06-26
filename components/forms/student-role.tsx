@@ -80,14 +80,12 @@ const machzors = [
   { value: "8", label: "8" },
 ] as const;
 
-// Generate years from 2000 to current year + 5
 const currentYear = new Date().getFullYear();
 const years = Array.from({ length: currentYear - 2000 + 6 }, (_, i) => {
   const year = 2000 + i;
   return { value: `${year}-${year + 1}`, label: `${year}-${year + 1}` };
 }).reverse();
 
-// Updated schema to match database exactly
 const studentRoleSchema = z
   .object({
     contactId: z.coerce.number().positive("Contact ID is required"),
