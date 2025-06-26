@@ -259,8 +259,21 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const validatedData = studentRoleSchema.parse(body);
+    // Log request body for debugging
+    const rawBody = await request.json();
+    console.log("Raw request body:", JSON.stringify(rawBody, null, 2));
+
+    // Extract dates before validation to handle them separately
+    const {
+      startDate: rawStartDate,
+      endDate: rawEndDate,
+      ...otherFields
+    } = rawBody;
+
+    // Validate all fields except dates
+    const validatedData = studentRoleSchema.parse(otherFields);
+
+    // Check for duplicate role
     const existingRole = await db
       .select()
       .from(studentRoles)
@@ -282,6 +295,8 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
+
+    // Generate default dates
     const today = new Date();
     const twoYearsFromNow = new Date();
     twoYearsFromNow.setFullYear(today.getFullYear() + 2);
@@ -291,18 +306,26 @@ export async function POST(request: NextRequest) {
       .toISOString()
       .split("T")[0];
 
-    const newStudentRole: NewStudentRole = {
+    // Determine final dates to use
+    const finalStartDate =
+      rawStartDate && rawStartDate !== "" ? rawStartDate : formattedToday;
+
+    const finalEndDate =
+      rawEndDate && rawEndDate !== "" ? rawEndDate : formattedTwoYearsFromNow;
+
+    // Create the complete student role object
+    const newStudentRole = {
       ...validatedData,
-      startDate:
-        validatedData.startDate && validatedData.startDate !== ""
-          ? String(validatedData.startDate)
-          : formattedToday,
-      endDate:
-        validatedData.endDate && validatedData.endDate !== ""
-          ? String(validatedData.endDate)
-          : formattedTwoYearsFromNow,
+      startDate: finalStartDate,
+      endDate: finalEndDate,
     };
 
+    console.log(
+      "Final student role being inserted:",
+      JSON.stringify(newStudentRole, null, 2)
+    );
+
+    // Insert into database
     const result = await db
       .insert(studentRoles)
       .values(newStudentRole)
@@ -316,8 +339,12 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
+    // Enhanced error logging
     if (error instanceof z.ZodError) {
-      console.error("Zod validation error:", error);
+      console.error(
+        "Zod validation error details:",
+        JSON.stringify(error.issues, null, 2)
+      );
       return NextResponse.json(
         {
           error: "Validation failed",
@@ -330,6 +357,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.error("Error creating student role:", error);
     return ErrorHandler.handle(error);
   }
 }
