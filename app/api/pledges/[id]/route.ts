@@ -6,6 +6,7 @@ import {
   category,
   payment,
   paymentPlan,
+  bonusCalculation,
 } from "@/lib/db/schema";
 import { sql, eq } from "drizzle-orm";
 import { ErrorHandler } from "@/lib/error-handler";
@@ -176,6 +177,81 @@ export async function GET(
     return NextResponse.json(response);
   } catch (error) {
     console.error("Error fetching pledge details:", error);
+    return ErrorHandler.handle(error);
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const pledgeId = parseInt(id, 10);
+
+  try {
+    if (isNaN(pledgeId)) {
+      return NextResponse.json({ error: "Invalid pledge ID" }, { status: 400 });
+    }
+    const existingPledge = await db
+      .select({ id: pledge.id })
+      .from(pledge)
+      .where(eq(pledge.id, pledgeId))
+      .limit(1);
+
+    if (existingPledge.length === 0) {
+      return NextResponse.json({ error: "Pledge not found" }, { status: 404 });
+    }
+    const [relatedPayments, relatedPaymentPlans, bonusCalculations] =
+      await Promise.all([
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(payment)
+          .where(eq(payment.pledgeId, pledgeId)),
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(paymentPlan)
+          .where(eq(paymentPlan.pledgeId, pledgeId)),
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(bonusCalculation)
+          .innerJoin(payment, eq(payment.id, bonusCalculation.paymentId))
+          .where(eq(payment.pledgeId, pledgeId)),
+      ]);
+
+    const paymentCount = Number(relatedPayments[0]?.count || 0);
+    const paymentPlanCount = Number(relatedPaymentPlans[0]?.count || 0);
+    const bonusCalculationCount = Number(bonusCalculations[0]?.count || 0);
+    let deletedRecords = {
+      bonusCalculations: bonusCalculationCount,
+      payments: paymentCount,
+      paymentPlans: paymentPlanCount,
+    };
+    if (bonusCalculationCount > 0) {
+      await db.delete(bonusCalculation).where(
+        sql`${bonusCalculation.paymentId} IN (
+            SELECT id FROM ${payment} WHERE pledge_id = ${pledgeId}
+          )`
+      );
+    }
+
+    if (paymentCount > 0) {
+      await db.delete(payment).where(eq(payment.pledgeId, pledgeId));
+    }
+
+    if (paymentPlanCount > 0) {
+      await db.delete(paymentPlan).where(eq(paymentPlan.pledgeId, pledgeId));
+    }
+
+    await db.delete(pledge).where(eq(pledge.id, pledgeId));
+
+    return NextResponse.json({
+      success: true,
+      message: "Pledge and all related records permanently deleted",
+      deletedPledgeId: pledgeId,
+      deletedRecords,
+    });
+  } catch (error) {
+    console.error("Error deleting pledge:", error);
     return ErrorHandler.handle(error);
   }
 }

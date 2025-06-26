@@ -57,7 +57,6 @@ import { PlusCircleIcon } from "lucide-react";
 import { usePledgesQuery } from "@/lib/query/usePledgeData";
 import useContactId from "@/hooks/use-contact-id";
 
-// Solicitors hook and types
 interface SolicitorsParams {
   search?: string;
   status?: "active" | "inactive" | "suspended";

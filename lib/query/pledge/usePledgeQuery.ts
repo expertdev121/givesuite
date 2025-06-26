@@ -186,7 +186,6 @@ const createPledge = async (
   return response.json();
 };
 
-// Query Keys
 export const pledgeKeys = {
   all: ["pledges"] as const,
   lists: () => [...pledgeKeys.all, "list"] as const,
@@ -204,13 +203,12 @@ export const paymentKeys = {
     [...paymentKeys.lists(), "contact", contactId] as const,
 };
 
-// Hooks
 export const usePledgesQuery = (params: PledgeQueryParams) => {
   return useQuery({
     queryKey: pledgeKeys.list(params),
     queryFn: () => fetchPledges(params),
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 30, // 30 minutes
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 30,
   });
 };
 
@@ -269,7 +267,6 @@ export const useCreatePaymentMutation = () => {
   });
 };
 
-// Hook for creating pledge and then navigating to payment
 export const useCreatePledgeAndPayMutation = () => {
   const queryClient = useQueryClient();
 
@@ -294,6 +291,49 @@ export const useCreatePledgeAndPayMutation = () => {
     },
     onError: (error) => {
       console.error("Error creating pledge:", error);
+    },
+  });
+};
+
+interface DeletePledgeResponse {
+  success: boolean;
+  message: string;
+  deletedPledgeId: number;
+  deletedRecords: {
+    bonusCalculations: number;
+    payments: number;
+    paymentPlans: number;
+  };
+}
+
+const deletePledge = async (
+  pledgeId: number
+): Promise<DeletePledgeResponse> => {
+  const response = await fetch(`/api/pledges/${pledgeId}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || "Failed to delete pledge");
+  }
+
+  return response.json();
+};
+
+export const useDeletePledge = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: deletePledge,
+    onSuccess: (pledgeId) => {
+      queryClient.invalidateQueries({ queryKey: ["pledges"] });
+      queryClient.removeQueries({ queryKey: ["pledge", pledgeId] });
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      queryClient.invalidateQueries({ queryKey: ["paymentPlans"] });
     },
   });
 };
