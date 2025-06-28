@@ -94,7 +94,6 @@ const relationshipTypes = [
   { value: "machatunim", label: "Machatunim" },
 ] as const;
 
-// Extract the values properly for the enum
 const relationshipValues = relationshipTypes.map((type) => type.value);
 
 const relationshipSchema = z
@@ -130,6 +129,7 @@ export default function RelationshipDialog(props: RelationshipDialogProps) {
   const { contactId, contactName, contactEmail, triggerButton } = props;
   const [open, setOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
+  const [selectedContact, setSelectedContact] = useState<any>(null);
 
   const { data: contactData, isLoading: isLoadingContact } =
     useContactDetailsQuery(contactId);
@@ -165,6 +165,7 @@ export default function RelationshipDialog(props: RelationshipDialogProps) {
       notes: "",
     });
     setContactSearch("");
+    setSelectedContact(null);
   };
 
   const onSubmit = async (data: RelationshipFormData) => {
@@ -184,13 +185,14 @@ export default function RelationshipDialog(props: RelationshipDialogProps) {
     }
   };
 
+  const handleContactSelect = (contact: any) => {
+    form.setValue("relatedContactId", contact.id);
+    setSelectedContact(contact);
+    setContactSearch(`${contact.firstName} ${contact.lastName}`);
+  };
+
   const selectedRelationshipType = form.watch("relationshipType");
   const selectedRelatedContactId = form.watch("relatedContactId");
-
-  // Find the selected contact from search results
-  const selectedRelatedContact = searchResults?.contacts?.find(
-    (contact: any) => contact.id === selectedRelatedContactId
-  );
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -241,7 +243,7 @@ export default function RelationshipDialog(props: RelationshipDialogProps) {
                   onChange={(e) => setContactSearch(e.target.value)}
                 />
 
-                {contactSearch.length >= 2 && (
+                {contactSearch.length >= 2 && !selectedContact && (
                   <div className="max-h-32 overflow-y-auto border rounded-md">
                     {isSearching ? (
                       <div className="p-2 text-sm text-muted-foreground">
@@ -257,12 +259,7 @@ export default function RelationshipDialog(props: RelationshipDialogProps) {
                               key={contact.id}
                               type="button"
                               className="w-full text-left p-2 hover:bg-gray-50 text-sm"
-                              onClick={() => {
-                                form.setValue("relatedContactId", contact.id);
-                                setContactSearch(
-                                  `${contact.firstName} ${contact.lastName}`
-                                );
-                              }}
+                              onClick={() => handleContactSelect(contact)}
                             >
                               <div className="font-medium">
                                 {contact.firstName} {contact.lastName}
@@ -283,16 +280,32 @@ export default function RelationshipDialog(props: RelationshipDialogProps) {
                   </div>
                 )}
 
-                {selectedRelatedContact && (
+                {selectedContact && (
                   <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
-                    <strong>Selected:</strong>{" "}
-                    {selectedRelatedContact.firstName}{" "}
-                    {selectedRelatedContact.lastName}
-                    {selectedRelatedContact.email && (
-                      <span className="block text-muted-foreground">
-                        {selectedRelatedContact.email}
-                      </span>
-                    )}
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <strong>Selected:</strong> {selectedContact.firstName}{" "}
+                        {selectedContact.lastName}
+                        {selectedContact.email && (
+                          <span className="block text-muted-foreground">
+                            {selectedContact.email}
+                          </span>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedContact(null);
+                          form.setValue("relatedContactId", 0);
+                          setContactSearch("");
+                        }}
+                        className="h-auto p-1 text-muted-foreground hover:text-foreground"
+                      >
+                        ×
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -391,8 +404,8 @@ export default function RelationshipDialog(props: RelationshipDialogProps) {
                   </strong>{" "}
                   of{" "}
                   <strong>
-                    {selectedRelatedContact
-                      ? `${selectedRelatedContact.firstName} ${selectedRelatedContact.lastName}`
+                    {selectedContact
+                      ? `${selectedContact.firstName} ${selectedContact.lastName}`
                       : "[selected contact]"}
                   </strong>
                 </div>
