@@ -33,6 +33,7 @@ interface Relationship {
   createdAt: string;
   updatedAt: string;
   relatedContactName: string;
+  displayRelationshipType: string;
 }
 
 interface RelationshipsResponse {

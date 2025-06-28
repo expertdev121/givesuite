@@ -96,7 +96,7 @@ type Relationship = {
   notes?: string;
   createdAt: string;
   updatedAt: string;
-  relatedContactName?: string; // Added optional property
+  relatedContactName?: string;
 };
 
 export default function RelationshipsTable({
@@ -402,7 +402,7 @@ export default function RelationshipsTable({
                           </Button>
                         </TableCell>
                         <TableCell className="font-medium">
-                          {relationship.relationshipType}
+                          {relationship.displayRelationshipType}
                         </TableCell>
                         <TableCell>{relationship.relatedContactName}</TableCell>
                         <TableCell>
