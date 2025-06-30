@@ -3,11 +3,8 @@
 "use client";
 
 import React, { useState } from "react";
-
 import { useQueryState } from "nuqs";
-
 import { z } from "zod";
-
 import {
   Table,
   TableBody,
@@ -24,13 +21,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,12 +47,10 @@ import {
   Trash2,
   Loader2,
 } from "lucide-react";
-
 import {
   useDeletePaymentMutation,
   usePaymentsQuery,
 } from "@/lib/query/payments/usePaymentQuery";
-
 import { LinkButton } from "../ui/next-link";
 import FactsDialog from "../facts-iframe";
 import PaymentFormDialog from "../forms/payment-dialog";
@@ -162,7 +155,6 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
 
   const { data, isLoading, error } = usePaymentsQuery(queryParams);
 
-  // Updated: Initialize delete mutation without pledgeId parameter
   const deletePaymentMutation = useDeletePaymentMutation();
 
   const toggleExpandedRow = (paymentId: number) => {
@@ -177,12 +169,11 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
     });
   };
 
-  // Updated: Use payment.id (paymentId) instead of pledgeId for deletion
   const handleDeletePayment = async (payment: Payment) => {
     setDeletingPaymentId(payment.id);
     try {
       await deletePaymentMutation.mutateAsync({
-        paymentId: payment.id, // Using payment ID, not pledge ID
+        paymentId: payment.id,
       });
       toast.success(`Payment #${payment.id} deleted successfully`);
       setExpandedRows((prev) => {
