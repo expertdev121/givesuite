@@ -27,7 +27,6 @@ import { Search, ChevronDown, ChevronRight, Edit } from "lucide-react";
 import { usePaymentPlans } from "@/lib/query/usePaymentPlan";
 import PaymentPlanDialog from "../forms/payment-plan-dialog";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const PlanStatusEnum = z.enum([
   "active",
   "completed",
