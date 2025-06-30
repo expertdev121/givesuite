@@ -2,7 +2,10 @@
 import React, { useState } from "react";
 import { useQueryState } from "nuqs";
 import { z } from "zod";
-import { useStudentRoles } from "@/lib/query/useStudentRoles";
+import {
+  useStudentRoles,
+  useDeactivateStudentRole,
+} from "@/lib/query/useStudentRoles";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import {
   Select,
@@ -59,6 +62,7 @@ export default function StudentRolesTable({
   contactId,
 }: StudentRolesTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // ALL HOOKS AT THE TOP - Query state management
   const [page, setPage] = useQueryState("page", {
@@ -176,6 +180,11 @@ export default function StudentRolesTable({
 
   // Hook called unconditionally
   const { data, isLoading, error } = useStudentRoles(queryParams);
+  const {
+    mutate: deactivateRole,
+    isPending: isDeactivating,
+    error: deactivateError,
+  } = useDeactivateStudentRole();
 
   // Check for contactId error AFTER hooks
   if (isNaN(parsedContactId) || parsedContactId <= 0) {
@@ -187,6 +196,28 @@ export default function StudentRolesTable({
       </Alert>
     );
   }
+
+  // Handle deactivation error
+  React.useEffect(() => {
+    if (deactivateError) {
+      setErrorMessage(
+        deactivateError.response?.data?.error ||
+          "Failed to deactivate student role"
+      );
+    }
+  }, [deactivateError]);
+
+  const handleDeactivate = (roleId: number) => {
+    setErrorMessage(null); // Clear previous errors
+    deactivateRole(roleId, {
+      onSuccess: () => {
+        console.log(`Student role ${roleId} deactivated successfully`);
+      },
+      onError: () => {
+        setErrorMessage("Failed to deactivate student role");
+      },
+    });
+  };
 
   const toggleRowExpansion = (roleId: number) => {
     const newExpanded = new Set(expandedRows);
@@ -212,6 +243,11 @@ export default function StudentRolesTable({
 
   return (
     <div className="space-y-6 py-4">
+      {errorMessage && (
+        <Alert className="mx-4 my-6" variant="destructive">
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>Student Roles</CardTitle>
@@ -332,7 +368,7 @@ export default function StudentRolesTable({
                   <TableHead className="font-semibold text-gray-900">
                     Created At
                   </TableHead>
-                  <TableHead className="w-12"></TableHead>
+                  <TableHead className="w-12">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -412,21 +448,20 @@ export default function StudentRolesTable({
                           </span>
                         </TableCell>
                         <TableCell>{formatDate(role.createdAt)}</TableCell>
-                        {/* <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="p-1">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem>Edit Role</DropdownMenuItem>
-                              <DropdownMenuItem className="text-red-600">
-                                Delete Role
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell> */}
+                        <TableCell>
+                          {role.isActive && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeactivate(role.id)}
+                              disabled={isDeactivating}
+                            >
+                              {isDeactivating
+                                ? "Deactivating..."
+                                : "Deactivate"}
+                            </Button>
+                          )}
+                        </TableCell>
                       </TableRow>
                       {expandedRows.has(role.id) && (
                         <TableRow>
@@ -496,12 +531,6 @@ export default function StudentRolesTable({
                                 </div>
                               </div>
                             </div>
-                            {/* <div className="mt-6 pt-4 flex gap-2 border-t">
-                              <Button className="flex items-center gap-2">
-                                <Plus className="h-4 w-4" />
-                                Update Role
-                              </Button>
-                            </div> */}
                           </TableCell>
                         </TableRow>
                       )}

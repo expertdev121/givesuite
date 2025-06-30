@@ -117,6 +117,14 @@ const createStudentRole = async (
   return response.data.studentRole;
 };
 
+const deactivateStudentRole = async (id: number): Promise<StudentRole> => {
+  const response = await api.patch<{
+    message: string;
+    studentRole: StudentRole;
+  }>(`/${id}`, { isActive: false });
+  return response.data.studentRole;
+};
+
 export const useStudentRoles = (params: QueryParams) => {
   return useQuery<StudentRolesResponse, AxiosError<ErrorResponse>>({
     queryKey: [
@@ -148,6 +156,23 @@ export const useCreateStudentRole = () => {
     onError: (error) => {
       console.error(
         "Error creating student role:",
+        error.response?.data || error.message
+      );
+    },
+  });
+};
+
+export const useDeactivateStudentRole = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<StudentRole, AxiosError<ErrorResponse>, number>({
+    mutationFn: deactivateStudentRole,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["studentRoles"] });
+    },
+    onError: (error) => {
+      console.error(
+        "Error deactivating student role:",
         error.response?.data || error.message
       );
     },
