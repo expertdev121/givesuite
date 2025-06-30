@@ -459,14 +459,15 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Exchange Rate:
+                                      Payment (USD):
                                     </span>
                                     <span className="font-medium">
-                                      {payment.exchangeRate
-                                        ? Number.parseFloat(
-                                            payment.exchangeRate
-                                          ).toFixed(4)
-                                        : "N/A"}
+                                      {
+                                        formatCurrency(
+                                          payment.amountUsd || "",
+                                          "USD"
+                                        ).amount
+                                      }
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
