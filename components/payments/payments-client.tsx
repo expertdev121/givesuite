@@ -451,12 +451,27 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                     </span>
                                     <span className="font-medium">
                                       ${" "}
+                                      {Math.round(
+                                        Number(payment.amount) *
+                                          Number(payment.exchangeRate)
+                                      )}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
+                                      Amount (Pledge Currency)
+                                    </span>
+                                    <span className="font-medium">
                                       {
                                         formatCurrency(
-                                          payment.amountUsd || "",
-                                          "USD"
-                                        ).amount
-                                      }
+                                          payment.amount,
+                                          payment?.pledgeOriginalCurrency
+                                        ).symbol
+                                      }{" "}
+                                      {Math.round(
+                                        Number(payment.amount) *
+                                          Number(payment.exchangeRate)
+                                      )}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">

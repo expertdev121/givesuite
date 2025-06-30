@@ -311,6 +311,7 @@ export async function GET(request: NextRequest) {
       .select({
         id: payment.id,
         pledgeId: payment.pledgeId,
+
         amount: payment.amount,
         currency: payment.currency,
         amountUsd: payment.amountUsd,
@@ -340,10 +341,12 @@ export async function GET(request: NextRequest) {
         pledgeOriginalAmount: sql<string>`(
           SELECT original_amount FROM ${pledge} WHERE id = ${payment.pledgeId}
         )`.as("pledgeOriginalAmount"),
+        pledgeOriginalCurrency: sql<string>`(
+              SELECT currency FROM ${pledge} WHERE id = ${payment.pledgeId}
+            )`.as("pledgeOriginalCurrency"),
         contactId: sql<number>`(
           SELECT contact_id FROM ${pledge} WHERE id = ${payment.pledgeId}
         )`.as("contactId"),
-        // NEW: Solicitor information
         solicitorName: sql<string>`(
           SELECT CONCAT(c.first_name, ' ', c.last_name)
           FROM solicitor s

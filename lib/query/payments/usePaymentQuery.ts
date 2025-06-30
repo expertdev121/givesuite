@@ -51,9 +51,9 @@ export interface Payment {
   paymentPlanId: number | null;
   createdAt: string;
   updatedAt: string;
-  // Joined data
   pledgeDescription: string | null;
   pledgeOriginalAmount: string | null;
+  pledgeOriginalCurrency: string;
   contactId: number | null;
   solicitorName: string | null;
 }
@@ -312,7 +312,6 @@ export const useUpdatePaymentMutation = (pledgeId: number) => {
   });
 };
 
-// Updated useDeletePaymentMutation hook - no longer requires pledgeId parameter
 export const useDeletePaymentMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
