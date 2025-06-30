@@ -196,7 +196,7 @@ export default function PaymentPlansTable({
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle>Payment Plansssss</CardTitle>
+          <CardTitle>Payment Plans</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
