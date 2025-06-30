@@ -259,44 +259,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Log request body for debugging
     const rawBody = await request.json();
-    console.log("Raw request body:", JSON.stringify(rawBody, null, 2));
-
-    // Extract dates before validation to handle them separately
     const {
       startDate: rawStartDate,
       endDate: rawEndDate,
       ...otherFields
     } = rawBody;
-
-    // Validate all fields except dates
     const validatedData = studentRoleSchema.parse(otherFields);
 
-    // Check for duplicate role
-    const existingRole = await db
-      .select()
-      .from(studentRoles)
-      .where(
-        and(
-          eq(studentRoles.contactId, validatedData.contactId),
-          eq(studentRoles.year, validatedData.year),
-          eq(studentRoles.isActive, true)
-        )
-      )
-      .limit(1);
-
-    if (existingRole.length > 0) {
-      return NextResponse.json(
-        {
-          error: "Duplicate role",
-          message: `Contact already has an active role for year ${validatedData.year}`,
-        },
-        { status: 409 }
-      );
-    }
-
-    // Generate default dates
     const today = new Date();
     const twoYearsFromNow = new Date();
     twoYearsFromNow.setFullYear(today.getFullYear() + 2);
@@ -306,14 +276,12 @@ export async function POST(request: NextRequest) {
       .toISOString()
       .split("T")[0];
 
-    // Determine final dates to use
     const finalStartDate =
       rawStartDate && rawStartDate !== "" ? rawStartDate : formattedToday;
 
     const finalEndDate =
       rawEndDate && rawEndDate !== "" ? rawEndDate : formattedTwoYearsFromNow;
 
-    // Create the complete student role object
     const newStudentRole = {
       ...validatedData,
       startDate: finalStartDate,
@@ -325,7 +293,6 @@ export async function POST(request: NextRequest) {
       JSON.stringify(newStudentRole, null, 2)
     );
 
-    // Insert into database
     const result = await db
       .insert(studentRoles)
       .values(newStudentRole)
@@ -339,7 +306,6 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    // Enhanced error logging
     if (error instanceof z.ZodError) {
       console.error(
         "Zod validation error details:",

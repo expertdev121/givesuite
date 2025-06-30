@@ -230,9 +230,6 @@ export const studentRoles = pgTable(
   },
   (table) => ({
     contactIdIdx: index("student_roles_contact_id_idx").on(table.contactId),
-    uniqueContactId: uniqueIndex("student_roles_contact_id_unique").on(
-      table.contactId
-    ),
   })
 );
 

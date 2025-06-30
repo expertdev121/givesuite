@@ -1,0 +1,5 @@
+ALTER TABLE "relationships" ALTER COLUMN "relationship_type" SET DATA TYPE text;--> statement-breakpoint
+DROP TYPE "public"."relationship";--> statement-breakpoint
+CREATE TYPE "public"."relationship" AS ENUM('mother', 'father', 'grandmother', 'grandfather', 'grandparent', 'parent', 'step-parent', 'stepmother', 'stepfather', 'sister', 'brother', 'step-sister', 'step-brother', 'stepson', 'daughter', 'son', 'aunt', 'uncle', 'aunt/uncle', 'nephew', 'niece', 'grandson', 'granddaughter', 'cousin (m)', 'cousin (f)', 'spouse', 'partner', 'wife', 'husband', 'former husband', 'former wife', 'fiance', 'divorced co-parent', 'separated co-parent', 'legal guardian', 'legal guardian partner', 'friend', 'neighbor', 'relative', 'business', 'owner', 'chevrusa', 'congregant', 'rabbi', 'contact', 'foundation', 'donor', 'fund', 'rebbi contact', 'rebbi contact for', 'employee', 'employer', 'machatunim');--> statement-breakpoint
+ALTER TABLE "relationships" ALTER COLUMN "relationship_type" SET DATA TYPE "public"."relationship" USING "relationship_type"::"public"."relationship";--> statement-breakpoint
+DROP INDEX "student_roles_contact_id_unique";
