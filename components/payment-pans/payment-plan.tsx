@@ -140,9 +140,14 @@ export default function PaymentPlansTable({
     const converted = convertToUSD(originalAmount, exchangeRate);
     return converted || originalAmount; // Fallback to original if conversion fails
   };
-
   const formatDate = (dateString: string | null) => {
-    return dateString ? new Date(dateString).toLocaleDateString() : "N/A";
+    if (!dateString) return "N/A";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
   };
 
   const getStatusColor = (status: PlanStatusType | null) => {

@@ -835,7 +835,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
               />
             )}
 
-            <FormField
+            {/* <FormField
               control={form.control}
               name="planName"
               render={({ field }) => (
@@ -850,7 +850,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                   <FormMessage />
                 </FormItem>
               )}
-            />
+            /> */}
 
             <FormField
               control={form.control}
