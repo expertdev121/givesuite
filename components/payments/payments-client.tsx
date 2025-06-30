@@ -450,11 +450,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                       Payment (USD):
                                     </span>
                                     <span className="font-medium">
-                                      ${" "}
-                                      {Math.round(
-                                        Number(payment.amount) *
-                                          Number(payment.exchangeRate)
-                                      )}
+                                      $ {Math.round(Number(payment.amountUsd))}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
@@ -470,16 +466,8 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                       }{" "}
                                       {Math.round(
                                         Number(payment.amount) *
-                                          Number(payment.exchangeRate)
+                                          Number(payment.pledgeExchangeRate)
                                       )}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      Payment Plan:
-                                    </span>
-                                    <span className="font-medium">
-                                      {payment.paymentPlanId || "N/A"}
                                     </span>
                                   </div>
                                 </div>

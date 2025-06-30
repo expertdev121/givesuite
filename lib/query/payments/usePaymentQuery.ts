@@ -54,6 +54,7 @@ export interface Payment {
   pledgeDescription: string | null;
   pledgeOriginalAmount: string | null;
   pledgeOriginalCurrency: string;
+  pledgeExchangeRate: string;
   contactId: number | null;
   solicitorName: string | null;
 }

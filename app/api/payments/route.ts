@@ -344,6 +344,9 @@ export async function GET(request: NextRequest) {
         pledgeOriginalCurrency: sql<string>`(
               SELECT currency FROM ${pledge} WHERE id = ${payment.pledgeId}
             )`.as("pledgeOriginalCurrency"),
+        pledgeExchangeRate: sql<string>`(
+                  SELECT exchange_rate FROM ${pledge} WHERE id = ${payment.pledgeId}
+                )`.as("pledgeExchangeRate"),
         contactId: sql<number>`(
           SELECT contact_id FROM ${pledge} WHERE id = ${payment.pledgeId}
         )`.as("contactId"),
