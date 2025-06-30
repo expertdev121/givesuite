@@ -182,7 +182,6 @@ const fetchPayments = async (
   params: PaymentQueryParams
 ): Promise<PaymentsResponse> => {
   const searchParams = new URLSearchParams();
-
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
       searchParams.append(key, value.toString());
@@ -190,11 +189,9 @@ const fetchPayments = async (
   });
 
   const response = await fetch(`/api/payments?${searchParams.toString()}`);
-
   if (!response.ok) {
     throw new Error(`Failed to fetch payments: ${response.statusText}`);
   }
-
   return response.json();
 };
 
@@ -215,7 +212,6 @@ const createPayment = async (
       errorData.error || `Failed to create payment: ${response.statusText}`
     );
   }
-
   return response.json();
 };
 
@@ -237,15 +233,14 @@ const updatePayment = async (
       errorData.error || `Failed to update payment: ${response.statusText}`
     );
   }
-
   return response.json();
 };
 
+// Updated deletePayment function - now uses paymentId directly
 const deletePayment = async (
-  pledgeId: number,
   data: DeletePaymentData
 ): Promise<DeletePaymentResponse> => {
-  const response = await fetch(`/api/payments/${pledgeId}`, {
+  const response = await fetch(`/api/payments/${data.paymentId}`, {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",
@@ -259,7 +254,6 @@ const deletePayment = async (
       errorData.error || `Failed to delete payment: ${response.statusText}`
     );
   }
-
   return response.json();
 };
 
@@ -270,12 +264,10 @@ export const paymentKeys = {
     [...paymentKeys.lists(), params] as const,
   details: () => [...paymentKeys.all, "detail"] as const,
   detail: (id: number) => [...paymentKeys.details(), id] as const,
-  // NEW: Solicitor-specific keys
   solicitor: (solicitorId: number) =>
     [...paymentKeys.all, "solicitor", solicitorId] as const,
 };
 
-// Hooks
 export const usePaymentsQuery = (
   params: PaymentQueryParams,
   options?: {
@@ -296,7 +288,6 @@ export const usePaymentsQuery = (
 
 export const useCreatePaymentMutation = () => {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: createPayment,
     onSuccess: () => {
@@ -310,7 +301,6 @@ export const useCreatePaymentMutation = () => {
 
 export const useUpdatePaymentMutation = (pledgeId: number) => {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: (data: UpdatePaymentData) => updatePayment(pledgeId, data),
     onSuccess: () => {
@@ -322,11 +312,11 @@ export const useUpdatePaymentMutation = (pledgeId: number) => {
   });
 };
 
-export const useDeletePaymentMutation = (pledgeId: number) => {
+// Updated useDeletePaymentMutation hook - no longer requires pledgeId parameter
+export const useDeletePaymentMutation = () => {
   const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: (data: DeletePaymentData) => deletePayment(pledgeId, data),
+    mutationFn: (data: DeletePaymentData) => deletePayment(data),
     onSuccess: () => {
       queryClient.invalidateQueries();
     },
@@ -346,7 +336,6 @@ export const useSolicitorPaymentsQuery = (
   }
 ) => {
   const params = { ...additionalParams, solicitorId };
-
   return useQuery({
     queryKey: paymentKeys.solicitor(solicitorId),
     queryFn: () => fetchPayments(params),
@@ -367,7 +356,6 @@ export const usePaymentsBySolicitorStatus = (
   }
 ) => {
   const params = { ...additionalParams, hasSolicitor };
-
   return useQuery({
     queryKey: paymentKeys.list(params),
     queryFn: () => fetchPayments(params),

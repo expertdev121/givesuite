@@ -1,9 +1,13 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
+
 "use client";
 
 import React, { useState } from "react";
+
 import { useQueryState } from "nuqs";
+
 import { z } from "zod";
+
 import {
   Table,
   TableBody,
@@ -12,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
 import {
   Select,
   SelectContent,
@@ -19,23 +24,45 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
 import {
   Search,
   BadgeDollarSignIcon,
   ChevronDown,
   ChevronRight,
   Edit,
+  Trash2,
+  Loader2,
 } from "lucide-react";
-import { usePaymentsQuery } from "@/lib/query/payments/usePaymentQuery";
+
+import {
+  useDeletePaymentMutation,
+  usePaymentsQuery,
+} from "@/lib/query/payments/usePaymentQuery";
+
 import { LinkButton } from "../ui/next-link";
 import FactsDialog from "../facts-iframe";
 import PaymentFormDialog from "../forms/payment-dialog";
 import EditPaymentDialog from "@/app/contacts/[contactId]/payments/__components/edit-payment";
+import { toast } from "sonner";
 
 const PaymentStatusEnum = z.enum([
   "pending",
@@ -52,12 +79,39 @@ interface PaymentsTableProps {
   contactId?: number;
 }
 
+interface Payment {
+  id: number;
+  pledgeId: number;
+  amount: string;
+  currency: string;
+  paymentDate: string | null;
+  receivedDate: string | null;
+  paymentStatus: string;
+  paymentMethod: string | null;
+  referenceNumber: string | null;
+  checkNumber: string | null;
+  notes: string | null;
+  exchangeRate: string | null;
+  paymentPlanId: number | null;
+  receiptNumber: string | null;
+  receiptType: string | null;
+  receiptIssued: boolean;
+  solicitorName: string | null;
+  bonusPercentage: string | null;
+  bonusAmount: string | null;
+  bonusRuleId: number | null;
+}
+
 export default function PaymentsTable({ contactId }: PaymentsTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [deletingPaymentId, setDeletingPaymentId] = useState<number | null>(
+    null
+  );
+
   const [pledgeId] = useQueryState("pledgeId", {
     parse: (value) => {
       if (!value) return null;
-      const parsed = parseInt(value);
+      const parsed = Number.parseInt(value);
       return isNaN(parsed) ? null : parsed;
     },
     serialize: (value) =>
@@ -65,14 +119,17 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
   });
 
   const [page, setPage] = useQueryState("page", {
-    parse: (value) => parseInt(value) || 1,
+    parse: (value) => Number.parseInt(value) || 1,
     serialize: (value) => value.toString(),
   });
+
   const [limit] = useQueryState("limit", {
-    parse: (value) => parseInt(value) || 10,
+    parse: (value) => Number.parseInt(value) || 10,
     serialize: (value) => value.toString(),
   });
+
   const [search, setSearch] = useQueryState("search");
+
   const [paymentStatus, setPaymentStatus] =
     useQueryState<PaymentStatusType | null>("paymentStatus", {
       parse: (value) => {
@@ -104,6 +161,9 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
 
   const { data, isLoading, error } = usePaymentsQuery(queryParams);
 
+  // Updated: Initialize delete mutation without pledgeId parameter
+  const deletePaymentMutation = useDeletePaymentMutation();
+
   const toggleExpandedRow = (paymentId: number) => {
     setExpandedRows((prev) => {
       const newSet = new Set(prev);
@@ -116,13 +176,34 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
     });
   };
 
+  // Updated: Use payment.id (paymentId) instead of pledgeId for deletion
+  const handleDeletePayment = async (payment: Payment) => {
+    setDeletingPaymentId(payment.id);
+    try {
+      await deletePaymentMutation.mutateAsync({
+        paymentId: payment.id, // Using payment ID, not pledge ID
+      });
+      toast.success(`Payment #${payment.id} deleted successfully`);
+      setExpandedRows((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(payment.id);
+        return newSet;
+      });
+    } catch (error) {
+      console.error("Failed to delete payment:", error);
+      toast.error(`Failed to delete payment #${payment.id}`);
+    } finally {
+      setDeletingPaymentId(null);
+    }
+  };
+
   const formatCurrency = (amount: string, currency: string) => {
     const formatted = new Intl.NumberFormat("en-US", {
       style: "currency",
       currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(parseFloat(amount));
+    }).format(Number.parseFloat(amount));
 
     // Extract currency symbol and amount
     const currencySymbol = formatted.replace(/[\d,.\s]/g, "");
@@ -174,6 +255,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
       </Alert>
     );
   }
+
   return (
     <div className="space-y-6 p-4">
       {/* Filters */}
@@ -223,6 +305,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                 <SelectItem value="processing">Processing</SelectItem>
               </SelectContent>
             </Select>
+
             <PaymentFormDialog
               pledgeId={pledgeId ?? undefined}
               contactId={contactId}
@@ -352,6 +435,14 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                 <div className="space-y-2 text-sm">
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
+                                      Payment ID:
+                                    </span>
+                                    <span className="font-medium">
+                                      #{payment.id}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
                                       Payment Date:
                                     </span>
                                     <span className="font-medium">
@@ -372,7 +463,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                     </span>
                                     <span className="font-medium">
                                       {payment.exchangeRate
-                                        ? parseFloat(
+                                        ? Number.parseFloat(
                                             payment.exchangeRate
                                           ).toFixed(4)
                                         : "N/A"}
@@ -456,7 +547,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                     </span>
                                     <span className="font-medium">
                                       {payment.bonusPercentage
-                                        ? `${parseFloat(
+                                        ? `${Number.parseFloat(
                                             payment.bonusPercentage
                                           )}%`
                                         : "N/A"}
@@ -468,7 +559,9 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                     </span>
                                     <span className="font-medium text-green-600">
                                       {payment.bonusAmount
-                                        ? `${payment.currency} ${parseFloat(
+                                        ? `${
+                                            payment.currency
+                                          } ${Number.parseFloat(
                                             payment.bonusAmount
                                           ).toLocaleString()}`
                                         : "N/A"}
@@ -509,6 +602,82 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                   </Button>
                                 }
                               />
+
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={deletingPaymentId === payment.id}
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 bg-transparent"
+                                  >
+                                    {deletingPaymentId === payment.id ? (
+                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                    )}
+                                    Delete Payment
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>
+                                      Delete Payment #{payment.id}
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to delete this
+                                      payment? This action cannot be undone.
+                                      <br />
+                                      <br />
+                                      <strong>Payment Details:</strong>
+                                      <br />
+                                      Payment ID: #{payment.id}
+                                      <br />
+                                      Amount:{" "}
+                                      {
+                                        formatCurrency(
+                                          payment.amount,
+                                          payment.currency
+                                        ).symbol
+                                      }
+                                      {
+                                        formatCurrency(
+                                          payment.amount,
+                                          payment.currency
+                                        ).amount
+                                      }
+                                      <br />
+                                      Date: {formatDate(payment.paymentDate)}
+                                      <br />
+                                      Status: {payment.paymentStatus}
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>
+                                      Cancel
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() =>
+                                        handleDeletePayment(payment)
+                                      }
+                                      className="bg-red-600 hover:bg-red-700"
+                                      disabled={
+                                        deletingPaymentId === payment.id
+                                      }
+                                    >
+                                      {deletingPaymentId === payment.id ? (
+                                        <>
+                                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                          Deleting...
+                                        </>
+                                      ) : (
+                                        "Delete Payment"
+                                      )}
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+
                               <LinkButton
                                 variant="secondary"
                                 href={`/contacts/${contactId}/payment-plans?pledgeId=${
