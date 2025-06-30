@@ -53,14 +53,7 @@ export async function GET(
       .where(eq(pledge.contactId, contactIdNum));
 
     if (pledges.length === 0) {
-      return NextResponse.json(
-        { paymentPlans: [] },
-        {
-          headers: {
-            "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
-          },
-        }
-      );
+      return NextResponse.json({ paymentPlans: [] });
     }
 
     const pledgeIds = pledges.map((p) => p.id);
@@ -131,14 +124,7 @@ export async function GET(
 
     const paymentPlans = await query;
 
-    return NextResponse.json(
-      { paymentPlans },
-      {
-        headers: {
-          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
-        },
-      }
-    );
+    return NextResponse.json({ paymentPlans });
   } catch (error) {
     console.error(error);
     return NextResponse.json(
