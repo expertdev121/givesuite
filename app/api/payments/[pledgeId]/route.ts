@@ -180,11 +180,11 @@ export async function GET(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ pledgeId: string }> }
 ) {
   try {
-    const { id } = await params;
-    const paymentId = parseInt(id);
+    const { pledgeId } = await params;
+    const paymentId = parseInt(pledgeId);
     if (isNaN(paymentId) || paymentId <= 0) {
       return NextResponse.json(
         { error: "Invalid payment ID" },
