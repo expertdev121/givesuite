@@ -114,14 +114,12 @@ export default function PaymentPlansTable({
       maximumFractionDigits: 0,
     }).format(parseFloat(amount));
 
-    // Extract currency symbol and amount
     const currencySymbol = formatted.replace(/[\d,.\s]/g, "");
     const numericAmount = formatted.replace(/[^\d,.\s]/g, "").trim();
 
     return { symbol: currencySymbol, amount: numericAmount };
   };
 
-  // Helper function to convert currency using exchange rate
   const convertToUSD = (amount: string, exchangeRate: string | null) => {
     if (!exchangeRate || exchangeRate === "0" || !amount) return null;
     const convertedAmount = parseFloat(amount) / parseFloat(exchangeRate);
@@ -193,7 +191,7 @@ export default function PaymentPlansTable({
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle>Payment Plans</CardTitle>
+          <CardTitle>Payment Plansssss</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-4 mb-6">

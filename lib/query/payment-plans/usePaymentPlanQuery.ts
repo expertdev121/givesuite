@@ -116,18 +116,10 @@ export const useCreatePaymentPlanMutation = () => {
 
       return response.json();
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (variables) => {
       queryClient.invalidateQueries();
-      queryClient.invalidateQueries({ queryKey: ["paymentPlans"] });
-      queryClient.invalidateQueries({
-        queryKey: ["paymentPlans", variables.pledgeId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["pledges", variables.pledgeId],
-      });
-      queryClient.invalidateQueries({ queryKey: ["pledges"] });
 
-      toast.success("Payment plan created successfully!");
+      toast.success("Payment plan created successfully Here!");
     },
     onError: (error) => {
       console.error("Error creating payment plan:", error);

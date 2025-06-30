@@ -90,9 +90,7 @@ export const usePaymentPlans = ({
       } else {
         throw new Error("Either pledgeId or contactId must be provided");
       }
-
       const response = await axios.get(url, { params });
-
       return PaymentPlansResponseSchema.parse(response.data);
     },
     enabled: !!(pledgeId || contactId),
