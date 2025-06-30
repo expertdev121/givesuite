@@ -266,28 +266,28 @@ export default function PaymentPlansTable({
                     Rec Dt 2
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Pledge $USD
+                    Pledge USD
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Pledge $Cur
+                    Pledge Cur
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Paid $USD
+                    Paid USD
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Paid $Cur
+                    Paid Cur
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Bal $USD
+                    Bal USD
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Bal $Cur
+                    Bal Cur
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Sched $Cur
+                    Sched Cur
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Bal-Sched $Cur
+                    Bal-Sched Cur
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
                     Notes
