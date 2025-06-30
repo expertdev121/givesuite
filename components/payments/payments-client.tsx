@@ -63,6 +63,7 @@ import FactsDialog from "../facts-iframe";
 import PaymentFormDialog from "../forms/payment-dialog";
 import EditPaymentDialog from "@/app/contacts/[contactId]/payments/__components/edit-payment";
 import { toast } from "sonner";
+import { formatDate } from "@/lib/utils";
 
 const PaymentStatusEnum = z.enum([
   "pending",
@@ -210,10 +211,6 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
     const numericAmount = formatted.replace(/[^\d,.\s]/g, "").trim();
 
     return { symbol: currencySymbol, amount: numericAmount };
-  };
-
-  const formatDate = (dateString: string | null) => {
-    return dateString ? new Date(dateString).toLocaleDateString() : "N/A";
   };
 
   const getStatusBadgeColor = (status: string) => {
@@ -462,6 +459,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                       Payment (USD):
                                     </span>
                                     <span className="font-medium">
+                                      ${" "}
                                       {
                                         formatCurrency(
                                           payment.amountUsd || "",
