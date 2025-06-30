@@ -28,6 +28,7 @@ import { Input } from "../ui/input";
 import { Skeleton } from "../ui/skeleton";
 import { Button } from "../ui/button";
 import StudentRoleDialog from "../forms/student-role";
+import { formatDate } from "@/lib/utils";
 
 interface StudentRolesTableProps {
   contactId: string | number;
@@ -224,11 +225,6 @@ export default function StudentRolesTable({
     if (newExpanded.has(roleId)) newExpanded.delete(roleId);
     else newExpanded.add(roleId);
     setExpandedRows(newExpanded);
-  };
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString();
   };
 
   if (error) {
@@ -493,7 +489,7 @@ export default function StudentRolesTable({
                                       Start Date:
                                     </span>
                                     <span className="font-medium">
-                                      {formatDate(role.startDate)}
+                                      {formatDate(role.startDate || "")}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
@@ -501,7 +497,7 @@ export default function StudentRolesTable({
                                       End Date:
                                     </span>
                                     <span className="font-medium">
-                                      {formatDate(role.endDate)}
+                                      {formatDate(role.endDate || "")}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">

@@ -18,8 +18,8 @@ interface StudentRole {
   year: string;
   track?: string;
   machzor?: string;
-  startDate?: string;
-  endDate?: string;
+  startDate?: string | null;
+  endDate?: string | null;
   isActive: boolean;
   additionalNotes?: string;
   createdAt: string;

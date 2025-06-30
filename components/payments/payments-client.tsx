@@ -360,7 +360,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                           {formatDate(payment.paymentDate)}
                         </TableCell>
                         <TableCell className="font-medium">
-                          {formatDate(payment.receivedDate)}
+                          {formatDate(payment.receivedDate || "")}
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col">
@@ -442,7 +442,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                       Received Date:
                                     </span>
                                     <span className="font-medium">
-                                      {formatDate(payment.receivedDate)}
+                                      {formatDate(payment.receivedDate || "")}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">

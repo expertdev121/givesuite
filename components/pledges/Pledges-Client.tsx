@@ -55,6 +55,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useDeletePledge } from "@/lib/query/pledge/usePledgeQuery";
+import { formatDate } from "@/lib/utils";
 
 const QueryParamsSchema = z.object({
   contactId: z.number().positive(),
@@ -156,10 +157,6 @@ export default function PledgesTable() {
     const numericAmount = formatted.replace(/[^\d,.\s]/g, "").trim();
 
     return { symbol: currencySymbol, amount: numericAmount };
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
   };
 
   const getProgressColor = (percentage: number) => {
