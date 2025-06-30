@@ -186,6 +186,16 @@ export default function StudentRolesTable({
     error: deactivateError,
   } = useDeactivateStudentRole();
 
+  // Handle deactivation error - MOVED BEFORE EARLY RETURNS
+  React.useEffect(() => {
+    if (deactivateError) {
+      setErrorMessage(
+        deactivateError.response?.data?.error ||
+          "Failed to deactivate student role"
+      );
+    }
+  }, [deactivateError]);
+
   // Check for contactId error AFTER hooks
   if (isNaN(parsedContactId) || parsedContactId <= 0) {
     return (
@@ -196,16 +206,6 @@ export default function StudentRolesTable({
       </Alert>
     );
   }
-
-  // Handle deactivation error
-  React.useEffect(() => {
-    if (deactivateError) {
-      setErrorMessage(
-        deactivateError.response?.data?.error ||
-          "Failed to deactivate student role"
-      );
-    }
-  }, [deactivateError]);
 
   const handleDeactivate = (roleId: number) => {
     setErrorMessage(null); // Clear previous errors
