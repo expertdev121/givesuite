@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { z } from "zod";
@@ -9,48 +10,6 @@ const PlanStatusEnum = z.enum([
   "paused",
   "overdue",
 ]);
-
-const PaymentPlanSchema = z.object({
-  id: z.number(),
-  planName: z.string().nullable(),
-  frequency: z.enum([
-    "weekly",
-    "monthly",
-    "quarterly",
-    "biannual",
-    "annual",
-    "one_time",
-    "custom",
-  ]),
-  totalPlannedAmount: z.string(),
-  currency: z.enum(["USD", "ILS", "EUR", "JPY", "GBP", "AUD", "CAD", "ZAR"]),
-  installmentAmount: z.string(),
-  numberOfInstallments: z.number(),
-  startDate: z.string(),
-  endDate: z.string().nullable(),
-  nextPaymentDate: z.string().nullable(),
-  installmentsPaid: z.number(),
-  totalPaid: z.string(),
-  totalPaidUsd: z.string().nullable(),
-  exchangeRate: z.string(),
-  remainingAmount: z.string(),
-  planStatus: PlanStatusEnum,
-  autoRenew: z.boolean(),
-  remindersSent: z.number(),
-  lastReminderDate: z.string().nullable(),
-  isActive: z.boolean(),
-  notes: z.string().nullable(),
-  internalNotes: z.string().nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  pledgeId: z.number().optional(),
-});
-
-const PaymentPlansResponseSchema = z.object({
-  paymentPlans: z.array(PaymentPlanSchema),
-});
-
-type PaymentPlansResponse = z.infer<typeof PaymentPlansResponseSchema>;
 
 interface UsePaymentPlansParams {
   pledgeId?: number;
