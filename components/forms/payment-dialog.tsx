@@ -77,7 +77,6 @@ const useSolicitors = (params: SolicitorsParams = {}) => {
   });
 };
 
-// Constants
 const supportedCurrencies = [
   "USD",
   "ILS",
@@ -182,6 +181,7 @@ export default function PaymentFormDialog({
     data: exchangeRatesData,
     isLoading: isLoadingRates,
     error: ratesError,
+    refetch: refetchRates,
   } = useExchangeRates();
   const { data: solicitorsData, isLoading: isLoadingSolicitors } =
     useSolicitors({ status: "active" });
@@ -212,6 +212,18 @@ export default function PaymentFormDialog({
   const effectivePledgeDescription =
     pledgeDescription ||
     (pledgeData?.pledge.description ?? `Pledge #${selectedPledgeId}`);
+
+  // Helper function to get exchange rate with fallback
+  const getExchangeRate = (currency: string): number => {
+    if (currency === "USD") return 1;
+
+    if (exchangeRatesData?.data?.rates) {
+      const rate = parseFloat(exchangeRatesData.data.rates[currency]);
+      return isNaN(rate) ? 1 : rate;
+    }
+
+    return 1; // Fallback to 1 if rates not available
+  };
 
   // Form setup
   const form = useForm({
@@ -257,24 +269,57 @@ export default function PaymentFormDialog({
 
   useEffect(() => {
     if (pledgeData?.pledge) {
-      form.setValue("currency", pledgeData.pledge.currency as any);
+      const newCurrency = pledgeData.pledge.currency as any;
+      form.setValue("currency", newCurrency);
+
       const suggestedAmount =
         pledgeData.pledge.remainingBalance || pledgeData.pledge.originalAmount;
       form.setValue("amount", suggestedAmount);
-    }
-  }, [pledgeData, form]);
 
-  useEffect(() => {
-    if (
-      watchedCurrency &&
-      watchedPaymentDate &&
-      exchangeRatesData?.data?.rates
-    ) {
-      const rate =
-        parseFloat(exchangeRatesData.data.rates[watchedCurrency]) || 1;
-      form.setValue("exchangeRate", rate);
+      // Immediately update exchange rate if rates are available
+      if (exchangeRatesData?.data?.rates && newCurrency) {
+        const rate = getExchangeRate(newCurrency);
+        form.setValue("exchangeRate", rate);
+      }
     }
+  }, [pledgeData, form, exchangeRatesData]);
+
+  // Fixed exchange rate effect - handles currency and date changes
+  useEffect(() => {
+    const updateExchangeRate = () => {
+      const currency = form.getValues("currency");
+      const paymentDate = form.getValues("paymentDate");
+
+      if (currency && paymentDate) {
+        const rate = getExchangeRate(currency);
+        const currentRate = form.getValues("exchangeRate");
+
+        // Only update if the rate has actually changed to avoid unnecessary re-renders
+        if (currentRate !== rate) {
+          form.setValue("exchangeRate", rate);
+        }
+      }
+    };
+
+    updateExchangeRate();
   }, [watchedCurrency, watchedPaymentDate, exchangeRatesData, form]);
+
+  // Additional effect to handle initial loading and ensure exchange rate is set
+  useEffect(() => {
+    // This ensures exchange rate is set when exchange rates data becomes available
+    // even if currency was already set
+    if (exchangeRatesData?.data?.rates && !isLoadingRates) {
+      const currency = form.getValues("currency");
+      if (currency) {
+        const rate = getExchangeRate(currency);
+        const currentRate = form.getValues("exchangeRate");
+
+        if (currentRate !== rate) {
+          form.setValue("exchangeRate", rate);
+        }
+      }
+    }
+  }, [exchangeRatesData, isLoadingRates, form]);
 
   useEffect(() => {
     const exchangeRate = form.getValues("exchangeRate");
@@ -318,7 +363,11 @@ export default function PaymentFormDialog({
     setShowSolicitorSection(false);
   };
 
-  // Only modify the onSubmit function to auto-convert amount to pledge currency
+  const retryExchangeRates = () => {
+    if (refetchRates) {
+      refetchRates();
+    }
+  };
 
   const onSubmit = async (data: PaymentFormData) => {
     try {
@@ -334,14 +383,13 @@ export default function PaymentFormDialog({
       }
 
       if (inputCurrency !== pledgeCurrency && exchangeRatesData?.data?.rates) {
-        const inputToUsdRate =
-          parseFloat(exchangeRatesData.data.rates[inputCurrency]) || 1;
+        const inputToUsdRate = getExchangeRate(inputCurrency);
         const usdAmount = data.amount * inputToUsdRate;
-        const usdToPledgeRate =
-          parseFloat(exchangeRatesData.data.rates[pledgeCurrency]) || 1;
+        const usdToPledgeRate = getExchangeRate(pledgeCurrency);
         convertedAmount = usdAmount / usdToPledgeRate;
         convertedAmount = Math.round(convertedAmount * 100) / 100; // Round to 2 decimal places
       }
+
       const payload = {
         ...data,
         amountUsd: data.amountUsd,
@@ -428,7 +476,6 @@ export default function PaymentFormDialog({
 
         <Form {...form}>
           <div className="space-y-4">
-            {/* Pledge Selector */}
             {showPledgeSelector && (
               <FormField
                 control={form.control}
@@ -530,7 +577,12 @@ export default function PaymentFormDialog({
                   <FormItem>
                     <FormLabel>Currency *</FormLabel>
                     <Select
-                      onValueChange={field.onChange}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        // Immediately update exchange rate when currency changes
+                        const rate = getExchangeRate(value);
+                        form.setValue("exchangeRate", rate);
+                      }}
                       defaultValue={field.value}
                       disabled={isLoadingRates}
                     >
@@ -548,13 +600,44 @@ export default function PaymentFormDialog({
                       <SelectContent>
                         {supportedCurrencies.map((curr) => (
                           <SelectItem key={curr} value={curr}>
-                            {curr}
+                            {curr}{" "}
+                            {isLoadingRates && curr !== "USD"
+                              ? "(Loading rate...)"
+                              : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                     {ratesError && (
                       <FormMessage>Error loading exchange rates</FormMessage>
+                    )}
+                    {watchedCurrency && watchedCurrency !== "USD" && (
+                      <div className="text-sm text-muted-foreground mt-1">
+                        {isLoadingRates ? (
+                          <span className="text-blue-600">
+                            Loading exchange rate...
+                          </span>
+                        ) : ratesError ? (
+                          <span className="text-red-600">
+                            Failed to load exchange rate. Using rate:{" "}
+                            {form.watch("exchangeRate")}
+                            <Button
+                              type="button"
+                              variant="link"
+                              size="sm"
+                              onClick={retryExchangeRates}
+                              className="p-0 h-auto ml-2"
+                            >
+                              Retry
+                            </Button>
+                          </span>
+                        ) : (
+                          <span className="text-green-600">
+                            Exchange rate loaded: 1 {watchedCurrency} ={" "}
+                            {form.watch("exchangeRate")} USD
+                          </span>
+                        )}
+                      </div>
                     )}
                     <FormMessage />
                   </FormItem>
