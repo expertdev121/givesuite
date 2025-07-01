@@ -15,6 +15,13 @@
       "when": 1751269262773,
       "tag": "0001_great_masque",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1751393026083,
+      "tag": "0002_damp_rogue",
+      "breakpoints": true
     }
   ]
 }

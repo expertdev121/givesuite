@@ -86,6 +86,18 @@ export async function GET(
         createdAt: paymentPlan.createdAt,
         updatedAt: paymentPlan.updatedAt,
         exchangeRate: pledge.exchangeRate,
+        pledgeExchangeRate: sql<string>`(
+                  SELECT exchange_rate FROM ${pledge} WHERE id = ${paymentPlan.pledgeId}
+                )`.as("pledgeExchangeRate"),
+        pledgeCurrency: sql<string>`(
+                      SELECT currency FROM ${pledge} WHERE id = ${paymentPlan.pledgeId}
+                    )`.as("pledgeCurrency"),
+        originalAmountUsd: sql<string>`(
+              SELECT original_amount_usd FROM ${pledge} WHERE id = ${paymentPlan.pledgeId}
+            )`.as("originalAmountUsd"),
+        originalAmount: sql<string>`(
+                    SELECT original_amount FROM ${pledge} WHERE id = ${paymentPlan.pledgeId}
+                  )`.as("originalAmount"),
       })
       .from(paymentPlan)
       .innerJoin(pledge, eq(paymentPlan.pledgeId, pledge.id))

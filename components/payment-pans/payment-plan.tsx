@@ -126,17 +126,14 @@ export default function PaymentPlansTable({
     return convertedAmount.toString();
   };
 
-  // Helper function to get USD equivalent with fallback
   const getUSDAmount = (
     originalAmount: string,
     usdAmount: string | null,
     exchangeRate: string | null
   ) => {
-    // If we have a USD amount from the database, use it
     if (usdAmount && usdAmount !== "0") {
       return usdAmount;
     }
-    // Otherwise, calculate using exchange rate
     const converted = convertToUSD(originalAmount, exchangeRate);
     return converted || originalAmount; // Fallback to original if conversion fails
   };
@@ -361,8 +358,7 @@ export default function PaymentPlansTable({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  data?.paymentPlans.map((plan) => {
-                    // Calculate USD amounts using exchange rate
+                  data?.paymentPlans.map((plan: any) => {
                     const pledgeUSD = getUSDAmount(
                       plan.totalPlannedAmount,
                       plan.totalPaidUsd,
@@ -424,27 +420,19 @@ export default function PaymentPlansTable({
                                 {formatCurrency(pledgeUSD || "0", "USD").symbol}
                               </span>
                               <span>
-                                {formatCurrency(pledgeUSD || "0", "USD").amount}
+                                {Math.round(
+                                  Number(plan.originalAmountUsd)
+                                ).toLocaleString("en-US")}
                               </span>
                             </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex justify-evenly">
+                              <span>{plan.pledgeCurrency}</span>
                               <span>
-                                {
-                                  formatCurrency(
-                                    plan.totalPlannedAmount,
-                                    plan.currency
-                                  ).symbol
-                                }
-                              </span>
-                              <span>
-                                {
-                                  formatCurrency(
-                                    plan.totalPlannedAmount,
-                                    plan.currency
-                                  ).amount
-                                }
+                                {Math.round(
+                                  Number(plan.originalAmount)
+                                ).toLocaleString("en-US")}
                               </span>
                             </div>
                           </TableCell>

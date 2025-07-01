@@ -1,0 +1,1 @@
+ALTER TABLE "payment_plan" ADD COLUMN "exchange_rate" numeric(10, 2);

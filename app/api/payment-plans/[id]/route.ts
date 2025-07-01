@@ -108,10 +108,20 @@ export async function GET(
         internalNotes: paymentPlan.internalNotes,
         createdAt: paymentPlan.createdAt,
         updatedAt: paymentPlan.updatedAt,
+        exchangeRate: paymentPlan.exchangeRate,
         // Add exchange rate from pledge table
-        exchangeRate: sql<string>`(
+        pledgeExchangeRate: sql<string>`(
           SELECT exchange_rate FROM ${pledge} WHERE id = ${paymentPlan.pledgeId}
-        )`.as("exchangeRate"),
+        )`.as("pledgeExchangeRate"),
+        pledgeCurrency: sql<string>`(
+              SELECT currency FROM ${pledge} WHERE id = ${paymentPlan.pledgeId}
+            )`.as("pledgeCurrency"),
+        originalAmountUsd: sql<string>`(
+                  SELECT original_amount_usd FROM ${pledge} WHERE id = ${paymentPlan.pledgeId}
+                )`.as("originalAmountUsd"),
+        originalAmount: sql<string>`(
+                        SELECT original_amount FROM ${pledge} WHERE id = ${paymentPlan.pledgeId}
+                      )`.as("originalAmount"),
       })
       .from(paymentPlan)
       .where(eq(paymentPlan.pledgeId, pledgeId))

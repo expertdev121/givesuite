@@ -362,7 +362,7 @@ export const paymentPlan = pgTable(
       scale: 2,
     }).notNull(),
     numberOfInstallments: integer("number_of_installments").notNull(),
-
+    exchangeRate: numeric("exchange_rate", { precision: 10, scale: 2 }),
     startDate: date("start_date").notNull(),
     endDate: date("end_date"),
     nextPaymentDate: date("next_payment_date"),
