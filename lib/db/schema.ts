@@ -525,6 +525,10 @@ export const payment = pgTable(
     amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
     currency: currencyEnum("currency").notNull(),
     amountUsd: numeric("amount_usd", { precision: 10, scale: 2 }),
+    amountInPledgeCurrency: numeric("amount_pledge_currency", {
+      precision: 10,
+      scale: 2,
+    }),
     exchangeRate: numeric("exchange_rate", { precision: 10, scale: 4 }),
 
     paymentDate: date("payment_date").notNull(),

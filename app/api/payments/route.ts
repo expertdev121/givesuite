@@ -10,6 +10,9 @@ const paymentSchema = z.object({
   amount: z.number().positive("Payment amount must be positive"),
   currency: z.enum(["USD", "ILS", "EUR", "JPY", "GBP", "AUD", "CAD", "ZAR"]),
   amountUsd: z.number().positive("Payment amount in USD must be positive"),
+  amountInPledgeCurrency: z
+    .number()
+    .positive("Payment amount in USD must be positive"),
   exchangeRate: z.number().positive("Exchange rate must be positive"),
   paymentDate: z.string().min(1, "Payment date is required"),
   receivedDate: z.string().optional(),
@@ -65,24 +68,45 @@ export async function POST(request: NextRequest) {
     }
 
     const pledgeData = currentPledge[0];
-    const currentTotalPaid = parseFloat(pledgeData.totalPaid);
-    const currentTotalPaidUsd = parseFloat(pledgeData.totalPaidUsd || "0");
     const originalAmount = parseFloat(pledgeData.originalAmount);
     const originalAmountUsd = parseFloat(pledgeData.originalAmountUsd || "0");
 
-    // Calculate new totals
-    const newTotalPaid = currentTotalPaid + validatedData.amount;
-    const newTotalPaidUsd = currentTotalPaidUsd + validatedData.amountUsd;
-    const newBalance = originalAmount - newTotalPaid;
-    const newBalanceUsd = originalAmountUsd - newTotalPaidUsd;
+    // Calculate current total paid from existing payments
+    const currentPayments = await db
+      .select({
+        totalInPledgeCurrency: sql<number>`COALESCE(SUM(${payment.amountInPledgeCurrency}::numeric), 0)`,
+        totalUsd: sql<number>`COALESCE(SUM(${payment.amountUsd}::numeric), 0)`,
+      })
+      .from(payment)
+      .where(eq(payment.pledgeId, validatedData.pledgeId));
+
+    const currentTotalPaid = Number(currentPayments[0].totalInPledgeCurrency);
+    const currentTotalPaidUsd = Number(currentPayments[0].totalUsd);
+
+    // Calculate new totals including the new payment, rounded to 2 decimal places
+    const newTotalPaid = Number(
+      (currentTotalPaid + validatedData.amountInPledgeCurrency).toFixed(2)
+    );
+    const newTotalPaidUsd = Number(
+      (currentTotalPaidUsd + validatedData.amountUsd).toFixed(2)
+    );
+    const newBalance = Number(
+      Math.max(0, originalAmount - newTotalPaid).toFixed(2)
+    );
+    const newBalanceUsd = Number(
+      Math.max(0, originalAmountUsd - newTotalPaidUsd).toFixed(2)
+    );
 
     // Prepare the new payment with all schema fields
     const newPayment = {
       pledgeId: validatedData.pledgeId,
-      amount: validatedData.amount.toString(),
+      amount: Number(validatedData.amount.toFixed(2)).toString(),
       currency: validatedData.currency,
-      amountUsd: validatedData.amountUsd.toString(),
-      exchangeRate: validatedData.exchangeRate.toString(),
+      amountUsd: Number(validatedData.amountUsd.toFixed(2)).toString(),
+      amountInPledgeCurrency: Number(
+        validatedData.amountInPledgeCurrency.toFixed(2)
+      ).toString(),
+      exchangeRate: Number(validatedData.exchangeRate.toFixed(4)).toString(),
       paymentDate: validatedData.paymentDate,
       receivedDate: validatedData.receivedDate || validatedData.paymentDate,
       paymentMethod: validatedData.paymentMethod,
@@ -94,8 +118,12 @@ export async function POST(request: NextRequest) {
       receiptIssued: validatedData.receiptIssued,
       // NEW SOLICITOR FIELDS
       solicitorId: validatedData.solicitorId || null,
-      bonusPercentage: validatedData.bonusPercentage?.toString() || null,
-      bonusAmount: validatedData.bonusAmount?.toString() || null,
+      bonusPercentage: validatedData.bonusPercentage
+        ? Number(validatedData.bonusPercentage.toFixed(2)).toString()
+        : null,
+      bonusAmount: validatedData.bonusAmount
+        ? Number(validatedData.bonusAmount.toFixed(2)).toString()
+        : null,
       bonusRuleId: validatedData.bonusRuleId || null,
       notes: validatedData.notes || null,
       paymentPlanId: validatedData.paymentPlanId || null,
@@ -120,8 +148,8 @@ export async function POST(request: NextRequest) {
       .set({
         totalPaid: newTotalPaid.toString(),
         totalPaidUsd: newTotalPaidUsd.toString(),
-        balance: Math.max(0, newBalance).toString(),
-        balanceUsd: Math.max(0, newBalanceUsd).toString(),
+        balance: newBalance.toString(),
+        balanceUsd: newBalanceUsd.toString(),
         updatedAt: new Date(),
       })
       .where(eq(pledge.id, validatedData.pledgeId))
@@ -173,7 +201,7 @@ export async function POST(request: NextRequest) {
 const querySchema = z.object({
   pledgeId: z.number().positive().optional(),
   contactId: z.number().positive().optional(),
-  solicitorId: z.number().positive().optional(), // NEW: Filter by solicitor
+  solicitorId: z.number().positive().optional(),
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(10),
   search: z.string().optional(),
@@ -200,7 +228,7 @@ const querySchema = z.object({
     .optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
-  hasSolicitor: z.coerce.boolean().optional(), // NEW: Filter payments with/without solicitor
+  hasSolicitor: z.coerce.boolean().optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -265,12 +293,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // NEW: Filter by solicitor
     if (solicitorId) {
       conditions.push(eq(payment.solicitorId, solicitorId));
     }
 
-    // NEW: Filter by whether payment has a solicitor or not
     if (hasSolicitor !== undefined) {
       if (hasSolicitor) {
         conditions.push(sql`${payment.solicitorId} IS NOT NULL`);
@@ -311,11 +337,10 @@ export async function GET(request: NextRequest) {
       .select({
         id: payment.id,
         pledgeId: payment.pledgeId,
-
         amount: payment.amount,
         currency: payment.currency,
         amountUsd: payment.amountUsd,
-        exchangeRate: payment.exchangeRate, // NEW
+        exchangeRate: payment.exchangeRate,
         paymentDate: payment.paymentDate,
         receivedDate: payment.receivedDate,
         paymentMethod: payment.paymentMethod,
@@ -323,9 +348,8 @@ export async function GET(request: NextRequest) {
         referenceNumber: payment.referenceNumber,
         checkNumber: payment.checkNumber,
         receiptNumber: payment.receiptNumber,
-        receiptType: payment.receiptType, // NEW
+        receiptType: payment.receiptType,
         receiptIssued: payment.receiptIssued,
-        // NEW SOLICITOR FIELDS
         solicitorId: payment.solicitorId,
         bonusPercentage: payment.bonusPercentage,
         bonusAmount: payment.bonusAmount,
@@ -334,7 +358,6 @@ export async function GET(request: NextRequest) {
         paymentPlanId: payment.paymentPlanId,
         createdAt: payment.createdAt,
         updatedAt: payment.updatedAt,
-        // Pledge information
         pledgeDescription: sql<string>`(
           SELECT description FROM ${pledge} WHERE id = ${payment.pledgeId}
         )`.as("pledgeDescription"),
@@ -342,11 +365,11 @@ export async function GET(request: NextRequest) {
           SELECT original_amount FROM ${pledge} WHERE id = ${payment.pledgeId}
         )`.as("pledgeOriginalAmount"),
         pledgeOriginalCurrency: sql<string>`(
-              SELECT currency FROM ${pledge} WHERE id = ${payment.pledgeId}
-            )`.as("pledgeOriginalCurrency"),
+          SELECT currency FROM ${pledge} WHERE id = ${payment.pledgeId}
+        )`.as("pledgeOriginalCurrency"),
         pledgeExchangeRate: sql<string>`(
-                  SELECT exchange_rate FROM ${pledge} WHERE id = ${payment.pledgeId}
-                )`.as("pledgeExchangeRate"),
+          SELECT exchange_rate FROM ${pledge} WHERE id = ${payment.pledgeId}
+        )`.as("pledgeExchangeRate"),
         contactId: sql<number>`(
           SELECT contact_id FROM ${pledge} WHERE id = ${payment.pledgeId}
         )`.as("contactId"),

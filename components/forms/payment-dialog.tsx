@@ -369,34 +369,60 @@ export default function PaymentFormDialog({
     }
   };
 
+  const convertToPledgeCurrency = (
+    amount: number,
+    inputCurrency: string,
+    pledgeCurrency: string,
+    exchangeRates: Record<string, string> | undefined
+  ): number => {
+    if (!supportedCurrencies.includes(pledgeCurrency as any)) {
+      throw new Error(`Unsupported pledge currency: ${pledgeCurrency}`);
+    }
+
+    if (inputCurrency === pledgeCurrency || !exchangeRates) {
+      return Math.round(amount * 100) / 100; // No conversion needed, round to 2 decimals
+    }
+
+    const inputToUsdRate = parseFloat(exchangeRates[inputCurrency] || "1");
+    const usdToPledgeRate = parseFloat(exchangeRates[pledgeCurrency] || "1");
+
+    if (isNaN(inputToUsdRate) || isNaN(usdToPledgeRate)) {
+      throw new Error(
+        `Invalid exchange rates for ${inputCurrency} or ${pledgeCurrency}`
+      );
+    }
+
+    const usdAmount = amount * inputToUsdRate;
+    const convertedAmount = usdAmount / usdToPledgeRate;
+    return Math.round(convertedAmount * 100) / 100; // Round to 2 decimal places
+  };
+
   const onSubmit = async (data: PaymentFormData) => {
     try {
-      let convertedAmount = data.amount;
-      const inputCurrency = data.currency;
-      const pledgeCurrency = (effectivePledgeCurrency ||
-        "USD") as (typeof supportedCurrencies)[number];
+      const pledgeCurrency = effectivePledgeCurrency || "USD";
 
-      // Validate that pledge currency is supported
       if (!supportedCurrencies.includes(pledgeCurrency as any)) {
         toast.error(`Unsupported pledge currency: ${pledgeCurrency}`);
         return;
       }
 
-      if (inputCurrency !== pledgeCurrency && exchangeRatesData?.data?.rates) {
-        const inputToUsdRate = getExchangeRate(inputCurrency);
-        const usdAmount = data.amount * inputToUsdRate;
-        const usdToPledgeRate = getExchangeRate(pledgeCurrency);
-        convertedAmount = usdAmount / usdToPledgeRate;
-        convertedAmount = Math.round(convertedAmount * 100) / 100; // Round to 2 decimal places
+      const convertedAmount = convertToPledgeCurrency(
+        data.amount,
+        data.currency,
+        pledgeCurrency,
+        exchangeRatesData?.data?.rates
+      );
+
+      if (convertedAmount <= 0) {
+        toast.error("Converted amount must be positive");
+        return;
       }
 
       const payload = {
         ...data,
         amountUsd: data.amountUsd,
+        amountInPledgeCurrency: convertedAmount,
       };
-
-      console.log("Original amount:", data.amount, data.currency);
-      console.log("Converted amount:", convertedAmount, pledgeCurrency);
 
       await createPaymentMutation.mutateAsync(payload);
       toast.success("Payment created successfully!");

@@ -1,0 +1,1 @@
+ALTER TABLE "payment" ADD COLUMN "amount_pledge_currency" numeric(10, 2);
