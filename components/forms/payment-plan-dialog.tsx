@@ -1,9 +1,13 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import React, { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+
+import type React from "react";
+
+import { useEffect, useState, useRef } from "react";
+
 import { zodResolver } from "@hookform/resolvers/zod";
+
 import { z } from "zod";
+
 import {
   Check,
   ChevronsUpDown,
@@ -12,8 +16,11 @@ import {
   Play,
   Edit,
   Calculator,
+  TrendingUp,
 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
+
 import {
   Command,
   CommandEmpty,
@@ -22,6 +29,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+
 import {
   Dialog,
   DialogContent,
@@ -30,6 +38,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+
 import {
   Form,
   FormControl,
@@ -38,12 +47,15 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+
 import { Input } from "@/components/ui/input";
+
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+
 import {
   Select,
   SelectContent,
@@ -51,18 +63,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
 import { Textarea } from "@/components/ui/textarea";
+
 import { Checkbox } from "@/components/ui/checkbox";
+
 import { CalendarIcon } from "lucide-react";
+
 import { cn } from "@/lib/utils";
-import {
-  useCreatePaymentPlanMutation,
-  useUpdatePaymentPlanMutation,
-  usePaymentPlanQuery,
-  usePledgeDetailsQuery,
-  usePauseResumePaymentPlanMutation,
-  useDeletePaymentPlanMutation,
-} from "@/lib/query/payment-plans/usePaymentPlanQuery";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -74,8 +83,24 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+
+// Import your existing hooks and mutations
+import {
+  useCreatePaymentPlanMutation,
+  useUpdatePaymentPlanMutation,
+  usePaymentPlanQuery,
+  usePledgeDetailsQuery,
+  usePauseResumePaymentPlanMutation,
+  useDeletePaymentPlanMutation,
+} from "@/lib/query/payment-plans/usePaymentPlanQuery";
+
 import useContactId from "@/hooks/use-contact-id";
+
 import { usePledgesQuery } from "@/lib/query/usePledgeData";
+
+import { useExchangeRates } from "@/lib/query/useExchangeRates";
+
+import { useForm } from "react-hook-form";
 
 const supportedCurrencies = [
   "USD",
@@ -149,18 +174,78 @@ interface PaymentPlanDialogProps {
   pledgeDescription?: string;
   remainingBalance?: number;
   showPledgeSelector?: boolean;
-
   // For edit mode
   paymentPlanId?: number;
   mode?: "create" | "edit";
-
   // Trigger component
   trigger?: React.ReactNode;
-
   // Callbacks
   onSuccess?: () => void;
   onClose?: () => void;
 }
+
+// Currency conversion helper function
+const convertAmount = (
+  amount: number,
+  fromCurrency: string,
+  toCurrency: string,
+  exchangeRates: Record<string, string> | undefined
+): number => {
+  if (!exchangeRates || fromCurrency === toCurrency) return amount;
+
+  // Convert to USD first if not already USD
+  let usdAmount = amount;
+  if (fromCurrency !== "USD") {
+    const fromRate = Number.parseFloat(exchangeRates[fromCurrency] || "1");
+    usdAmount = amount * fromRate;
+  }
+
+  // Convert from USD to target currency
+  if (toCurrency !== "USD") {
+    const toRate = Number.parseFloat(exchangeRates[toCurrency] || "1");
+    return usdAmount / toRate;
+  }
+
+  return usdAmount;
+};
+
+// Exchange Rate Display Component
+const ExchangeRateDisplay = ({
+  currency,
+  exchangeRates,
+  isLoading,
+}: {
+  currency: string | undefined;
+  exchangeRates: Record<string, string> | undefined;
+  isLoading: boolean;
+}) => {
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <TrendingUp className="w-4 h-4 animate-pulse" />
+        Loading exchange rates...
+      </div>
+    );
+  }
+
+  if (!exchangeRates || !currency || currency === "USD") return null;
+
+  const rate = exchangeRates[currency];
+
+  if (!rate) return null;
+
+  const rateValue = Number.parseFloat(rate);
+  const usdRate = 1 / rateValue;
+
+  return (
+    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <TrendingUp className="w-4 h-4" />
+      <span>
+        1 {currency} = {usdRate.toFixed(4)} USD
+      </span>
+    </div>
+  );
+};
 
 const calculateNextPaymentDate = (
   startDate: string,
@@ -247,14 +332,20 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
   const [isEditing, setIsEditing] = useState(mode === "edit");
   const [manualInstallment, setManualInstallment] = useState(false);
 
-  // Determine if this is edit mode
+  const previousCurrencyRef = useRef<string | undefined>(null);
+  const isFormInitializedRef = useRef(false);
+
+  const { data: exchangeRateData, isLoading: isLoadingRates } =
+    useExchangeRates();
+  const exchangeRates = exchangeRateData?.data?.rates;
+
   const isEditMode = mode === "edit" && !!paymentPlanId;
 
-  // Queries for edit mode
   const { data: existingPlanData, isLoading: isLoadingPlan } =
     usePaymentPlanQuery(paymentPlanId || 0);
 
   const contactId = useContactId();
+
   const { data: pledgesData, isLoading: isLoadingPledges } = usePledgesQuery({
     contactId: contactId as number,
     page: 1,
@@ -297,7 +388,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
   // Determine effective values - prioritize props in create mode, existing plan in edit mode
   const effectivePledgeAmount =
     isEditMode && existingPlan
-      ? parseFloat(existingPlan?.pledgeOriginalAmount?.toString() || "0")
+      ? Number.parseFloat(existingPlan?.pledgeOriginalAmount?.toString() || "0")
       : pledgeAmount || (pledgeData?.pledge.originalAmount ?? 0);
 
   const effectivePledgeCurrency =
@@ -313,7 +404,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
 
   const effectiveRemainingBalance =
     isEditMode && existingPlan
-      ? parseFloat(existingPlan?.remainingAmount?.toString() || "0")
+      ? Number.parseFloat(existingPlan?.remainingAmount?.toString() || "0")
       : remainingBalance ||
         (pledgeData?.pledge.remainingBalance ?? effectivePledgeAmount);
 
@@ -354,6 +445,50 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
   const watchedNumberOfInstallments = form.watch("numberOfInstallments");
   const watchedTotalPlannedAmount = form.watch("totalPlannedAmount");
   const watchedInstallmentAmount = form.watch("installmentAmount");
+  const watchedCurrency = form.watch("currency");
+
+  // Currency conversion effect - handles automatic conversion when currency changes
+  useEffect(() => {
+    if (
+      !isFormInitializedRef.current ||
+      !exchangeRates ||
+      !previousCurrencyRef.current ||
+      !watchedCurrency ||
+      previousCurrencyRef.current === watchedCurrency
+    ) {
+      previousCurrencyRef.current = watchedCurrency;
+      return;
+    }
+
+    const currentAmount = form.getValues("totalPlannedAmount");
+    if (currentAmount > 0) {
+      const convertedAmount = convertAmount(
+        currentAmount,
+        previousCurrencyRef.current,
+        watchedCurrency,
+        exchangeRates
+      );
+
+      // Round to 2 decimal places
+      const roundedAmount = Math.round(convertedAmount * 100) / 100;
+
+      form.setValue("totalPlannedAmount", roundedAmount);
+
+      // If not in manual installment mode, recalculate installment amount
+      if (!manualInstallment) {
+        const installments = form.getValues("numberOfInstallments");
+        if (installments > 0) {
+          const newInstallmentAmount = roundedAmount / installments;
+          form.setValue(
+            "installmentAmount",
+            Math.round(newInstallmentAmount * 100) / 100
+          );
+        }
+      }
+    }
+
+    previousCurrencyRef.current = watchedCurrency;
+  }, [watchedCurrency, exchangeRates, form, manualInstallment]);
 
   // Update form when existing plan data loads (edit mode)
   useEffect(() => {
@@ -362,11 +497,11 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
         pledgeId: existingPlan.pledgeId,
         planName: existingPlan.planName || "",
         frequency: existingPlan.frequency as any,
-        totalPlannedAmount: parseFloat(
+        totalPlannedAmount: Number.parseFloat(
           existingPlan.totalPlannedAmount?.toString() || "0"
         ),
         currency: existingPlan.currency as any,
-        installmentAmount: parseFloat(
+        installmentAmount: Number.parseFloat(
           existingPlan.installmentAmount?.toString() || "0"
         ),
         numberOfInstallments: existingPlan.numberOfInstallments || 1,
@@ -378,6 +513,10 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
         notes: existingPlan.notes || "",
         internalNotes: existingPlan.internalNotes || "",
       });
+
+      // Set the previous currency and mark form as initialized
+      previousCurrencyRef.current = existingPlan.currency;
+      isFormInitializedRef.current = true;
     }
   }, [existingPlan, isEditMode, form]);
 
@@ -393,8 +532,13 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
     if (!isEditMode && pledgeData?.pledge) {
       const newDefaultAmount =
         pledgeData.pledge.remainingBalance || pledgeData.pledge.originalAmount;
+
       form.setValue("totalPlannedAmount", newDefaultAmount);
       form.setValue("currency", pledgeData.pledge.currency as any);
+
+      // Set the previous currency and mark form as initialized
+      previousCurrencyRef.current = pledgeData.pledge.currency;
+      isFormInitializedRef.current = true;
     }
   }, [pledgeData, form, isEditMode]);
 
@@ -404,6 +548,18 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
       setSelectedPledgeId(initialPledgeId);
     }
   }, [initialPledgeId, isEditMode, selectedPledgeId]);
+
+  // Mark form as initialized when it's first set up in create mode
+  useEffect(() => {
+    if (
+      !isEditMode &&
+      !isFormInitializedRef.current &&
+      effectivePledgeCurrency
+    ) {
+      previousCurrencyRef.current = effectivePledgeCurrency;
+      isFormInitializedRef.current = true;
+    }
+  }, [isEditMode, effectivePledgeCurrency]);
 
   // Calculate installment amount automatically when not in manual mode
   useEffect(() => {
@@ -436,6 +592,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
       const calculatedInstallments = Math.ceil(
         watchedTotalPlannedAmount / watchedInstallmentAmount
       );
+
       form.setValue("numberOfInstallments", calculatedInstallments);
     }
   }, [
@@ -452,6 +609,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
         watchedStartDate,
         watchedFrequency
       );
+
       form.setValue("nextPaymentDate", nextPayment);
 
       if (watchedNumberOfInstallments > 0) {
@@ -460,6 +618,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
           watchedFrequency,
           watchedNumberOfInstallments
         );
+
         form.setValue("endDate", endDate);
       }
     }
@@ -467,17 +626,20 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
 
   const resetForm = () => {
     setManualInstallment(false);
+    isFormInitializedRef.current = false;
+    previousCurrencyRef.current = undefined;
+
     if (isEditMode && existingPlan) {
       // Reset to original plan values
       form.reset({
         pledgeId: existingPlan.pledgeId,
         planName: existingPlan.planName || "",
         frequency: existingPlan.frequency as any,
-        totalPlannedAmount: parseFloat(
+        totalPlannedAmount: Number.parseFloat(
           existingPlan.totalPlannedAmount?.toString() || "0"
         ),
         currency: existingPlan.currency as any,
-        installmentAmount: parseFloat(
+        installmentAmount: Number.parseFloat(
           existingPlan.installmentAmount?.toString() || "0"
         ),
         numberOfInstallments: existingPlan.numberOfInstallments || 1,
@@ -489,10 +651,13 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
         notes: existingPlan.notes || "",
         internalNotes: existingPlan.internalNotes || "",
       });
+
+      previousCurrencyRef.current = existingPlan.currency;
     } else {
       // Reset to create mode defaults
       const newDefaultAmount =
         effectiveRemainingBalance || effectivePledgeAmount;
+
       const defaultPledgeId =
         selectedPledgeId ||
         initialPledgeId ||
@@ -514,7 +679,14 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
         notes: "",
         internalNotes: "",
       });
+
+      previousCurrencyRef.current = effectivePledgeCurrency;
     }
+
+    // Mark as initialized after reset
+    setTimeout(() => {
+      isFormInitializedRef.current = true;
+    }, 100);
   };
 
   const onSubmit = async (data: PaymentPlanFormData) => {
@@ -526,41 +698,53 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
         // Only include changed fields
         if (data.planName !== existingPlan.planName)
           updateData.planName = data.planName;
+
         if (data.frequency !== existingPlan.frequency)
           updateData.frequency = data.frequency;
+
         if (
           data.totalPlannedAmount !==
-          parseFloat(existingPlan.totalPlannedAmount?.toString() || "0")
+          Number.parseFloat(existingPlan.totalPlannedAmount?.toString() || "0")
         ) {
           updateData.totalPlannedAmount = data.totalPlannedAmount;
         }
+
         if (data.currency !== existingPlan.currency)
           updateData.currency = data.currency;
+
         if (
           data.installmentAmount !==
-          parseFloat(existingPlan.installmentAmount?.toString() || "0")
+          Number.parseFloat(existingPlan.installmentAmount?.toString() || "0")
         ) {
           updateData.installmentAmount = data.installmentAmount;
         }
+
         if (data.numberOfInstallments !== existingPlan.numberOfInstallments) {
           updateData.numberOfInstallments = data.numberOfInstallments;
         }
+
         if (data.startDate !== existingPlan.startDate?.split("T")[0])
           updateData.startDate = data.startDate;
+
         if (data.endDate !== (existingPlan.endDate?.split("T")[0] || ""))
           updateData.endDate = data.endDate;
+
         if (
           data.nextPaymentDate !==
           (existingPlan.nextPaymentDate?.split("T")[0] || "")
         ) {
           updateData.nextPaymentDate = data.nextPaymentDate;
         }
+
         if (data.autoRenew !== existingPlan.autoRenew)
           updateData.autoRenew = data.autoRenew;
+
         if (data.planStatus !== existingPlan.planStatus)
           updateData.planStatus = data.planStatus;
+
         if (data.notes !== (existingPlan.notes || ""))
           updateData.notes = data.notes;
+
         if (data.internalNotes !== (existingPlan.internalNotes || ""))
           updateData.internalNotes = data.internalNotes;
 
@@ -568,6 +752,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
           id: existingPlan.id,
           data: updateData,
         });
+
         setIsEditing(false);
       } else {
         // Create new plan
@@ -586,6 +771,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
+
     if (!newOpen) {
       resetForm();
       setIsEditing(mode === "edit");
@@ -612,6 +798,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
 
   const toggleManualInstallment = () => {
     setManualInstallment(!manualInstallment);
+
     if (!manualInstallment) {
       // Switching to manual mode - keep current installment amount
       // The useEffect will calculate numberOfInstallments
@@ -619,8 +806,10 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
       // Switching to auto mode - recalculate installment amount
       const totalAmount = form.getValues("totalPlannedAmount");
       const installments = form.getValues("numberOfInstallments");
+
       if (totalAmount && installments > 0) {
         const installmentAmount = totalAmount / installments;
+
         form.setValue(
           "installmentAmount",
           Math.round(installmentAmount * 100) / 100
@@ -634,9 +823,9 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
     pledgesData?.pledges?.map((pledge) => ({
       label: `#${pledge.id} - ${pledge.description || "No description"} (${
         pledge.currency
-      } ${parseFloat(pledge.balance.toString()).toLocaleString()})`,
+      } ${Number.parseFloat(pledge.balance.toString()).toLocaleString()})`,
       value: pledge.id,
-      balance: parseFloat(pledge.balance.toString()),
+      balance: Number.parseFloat(pledge.balance.toString()),
       currency: pledge.currency,
       description: pledge.description,
     })) || [];
@@ -648,7 +837,11 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
       Edit Plan
     </Button>
   ) : (
-    <Button size="sm" variant="outline" className="border-dashed">
+    <Button
+      size="sm"
+      variant="outline"
+      className="border-dashed bg-transparent"
+    >
       <CalendarIcon className="w-4 h-4 mr-2" />
       Create Payment Plan
     </Button>
@@ -689,6 +882,13 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                     Contact: {pledgeData?.contact?.fullName || "Loading..."}
                   </span>
                 )}
+                <div className="mt-2">
+                  <ExchangeRateDisplay
+                    currency={effectivePledgeCurrency}
+                    exchangeRates={exchangeRates}
+                    isLoading={isLoadingRates}
+                  />
+                </div>
               </div>
             )}
           </DialogDescription>
@@ -705,7 +905,6 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
               <Edit className="w-4 h-4 mr-2" />
               Edit
             </Button>
-
             <Button
               size="sm"
               variant="outline"
@@ -728,7 +927,6 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                 </>
               )}
             </Button>
-
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button size="sm" variant="destructive">
@@ -835,23 +1033,6 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
               />
             )}
 
-            {/* <FormField
-              control={form.control}
-              name="planName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Plan Name</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      placeholder="e.g., Monthly Payment Plan"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            /> */}
-
             <FormField
               control={form.control}
               name="totalPlannedAmount"
@@ -865,7 +1046,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                       {...field}
                       onChange={(e) => {
                         const value = e.target.value;
-                        field.onChange(value ? parseFloat(value) : 0);
+                        field.onChange(value ? Number.parseFloat(value) : 0);
                       }}
                     />
                   </FormControl>
@@ -894,6 +1075,13 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                       ))}
                     </SelectContent>
                   </Select>
+                  <div className="mt-2">
+                    <ExchangeRateDisplay
+                      currency={field.value}
+                      exchangeRates={exchangeRates}
+                      isLoading={isLoadingRates}
+                    />
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -984,7 +1172,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                         {...field}
                         onChange={(e) => {
                           const value = e.target.value;
-                          field.onChange(value ? parseInt(value) : 1);
+                          field.onChange(value ? Number.parseInt(value) : 1);
                         }}
                       />
                     </FormControl>
@@ -1006,7 +1194,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                         {...field}
                         onChange={(e) => {
                           const value = e.target.value;
-                          field.onChange(value ? parseFloat(value) : 0);
+                          field.onChange(value ? Number.parseFloat(value) : 0);
                         }}
                         readOnly={!manualInstallment}
                         className={!manualInstallment ? "bg-gray-50" : ""}
@@ -1148,13 +1336,13 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                   </div>
                   <div>
                     Total Paid: {existingPlan.currency}{" "}
-                    {parseFloat(
+                    {Number.parseFloat(
                       existingPlan.totalPaid.toString()
                     ).toLocaleString()}
                   </div>
                   <div>
                     Remaining: {existingPlan.currency}{" "}
-                    {parseFloat(
+                    {Number.parseFloat(
                       existingPlan.remainingAmount.toString()
                     ).toLocaleString()}
                   </div>
@@ -1197,6 +1385,24 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                     </span>
                   </div>
                 )}
+                {/* Exchange rate summary */}
+                {exchangeRates &&
+                  watchedCurrency &&
+                  watchedCurrency !== "USD" && (
+                    <div className="col-span-2 pt-2 border-t border-blue-200">
+                      <div className="text-xs text-blue-600">
+                        USD Equivalent: ~$
+                        {(
+                          form.watch("totalPlannedAmount") *
+                          Number.parseFloat(
+                            exchangeRates[watchedCurrency] || "1"
+                          )
+                        ).toLocaleString(undefined, {
+                          maximumFractionDigits: 2,
+                        })}
+                      </div>
+                    </div>
+                  )}
                 {manualInstallment &&
                   watchedInstallmentAmount &&
                   watchedTotalPlannedAmount && (
