@@ -535,6 +535,7 @@ export const payment = pgTable(
     receivedDate: date("received_date"),
 
     paymentMethod: paymentMethodEnum("payment_method").notNull(),
+    methodDetail: text("method_detail"),
     paymentStatus: paymentStatusEnum("payment_status")
       .notNull()
       .default("completed"),
