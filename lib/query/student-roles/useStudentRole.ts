@@ -1,11 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-// Types based on your database schema - updated to match enums
 export interface StudentRoleFormData {
   contactId: number;
   program: "LH" | "LLC" | "ML" | "Kollel" | "Madrich";
-  track: "Alef" | "Bet" | "Gimmel" | "Dalet" | "Heh";
+  track:
+    | "Alef"
+    | "Bet"
+    | "Gimmel"
+    | "Dalet"
+    | "Heh"
+    | "March Draft"
+    | "August Draft"
+    | "Room & Board"
+    | "Other Draft";
   trackDetail?: "Full Year" | "Fall" | "Spring" | "Until Pesach";
   status:
     | "Student"
@@ -27,7 +35,16 @@ export interface StudentRole {
   id: number;
   contactId: number;
   program: "LH" | "LLC" | "ML" | "Kollel" | "Madrich";
-  track: "Alef" | "Bet" | "Gimmel" | "Dalet" | "Heh";
+  track:
+    | "Alef"
+    | "Bet"
+    | "Gimmel"
+    | "Dalet"
+    | "Heh"
+    | "March Draft"
+    | "August Draft"
+    | "Room & Board"
+    | "Other Draft";
   trackDetail?: "Full Year" | "Fall" | "Spring" | "Until Pesach";
   status:
     | "Student"
@@ -80,7 +97,6 @@ export const useCreateStudentRoleMutation = () => {
       return response.json();
     },
     onSuccess: (data, variables) => {
-      // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ["studentRoles"] });
       queryClient.invalidateQueries({
         queryKey: ["student-roles", variables.contactId],
@@ -107,7 +123,16 @@ export const useStudentRolesQuery = (params?: {
   limit?: number;
   search?: string;
   program?: "LH" | "LLC" | "ML" | "Kollel" | "Madrich";
-  track?: "Alef" | "Bet" | "Gimmel" | "Dalet" | "Heh";
+  track?:
+    | "Alef"
+    | "Bet"
+    | "Gimmel"
+    | "Dalet"
+    | "Heh"
+    | "March Draft"
+    | "August Draft"
+    | "Room & Board"
+    | "Other Draft";
   trackDetail?: "Full Year" | "Fall" | "Spring" | "Until Pesach";
   status?:
     | "Student"
@@ -292,7 +317,16 @@ export const useDeactivateStudentRoleMutation = () => {
 // Get Student Role Statistics
 export const useStudentRoleStatsQuery = (params?: {
   program?: "LH" | "LLC" | "ML" | "Kollel" | "Madrich";
-  track?: "Alef" | "Bet" | "Gimmel" | "Dalet" | "Heh";
+  track?:
+    | "Alef"
+    | "Bet"
+    | "Gimmel"
+    | "Dalet"
+    | "Heh"
+    | "March Draft"
+    | "August Draft"
+    | "Room & Board"
+    | "Other Draft";
   trackDetail?: "Full Year" | "Fall" | "Spring" | "Until Pesach";
   machzor?: "10.5" | "10" | "9.5" | "9" | "8.5" | "8";
   year?: string;

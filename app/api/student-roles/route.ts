@@ -13,7 +13,19 @@ const querySchema = z.object({
   sortBy: z.string().default("updatedAt"),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
   program: z.enum(["LH", "LLC", "ML", "Kollel", "Madrich"]).optional(),
-  track: z.enum(["Alef", "Bet", "Gimmel", "Dalet", "Heh"]).optional(),
+  track: z
+    .enum([
+      "Alef",
+      "Bet",
+      "Gimmel",
+      "Dalet",
+      "Heh",
+      "March Draft",
+      "August Draft",
+      "Room & Board",
+      "Other Draft",
+    ])
+    .optional(),
   trackDetail: z
     .enum(["Full Year", "Fall", "Spring", "Until Pesach"])
     .optional(),

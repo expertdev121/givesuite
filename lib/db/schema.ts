@@ -103,6 +103,10 @@ export const trackEnum = pgEnum("track", [
   "Gimmel",
   "Dalet",
   "Heh",
+  "March Draft",
+  "August Draft",
+  "Room & Board",
+  "Other Draft",
 ]);
 
 export const trackDetailEnum = pgEnum("track_detail", [

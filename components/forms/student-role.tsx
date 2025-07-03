@@ -52,6 +52,10 @@ const tracks = [
   { value: "Gimmel", label: "Gimmel" },
   { value: "Dalet", label: "Dalet" },
   { value: "Heh", label: "Heh" },
+  { value: "March Draft", label: "March Draft" },
+  { value: "August Draft", label: "August Draft" },
+  { value: "Room & Board", label: "Room & Board" },
+  { value: "Other Draft", label: "Other Draft" },
 ] as const;
 
 const trackDetails = [
@@ -86,15 +90,36 @@ const years = Array.from({ length: currentYear - 2000 + 6 }, (_, i) => {
   return { value: `${year}-${year + 1}`, label: `${year}-${year + 1}` };
 }).reverse();
 
+const programTracks = {
+  LH: ["Alef", "Bet", "Gimmel", "Dalet", "Heh"],
+  LLC: ["March Draft", "August Draft", "Room & Board", "Other Draft"],
+  Kollel: [],
+  Madrich: ["Alef", "Bet"],
+  ML: ["Alef", "Bet"],
+};
+
 const studentRoleSchema = z
   .object({
     contactId: z.coerce.number().positive("Contact ID is required"),
     program: z.enum(["LH", "LLC", "ML", "Kollel", "Madrich"], {
       required_error: "Program is required",
     }),
-    track: z.enum(["Alef", "Bet", "Gimmel", "Dalet", "Heh"], {
-      required_error: "Track is required",
-    }),
+    track: z.enum(
+      [
+        "Alef",
+        "Bet",
+        "Gimmel",
+        "Dalet",
+        "Heh",
+        "March Draft",
+        "August Draft",
+        "Room & Board",
+        "Other Draft",
+      ],
+      {
+        required_error: "Track is required",
+      }
+    ),
     trackDetail: z
       .enum(["Full Year", "Fall", "Spring", "Until Pesach"])
       .optional(),
@@ -281,6 +306,7 @@ export default function StudentRoleDialog(props: StudentRoleDialogProps) {
                     <Select
                       onValueChange={field.onChange}
                       defaultValue={field.value}
+                      value={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -288,11 +314,13 @@ export default function StudentRoleDialog(props: StudentRoleDialogProps) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {tracks.map((track) => (
-                          <SelectItem key={track.value} value={track.value}>
-                            {track.label}
-                          </SelectItem>
-                        ))}
+                        {(programTracks[form.watch("program") || ""] || []).map(
+                          (track) => (
+                            <SelectItem key={track} value={track}>
+                              {track}
+                            </SelectItem>
+                          )
+                        )}
                       </SelectContent>
                     </Select>
                     <FormMessage />
