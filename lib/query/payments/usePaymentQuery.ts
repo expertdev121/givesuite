@@ -36,6 +36,7 @@ export interface Payment {
   exchangeRate: string | null;
   paymentDate: string;
   receivedDate: string | null;
+  methodDetail: string;
   paymentMethod: string;
   paymentStatus: string;
   referenceNumber: string | null;

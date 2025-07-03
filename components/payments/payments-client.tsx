@@ -79,6 +79,7 @@ interface Payment {
   amount: string;
   currency: string;
   paymentDate: string | null;
+  methodDetail: string;
   receivedDate: string | null;
   paymentStatus: string;
   paymentMethod: string | null;
@@ -386,7 +387,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                           </span>
                         </TableCell>
                         <TableCell className="capitalize">
-                          {payment.paymentMethod?.replace("_", " ") || "-"}
+                          {payment.methodDetail?.replace("_", " ") || "-"}
                         </TableCell>
                         <TableCell>
                           {payment.referenceNumber ||

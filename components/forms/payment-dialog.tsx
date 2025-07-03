@@ -132,6 +132,7 @@ const paymentSchema = z.object({
     "wire_transfer",
     "other",
   ]),
+  methodDetail: z.string(),
   paymentStatus: z
     .enum([
       "pending",
@@ -808,15 +809,12 @@ export default function PaymentFormDialog({
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="referenceNumber"
+                name="methodDetail"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Reference Number</FormLabel>
+                    <FormLabel>Method Detail</FormLabel>
                     <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="Transaction reference number"
-                      />
+                      <Input {...field} placeholder="Method Detail" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

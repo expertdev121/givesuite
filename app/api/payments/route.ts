@@ -344,6 +344,7 @@ export async function GET(request: NextRequest) {
         paymentDate: payment.paymentDate,
         receivedDate: payment.receivedDate,
         paymentMethod: payment.paymentMethod,
+        methodDetail: payment.methodDetail,
         paymentStatus: payment.paymentStatus,
         referenceNumber: payment.referenceNumber,
         checkNumber: payment.checkNumber,
