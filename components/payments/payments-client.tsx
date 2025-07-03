@@ -490,6 +490,14 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
+                                      Payment Method:
+                                    </span>
+                                    <span className="font-medium">
+                                      {payment.paymentMethod || "N/A"}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">
                                       Receipt Type:
                                     </span>
                                     <span className="font-medium capitalize">
