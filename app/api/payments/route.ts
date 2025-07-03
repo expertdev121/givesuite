@@ -16,6 +16,7 @@ const paymentSchema = z.object({
   exchangeRate: z.number().positive("Exchange rate must be positive"),
   paymentDate: z.string().min(1, "Payment date is required"),
   receivedDate: z.string().optional(),
+  methodDetail: z.string(),
   paymentMethod: z.enum([
     "credit_card",
     "cash",
@@ -109,6 +110,7 @@ export async function POST(request: NextRequest) {
       exchangeRate: Number(validatedData.exchangeRate.toFixed(4)).toString(),
       paymentDate: validatedData.paymentDate,
       receivedDate: validatedData.receivedDate || validatedData.paymentDate,
+      methodDetail: validatedData.methodDetail,
       paymentMethod: validatedData.paymentMethod,
       paymentStatus: validatedData.paymentStatus,
       referenceNumber: validatedData.referenceNumber || null,
