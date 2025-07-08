@@ -465,10 +465,10 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                           payment?.pledgeOriginalCurrency
                                         ).symbol
                                       }{" "}
-                                      {Math.round(
-                                        Number(payment.amount) *
-                                          Number(payment.pledgeExchangeRate)
-                                      )}
+                                        {
+                                formatCurrency(payment.amount, payment.currency)
+                                  .amount
+                              }
                                     </span>
                                   </div>
                                 </div>

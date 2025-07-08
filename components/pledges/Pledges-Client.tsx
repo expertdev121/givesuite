@@ -159,11 +159,9 @@ export default function PledgesTable() {
     return { symbol: currencySymbol, amount: numericAmount };
   };
 
-  const getProgressColor = (percentage: number) => {
-    if (percentage >= 100) return "bg-green-500";
-    if (percentage >= 75) return "bg-blue-500";
-    if (percentage >= 50) return "bg-yellow-500";
-    return "bg-red-500";
+  const formatUSDAmount = (amount: string | null) => {
+    if (!amount) return "N/A";
+    return `$${Number.parseFloat(amount).toLocaleString()}`;
   };
 
   const handleDeletePledge = (pledgeId: number, pledgeDescription: string) => {
@@ -243,9 +241,9 @@ export default function PledgesTable() {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="fullyPaid">Fully Paid</SelectItem>
-                <SelectItem value="partiallyPaid">Partially Paid</SelectItem>
-                <SelectItem value="unpaid">Unpaid</SelectItem>
+                <SelectItem value="fullyPaid">$ Fully Paid</SelectItem>
+                <SelectItem value="partiallyPaid">$ Partially Paid</SelectItem>
+                <SelectItem value="unpaid">$ Unpaid</SelectItem>
               </SelectContent>
             </Select>
             <PledgeDialog contactId={contactId as number} />
@@ -261,25 +259,31 @@ export default function PledgesTable() {
                     Pledge Date
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
-                    Pledge Detail
+                    Pledge Details
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900 text-right">
-                    Pledge Amount
+                    Pledge Amount (USD)
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900 text-right">
-                    Paid
+                    Pledge Amount 
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900 text-right">
+                    Paid (USD)
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900 text-right">
+                    Paid 
                   </TableHead>
                   <TableHead className="font-semibold text-red-400 text-right">
-                    Balance
+                    Balance (USD)
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">
-                    Progress
-                  </TableHead>
-                  <TableHead className="font-semibold text-gray-900 text-right">
-                    Scheduled
+                  <TableHead className="font-semibold text-red-400 text-right">
+                    Balance 
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900 text-right">
-                    Unscheduled
+                    Scheduled 
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-900 text-right">
+                    Unscheduled   
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
                     Notes
@@ -292,343 +296,281 @@ export default function PledgesTable() {
                   // Loading skeleton with safe limit value
                   Array.from({ length: currentLimit }).map((_, index) => (
                     <TableRow key={index}>
-                      <TableCell>
-                        <Skeleton className="h-4 w-4" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-20" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-32" />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Skeleton className="h-4 w-24 ml-auto" />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Skeleton className="h-4 w-24 ml-auto" />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Skeleton className="h-4 w-24 ml-auto" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-20" />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Skeleton className="h-4 w-16 ml-auto" />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Skeleton className="h-4 w-16 ml-auto" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-4" />
-                      </TableCell>
+                      <TableCell><Skeleton className="h-4 w-4" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-4" /></TableCell>
                     </TableRow>
                   ))
                 ) : data?.pledges.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={11}
+                      colSpan={13}
                       className="text-center py-8 text-gray-500"
                     >
                       No pledges found
                     </TableCell>
                   </TableRow>
                 ) : (
-                  data?.pledges.map((pledge) => (
-                    <React.Fragment key={pledge.id}>
-                      <TableRow className="hover:bg-gray-50">
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => toggleRowExpansion(pledge.id)}
-                            className="p-1"
-                          >
-                            {expandedRows.has(pledge.id) ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {formatDate(pledge.pledgeDate)}
-                        </TableCell>
-                        <TableCell>
-                          {pledge.categoryName?.split(" ")[0]} {">"}{" "}
-                          {pledge.description || "-"}
-                        </TableCell>
+                  data?.pledges.map((pledge) => {
+                    // Calculate scheduled amount (assuming this comes from payment plans)
+                    const scheduledAmount = pledge.scheduledAmount || "0";
+                    // Calculate unscheduled amount (balance - scheduled)
+                    const unscheduledAmount = (
+                      Number.parseFloat(pledge.balance) - Number.parseFloat(scheduledAmount)
+                    ).toString();
 
-                        <TableCell className="text-right">
-                          <div className="flex justify-evenly">
-                            <span>
-                              {
-                                formatCurrency(
-                                  pledge.originalAmount,
-                                  pledge.currency
-                                ).symbol
-                              }
-                            </span>
-                            <span>
-                              {
-                                formatCurrency(
-                                  pledge.originalAmount,
-                                  pledge.currency
-                                ).amount
-                              }
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-evenly">
-                            <span>
-                              {
-                                formatCurrency(
-                                  pledge.totalPaid,
-                                  pledge.currency
-                                ).symbol
-                              }
-                            </span>
-                            <span>
-                              {
-                                formatCurrency(
-                                  pledge.totalPaid,
-                                  pledge.currency
-                                ).amount
-                              }
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-evenly">
-                            <span>
-                              {
-                                formatCurrency(pledge.balance, pledge.currency)
-                                  .symbol
-                              }
-                            </span>
-                            <span>
-                              {
-                                formatCurrency(pledge.balance, pledge.currency)
-                                  .amount
-                              }
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className="w-16 bg-gray-200 rounded-full h-2">
-                              <div
-                                className={`h-2 rounded-full ${getProgressColor(
-                                  pledge.progressPercentage
-                                )}`}
-                                style={{
-                                  width: `${Math.min(
-                                    pledge.progressPercentage,
-                                    100
-                                  )}%`,
-                                }}
-                              />
-                            </div>
-                            <span className="text-sm text-gray-600">
-                              {pledge.progressPercentage}%
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-evenly">
-                            <span>
-                              {
-                                formatCurrency(pledge.balance, pledge.currency)
-                                  .symbol
-                              }
-                            </span>
-                            <span>
-                              {
-                                formatCurrency(pledge.balance, pledge.currency)
-                                  .amount
-                              }
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-evenly">
-                            <span>
-                              {
-                                formatCurrency(
-                                  pledge.originalAmount,
-                                  pledge.currency
-                                ).symbol
-                              }
-                            </span>
-                            <span>
-                              {
-                                formatCurrency(
-                                  pledge.originalAmount,
-                                  pledge.currency
-                                ).amount
-                              }
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {pledge.notes}
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="p-1">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
-                                <Link
-                                  href={`/contacts/${contactId}/payments?pledgeId=${pledge.id}`}
-                                >
-                                  View Payments
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Link
-                                  href={`/contacts/${contactId}/payment-plans?pledgeId=${pledge.id}`}
-                                >
-                                  View Payment Plans
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-red-600 focus:text-red-600"
-                                onClick={() =>
-                                  handleDeletePledge(
-                                    pledge.id,
-                                    pledge.description || "Untitled Pledge"
-                                  )
-                                }
-                                disabled={isDeleting}
-                              >
-                                {isDeleting ? "Deleting..." : "Delete Pledge"}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-
-                      {/* Expanded Row Content */}
-                      {expandedRows.has(pledge.id) && (
-                        <TableRow>
-                          <TableCell colSpan={11} className="bg-gray-50 p-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              {/* USD Amounts */}
-                              <div className="space-y-3">
-                                <h4 className="font-semibold text-gray-900">
-                                  USD Amounts
-                                </h4>
-                                <div className="space-y-2 text-sm">
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      Pledge Amount (USD):
-                                    </span>
-                                    <span className="font-medium">
-                                      {pledge.originalAmountUsd
-                                        ? `$${Number.parseFloat(
-                                            pledge.originalAmountUsd
-                                          ).toLocaleString()}`
-                                        : "N/A"}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      Paid (USD):
-                                    </span>
-                                    <span className="font-medium">
-                                      {pledge.totalPaidUsd
-                                        ? `$${Number.parseFloat(
-                                            pledge.totalPaidUsd
-                                          ).toLocaleString()}`
-                                        : "N/A"}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">
-                                      Balance (USD):
-                                    </span>
-                                    <span className="font-medium">
-                                      {pledge.balanceUsd
-                                        ? `$${Number.parseFloat(
-                                            pledge.balanceUsd
-                                          ).toLocaleString()}`
-                                        : "N/A"}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Additional Details */}
-                              <div className="space-y-3">
-                                <h4 className="font-semibold text-gray-900">
-                                  Additional Details
-                                </h4>
-                                <div className="space-y-2 text-sm">
-                                  <div>
-                                    <span className="text-gray-600">
-                                      Category Description:
-                                    </span>
-                                    <p className="mt-1 text-gray-900">
-                                      {pledge.categoryDescription ||
-                                        "No description available"}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <span className="text-gray-600">
-                                      Notes:
-                                    </span>
-                                    <p className="mt-1 text-gray-900">
-                                      {pledge.notes || "No notes available"}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Action Button */}
-                            <div className="mt-6 pt-4 flex gap-2 border-t justify-between">
-                              <div className="flex gap-2">
-                                <PaymentDialogClientt
-                                  pledgeId={pledge.id}
-                                  pledgeAmount={Number.parseFloat(
-                                    pledge.balance
-                                  )}
-                                  pledgeCurrency={pledge.currency}
-                                  pledgeDescription={pledge.description ?? ""}
-                                />
-                                <LinkButton
-                                  href={`/contacts/${contactId}/payments?pledgeId=${pledge.id}`}
-                                  variant="outline"
-                                  className="flex items-center gap-2"
-                                >
-                                  <BadgeDollarSign className="h-4 w-4" />
-                                  View Payments
-                                </LinkButton>
-                              </div>
-
-                              <div className="flex gap-2">
-                                <PaymentPlanDialog pledgeId={pledge.id} />
-                                <LinkButton
-                                  href={`/contacts/${contactId}/payment-plans?pledgeId=${pledge.id}`}
-                                  variant="outline"
-                                  className="flex items-center gap-2"
-                                >
-                                  <BadgeDollarSign className="h-4 w-4" />
-                                  View Plans
-                                </LinkButton>
-                              </div>
-                              {/* or */}
+                    return (
+                      <React.Fragment key={pledge.id}>
+                        <TableRow className="hover:bg-gray-50">
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleRowExpansion(pledge.id)}
+                              className="p-1"
+                            >
+                              {expandedRows.has(pledge.id) ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {formatDate(pledge.pledgeDate)}
+                          </TableCell>
+                          <TableCell>
+                            {pledge.categoryName?.split(" ")[0]} {">"}{" "}
+                            {pledge.description || "-"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatUSDAmount(pledge.originalAmountUsd)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end items-center gap-1">
+                              <span>
+                                {formatCurrency(pledge.originalAmount, pledge.currency).symbol}
+                              </span>
+                              <span>
+                                {formatCurrency(pledge.originalAmount, pledge.currency).amount}
+                              </span>
                             </div>
                           </TableCell>
+                          <TableCell className="text-right">
+                            {formatUSDAmount(pledge.totalPaidUsd)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end items-center gap-1">
+                              <span>
+                                {formatCurrency(pledge.totalPaid, pledge.currency).symbol}
+                              </span>
+                              <span>
+                                {formatCurrency(pledge.totalPaid, pledge.currency).amount}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatUSDAmount(pledge.balanceUsd)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end items-center gap-1">
+                              <span>
+                                {formatCurrency(pledge.balance, pledge.currency).symbol}
+                              </span>
+                              <span>
+                                {formatCurrency(pledge.balance, pledge.currency).amount}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end items-center gap-1">
+                              <span>
+                                {formatCurrency(scheduledAmount, pledge.currency).symbol}
+                              </span>
+                              <span>
+                                {formatCurrency(scheduledAmount, pledge.currency).amount}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end items-center gap-1">
+                              <span>
+                                {formatCurrency(unscheduledAmount, pledge.currency).symbol}
+                              </span>
+                              <span>
+                                {formatCurrency(unscheduledAmount, pledge.currency).amount}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {pledge.notes || "-"}
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="p-1">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem>
+                                  <Link
+                                    href={`/contacts/${contactId}/payments?pledgeId=${pledge.id}`}
+                                  >
+                                    $ View Payments
+                                  </Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                  <Link
+                                    href={`/contacts/${contactId}/payment-plans?pledgeId=${pledge.id}`}
+                                  >
+                                    $ View Payment Plans
+                                  </Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-red-600 focus:text-red-600"
+                                  onClick={() =>
+                                    handleDeletePledge(
+                                      pledge.id,
+                                      pledge.description || "Untitled Pledge"
+                                    )
+                                  }
+                                  disabled={isDeleting}
+                                >
+                                  {isDeleting ? "Deleting..." : "$ Delete Pledge"}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
                         </TableRow>
-                      )}
-                    </React.Fragment>
-                  ))
+
+                        {/* Expanded Row Content */}
+                        {expandedRows.has(pledge.id) && (
+                          <TableRow>
+                            <TableCell colSpan={13} className="bg-gray-50 p-6">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* USD Amounts */}
+                                <div className="space-y-3">
+                                  <h4 className="font-semibold text-gray-900">
+                                    USD Amounts
+                                  </h4>
+                                  <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Pledge Amount (USD):
+                                      </span>
+                                      <span className="font-medium">
+                                        {pledge.originalAmountUsd
+                                          ? `$${Number.parseFloat(
+                                              pledge.originalAmountUsd
+                                            ).toLocaleString()}`
+                                          : "N/A"}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Paid (USD):
+                                      </span>
+                                      <span className="font-medium">
+                                        {pledge.totalPaidUsd
+                                          ? `$${Number.parseFloat(
+                                              pledge.totalPaidUsd
+                                            ).toLocaleString()}`
+                                          : "N/A"}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Balance (USD):
+                                      </span>
+                                      <span className="font-medium">
+                                        {pledge.balanceUsd
+                                          ? `$${Number.parseFloat(
+                                              pledge.balanceUsd
+                                            ).toLocaleString()}`
+                                          : "N/A"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Additional Details */}
+                                <div className="space-y-3">
+                                  <h4 className="font-semibold text-gray-900">
+                                    Additional Details
+                                  </h4>
+                                  <div className="space-y-2 text-sm">
+                                    <div>
+                                      <span className="text-gray-600">
+                                        Category Description:
+                                      </span>
+                                      <p className="mt-1 text-gray-900">
+                                        {pledge.categoryDescription ||
+                                          "No description available"}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-600">
+                                        Notes:
+                                      </span>
+                                      <p className="mt-1 text-gray-900">
+                                        {pledge.notes || "No notes available"}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Action Button */}
+                              <div className="mt-6 pt-4 flex gap-2 border-t justify-between">
+                                <div className="flex gap-2">
+                                  <PaymentDialogClientt
+                                    pledgeId={pledge.id}
+                                    pledgeAmount={Number.parseFloat(
+                                      pledge.balance
+                                    )}
+                                    pledgeCurrency={pledge.currency}
+                                    pledgeDescription={pledge.description ?? ""}
+                                  />
+                                  <LinkButton
+                                    href={`/contacts/${contactId}/payments?pledgeId=${pledge.id}`}
+                                    variant="outline"
+                                    className="flex items-center gap-2"
+                                  >
+                                    <BadgeDollarSign className="h-4 w-4" />
+                                    View Payments
+                                  </LinkButton>
+                                </div>
+
+                                <div className="flex gap-2">
+                                  <PaymentPlanDialog pledgeId={pledge.id} />
+                                  <LinkButton
+                                    href={`/contacts/${contactId}/payment-plans?pledgeId=${pledge.id}`}
+                                    variant="outline"
+                                    className="flex items-center gap-2"
+                                  >
+                                    <BadgeDollarSign className="h-4 w-4" />
+                                    View Plans
+                                  </LinkButton>
+                                </div>
+                                {/* or */}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
