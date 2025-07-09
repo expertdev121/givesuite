@@ -37,6 +37,17 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+
+import {
   Search,
   BadgeDollarSignIcon,
   ChevronDown,
@@ -44,10 +55,13 @@ import {
   Edit,
   Trash2,
   Loader2,
+  Save,
+  X,
 } from "lucide-react";
 import {
   useDeletePaymentMutation,
   usePaymentsQuery,
+  useUpdatePaymentMutation,
 } from "@/lib/query/payments/usePaymentQuery";
 import { LinkButton } from "../ui/next-link";
 import FactsDialog from "../facts-iframe";
@@ -55,13 +69,8 @@ import PaymentFormDialog from "../forms/payment-dialog";
 import EditPaymentDialog from "@/app/contacts/[contactId]/payments/__components/edit-payment";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { usePledgeByIdQuery } from "@/lib/query/pledge/usePledgeQuery";
+
 const PaymentStatusEnum = z.enum([
   "pending",
   "completed",
@@ -101,24 +110,30 @@ interface Payment {
   bonusRuleId: number | null;
   amountUsd: string;
   pledgeOriginalCurrency: string;
+  pledgeOriginalAmount: string | null;
 }
 
 export default function PaymentsTable({ contactId }: PaymentsTableProps) {
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
-  const [deletingPaymentId, setDeletingPaymentId] = useState<number | null>(
-    null
-  );
-  
+  const [deletingPaymentId, setDeletingPaymentId] = useState<number | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
   const handleCloseModal = () => {
     setSelectedPayment(null);
+    setIsModalOpen(false);
+    setEditingPayment(null);
+    setIsEditing(false);
   };
-  
+
   const formatUSDAmount = (amount: string | null) => {
     if (!amount) return "N/A";
     return `$${Number.parseFloat(amount).toLocaleString()}`;
   };
-  
+
   const [pledgeId] = useQueryState("pledgeId", {
     parse: (value) => {
       if (!value) return null;
@@ -179,11 +194,14 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
   );
 
   const deletePaymentMutation = useDeletePaymentMutation();
-  
+  const updatePaymentMutation = useUpdatePaymentMutation(selectedPayment?.pledgeId || 0);
+
   const handlePaymentRowClick = (payment: Payment) => {
     setSelectedPayment(payment);
+    setEditingPayment({ ...payment });
+    setIsModalOpen(true);
   };
-  
+
   const toggleExpandedRow = (paymentId: number) => {
     setExpandedRows((prev) => {
       const newSet = new Set(prev);
@@ -216,23 +234,56 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
     }
   };
 
- const formatCurrency = (amount: string, currency: string = "USD") => {
-  try {
-    const formatted = new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currency || "USD", // fallback to USD if falsy
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(Number.parseFloat(amount));
+  const handleSavePayment = async () => {
+    if (!editingPayment || !selectedPayment) return;
 
-    const currencySymbol = formatted.replace(/[\d,.\s]/g, "");
-    const numericAmount = formatted.replace(/[^\d,.\s]/g, "").trim();
+    setIsSaving(true);
+    try {
+      await updatePaymentMutation.mutateAsync({
+        paymentId: editingPayment.id,
+        amount: Number.parseFloat(editingPayment.amount),
+        currency: editingPayment.currency as any,
+        paymentDate: editingPayment.paymentDate || undefined,
+        receivedDate: editingPayment.receivedDate || undefined,
+        paymentMethod: editingPayment.paymentMethod as any,
+        paymentStatus: editingPayment.paymentStatus as any,
+        referenceNumber: editingPayment.referenceNumber || undefined,
+        checkNumber: editingPayment.checkNumber || undefined,
+        receiptNumber: editingPayment.receiptNumber || undefined,
+        receiptType: editingPayment.receiptType as any,
+        receiptIssued: editingPayment.receiptIssued,
+        notes: editingPayment.notes || undefined,
+        exchangeRate: editingPayment.exchangeRate ? Number.parseFloat(editingPayment.exchangeRate) : undefined,
+      });
 
-    return { symbol: currencySymbol, amount: numericAmount };
-  } catch (error) {
-    return { symbol: "$", amount: "Invalid" }; // fallback
-  }
-};
+      toast.success(`Payment #${editingPayment.id} updated successfully`);
+      setIsEditing(false);
+      setSelectedPayment(editingPayment);
+    } catch (error) {
+      console.error("Failed to update payment:", error);
+      toast.error(`Failed to update payment #${editingPayment.id}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const formatCurrency = (amount: string, currency: string = "USD") => {
+    try {
+      const formatted = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: currency || "USD",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(Number.parseFloat(amount));
+
+      const currencySymbol = formatted.replace(/[\d,.\s]/g, "");
+      const numericAmount = formatted.replace(/[^\d,.\s]/g, "").trim();
+
+      return { symbol: currencySymbol, amount: numericAmount };
+    } catch (error) {
+      return { symbol: "$", amount: "Invalid" };
+    }
+  };
 
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
@@ -250,6 +301,15 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
         return "bg-orange-100 text-orange-800";
       default:
         return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const handleInputChange = (field: string, value: any) => {
+    if (editingPayment) {
+      setEditingPayment({
+        ...editingPayment,
+        [field]: value,
+      });
     }
   };
 
@@ -273,6 +333,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
       </Alert>
     );
   }
+
   return (
     <div className="space-y-6 p-4">
       {/* Filters */}
@@ -365,7 +426,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                   // Loading skeleton
                   Array.from({ length: currentLimit }).map((_, index) => (
                     <TableRow key={index}>
-                      {Array.from({ length: 7 }).map((_, cellIndex) => (
+                      {Array.from({ length: 8 }).map((_, cellIndex) => (
                         <TableCell key={cellIndex}>
                           <Skeleton className="h-4 w-20" />
                         </TableCell>
@@ -375,7 +436,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                 ) : data?.payments.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={8}
                       className="text-center py-8 text-gray-500"
                     >
                       No payments found
@@ -448,7 +509,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                       {/* Expanded Row Content */}
                       {expandedRows.has(payment.id) && (
                         <TableRow>
-                          <TableCell colSpan={7} className="bg-gray-50 p-6">
+                          <TableCell colSpan={8} className="bg-gray-50 p-6">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                               {/* Payment Details */}
                               <div className="space-y-3">
@@ -771,178 +832,335 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
           )}
         </CardContent>
       </Card>
-      
       {/* Payment Information Modal */}
-         {selectedPayment && (
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
-    {/* Payment Basic Information */}
-    <div className="space-y-4">
-      <h4 className="font-semibold text-gray-900 text-lg">
-        Payment Information
-      </h4>
-      <div className="space-y-3 text-sm">
-        <div className="flex justify-between">
-          <span className="text-gray-600">Payment ID:</span>
-          <span className="font-medium">#{selectedPayment.id}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-600">Payment Date:</span>
-          <span className="font-medium">
-            {formatDate(selectedPayment.paymentDate)}
-          </span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-600">Received Date:</span>
-          <span className="font-medium">
-            {formatDate(selectedPayment.receivedDate || "")}
-          </span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-600">Status:</span>
-          <span className={`font-medium px-2 py-1 rounded text-xs ${getStatusBadgeColor(selectedPayment.paymentStatus)}`}>
-            {selectedPayment.paymentStatus}
-          </span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-600">Payment Method:</span>
-          <span className="font-medium">
-            {selectedPayment.paymentMethod || "N/A"}
-          </span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-600">Method Detail:</span>
-          <span className="font-medium capitalize">
-            {selectedPayment.methodDetail?.replace("_", " ") || "N/A"}
-          </span>
-        </div>
-      </div>
-    </div>
+      <Dialog open={isModalOpen} onOpenChange={handleCloseModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>Payment Information #{selectedPayment?.id}</span>
+              <div className="flex items-center gap-2">
+                {!isEditing ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsEditing(true)}
+                  >
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setIsEditing(false);
+                        setEditingPayment(selectedPayment);
+                      }}
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleSavePayment}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4 mr-2" />
+                      )}
+                      Save
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </DialogTitle>
+          </DialogHeader>
 
-    {/* Amount Information */}
-    <div className="space-y-4">
-      <h4 className="font-semibold text-gray-900 text-lg">
-        Amount Information
-      </h4>
-      <div className="space-y-3 text-sm">
-        <div className="flex justify-between">
-          <span className="text-gray-600">Amount (USD):</span>
-          <span className="font-medium">
-            $ {Math.round(Number(selectedPayment.amountUsd))}
-          </span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-600">Amount ({selectedPayment.currency}):</span>
-          <span className="font-medium">
-            {formatCurrency(selectedPayment.amount, selectedPayment.currency).symbol}
-            {formatCurrency(selectedPayment.amount, selectedPayment.currency).amount}
-          </span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-600">Paid (USD):</span>
-          <span className="font-medium">
-            $ {Math.round(Number(selectedPayment.amountUsd))}
-          </span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-600">Paid ({selectedPayment.currency}):</span>
-          <span className="font-medium">
-            {formatCurrency(selectedPayment.amount, selectedPayment?.pledgeOriginalCurrency).symbol}
-            {formatCurrency(selectedPayment.amount, selectedPayment.currency).amount}
-          </span>
-        </div>
-      </div>
-    </div>
+          {selectedPayment && editingPayment && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+              {/* Payment Basic Information */}
+              <div className="space-y-4">
+                <h4 className="font-semibold text-gray-900 text-lg">
+                  Payment Information
+                </h4>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="payment-id">Payment ID</Label>
+                    <Input
+                      id="payment-id"
+                      value={`#${editingPayment.id}`}
+                      disabled
+                      className="bg-gray-50"
+                    />
+                  </div>
 
-    {/* Balance and Schedule Information */}
-    <div className="space-y-4">
-      <h4 className="font-semibold text-gray-900 text-lg">
-        Balance & Schedule
-      </h4>
-      <div className="space-y-3 text-sm">
-        {isPledgeLoading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-full" />
-          </div>
-        ) : pledgeData ? (
-          <>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Balance (USD):</span>
-              <span className="font-medium text-red-600">
-                {formatUSDAmount(pledgeData.balanceUsd)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Balance ({pledgeData.currency}):</span>
-              <span className="font-medium text-red-600">
-                {formatCurrency(pledgeData.balance, pledgeData.currency).symbol}
-                {formatCurrency(pledgeData.balance, pledgeData.currency).amount}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Scheduled:</span>
-              <span className="font-medium">
-                {formatCurrency(pledgeData.scheduledAmount || "0", pledgeData.currency).symbol}
-                {formatCurrency(pledgeData.scheduledAmount || "0", pledgeData.currency).amount}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Unscheduled:</span>
-              <span className="font-medium">
-                {(() => {
-                  const unscheduledAmount = (
-                    Number.parseFloat(pledgeData.balance || "0") -
-                    Number.parseFloat(pledgeData.scheduledAmount || "0")
-                  ).toString();
-                  return formatCurrency(unscheduledAmount, pledgeData.currency).symbol +
-                    formatCurrency(unscheduledAmount, pledgeData.currency).amount;
-                })()}
-              </span>
-            </div>
-          </>
-        ) : (
-          <div className="text-gray-500">
-            No balance information available
-          </div>
-        )}
-      </div>
-    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="payment-date">Payment Date</Label>
+                    <Input
+                      id="payment-date"
+                      type="date"
+                      value={editingPayment.paymentDate || ""}
+                      onChange={(e) => handleInputChange("paymentDate", e.target.value)}
+                      disabled={!isEditing}
+                      className={!isEditing ? "bg-gray-50" : ""}
+                    />
+                  </div>
 
-    {/* Notes Section */}
-    <div className="space-y-4">
-      <h4 className="font-semibold text-gray-900 text-lg">
-        Notes
-      </h4>
-      <div className="text-sm">
-        {isPledgeLoading ? (
-          <div className="bg-gray-50 p-3 rounded-md">
-            <Skeleton className="h-4 w-full" />
-          </div>
-        ) : (
-          <div className="bg-gray-50 p-3 rounded-md">
-            <p className="text-gray-700">
-              {pledgeData?.notes || "No notes available"}
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  </div>
-)}
+                  <div className="space-y-2">
+                    <Label htmlFor="received-date">Received Date</Label>
+                    <Input
+                      id="received-date"
+                      type="date"
+                      value={editingPayment.receivedDate || ""}
+                      onChange={(e) => handleInputChange("receivedDate", e.target.value)}
+                      disabled={!isEditing}
+                      className={!isEditing ? "bg-gray-50" : ""}
+                    />
+                  </div>
 
-{!selectedPayment && (  
-  <div className="p-6 text-center text-gray-500">
-    {isPledgeLoading ? (
-      <div className="space-y-4">
-        <Skeleton className="h-4 w-32 mx-auto" />
-        <Skeleton className="h-4 w-48 mx-auto" />
-      </div>
-    ) : (
-      "No pledge information available"
-    )}
-  </div>
-)}
-</div>
-  )
+                  <div className="space-y-2">
+                    <Label htmlFor="payment-status">Status</Label>
+                    <Select
+                      value={editingPayment.paymentStatus}
+                      onValueChange={(value) => handleInputChange("paymentStatus", value)}
+                      disabled={!isEditing}
+                    >
+                      <SelectTrigger className={!isEditing ? "bg-gray-50" : ""}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="failed">Failed</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                        <SelectItem value="refunded">Refunded</SelectItem>
+                        <SelectItem value="processing">Processing</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="payment-method">Payment Method</Label>
+                    <Select
+                      value={editingPayment.paymentMethod || ""}
+                      onValueChange={(value) => handleInputChange("paymentMethod", value)}
+                      disabled={!isEditing}
+                    >
+                      <SelectTrigger className={!isEditing ? "bg-gray-50" : ""}>
+                        <SelectValue placeholder="Select payment method" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="credit_card">Credit Card</SelectItem>
+                        <SelectItem value="debit_card">Debit Card</SelectItem>
+                        <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                        <SelectItem value="check">Check</SelectItem>
+                        <SelectItem value="cash">Cash</SelectItem>
+                        <SelectItem value="wire_transfer">Wire Transfer</SelectItem>
+                        <SelectItem value="paypal">PayPal</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="receipt-type">Receipt Type</Label>
+                    <Select
+                      value={editingPayment.receiptType || ""}
+                      onValueChange={(value) => handleInputChange("receiptType", value)}
+                      disabled={!isEditing}
+                    >
+                      <SelectTrigger className={!isEditing ? "bg-gray-50" : ""}>
+                        <SelectValue placeholder="Select receipt type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="tax_deductible">Tax Deductible</SelectItem>
+                        <SelectItem value="non_tax_deductible">Non-Tax Deductible</SelectItem>
+                        <SelectItem value="partial_tax_deductible">Partial Tax Deductible</SelectItem>
+                        <SelectItem value="gift_in_kind">Gift in Kind</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Amount Information */}
+              <div className="space-y-4">
+                <h4 className="font-semibold text-gray-900 text-lg">
+                  Amount Information
+                </h4>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="pledge-amount-usd">Pledge Amount (USD)</Label>
+                    <Input
+                      id="pledge-amount-usd"
+                      value={isPledgeLoading ? "Loading..." : formatUSDAmount(pledgeData?.totalAmountUsd || "0")}
+                      disabled
+                      className="bg-gray-50"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="pledge-amount-currency">Pledge Amount ({editingPayment.pledgeOriginalCurrency || editingPayment.currency})</Label>
+                    <Input
+                      id="pledge-amount-currency"
+                      value={isPledgeLoading ? "Loading..." :
+                        formatCurrency(pledgeData?.totalAmount || "0", editingPayment.pledgeOriginalCurrency || editingPayment.currency).symbol +
+                        formatCurrency(pledgeData?.totalAmount || "0", editingPayment.pledgeOriginalCurrency || editingPayment.currency).amount
+                      }
+                      disabled
+                      className="bg-gray-50"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="paid-usd">Paid (USD)</Label>
+                    <Input
+                      id="paid-usd"
+                      value={`$ ${Math.round(Number(editingPayment.amountUsd))}`}
+                      disabled
+                      className="bg-gray-50"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="paid-currency">Paid ({editingPayment.pledgeOriginalCurrency || editingPayment.currency})</Label>
+                    <Input
+                      id="paid-currency"
+                      value={editingPayment.amount}
+                      onChange={(e) => handleInputChange("amount", e.target.value)}
+                      disabled={!isEditing}
+                      className={!isEditing ? "bg-gray-50" : ""}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="balance-usd">Balance (USD)</Label>
+                    <Input
+                      id="balance-usd"
+                      value={isPledgeLoading ? "Loading..." : formatUSDAmount(pledgeData?.balanceUsd || "0")}
+                      disabled
+                      className="bg-gray-50"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="balance-currency">Balance ({editingPayment.pledgeOriginalCurrency || editingPayment.currency})</Label>
+                    <Input
+                      id="balance-currency"
+                      value={isPledgeLoading ? "Loading..." :
+                        formatCurrency(pledgeData?.balance || "0", editingPayment.pledgeOriginalCurrency || editingPayment.currency).symbol +
+                        formatCurrency(pledgeData?.balance || "0", editingPayment.pledgeOriginalCurrency || editingPayment.currency).amount
+                      }
+                      disabled
+                      className="bg-gray-50"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Schedule Information */}
+              <div className="space-y-4">
+                <h4 className="font-semibold text-gray-900 text-lg">
+                  Schedule Information
+                </h4>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="scheduled">Scheduled</Label>
+                    <Input
+                      id="scheduled"
+                      value={isPledgeLoading ? "Loading..." :
+                        formatCurrency(pledgeData?.scheduledAmount || "0", editingPayment.pledgeOriginalCurrency || editingPayment.currency).symbol +
+                        formatCurrency(pledgeData?.scheduledAmount || "0", editingPayment.pledgeOriginalCurrency || editingPayment.currency).amount
+                      }
+                      disabled
+                      className="bg-gray-50"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="unscheduled">Unscheduled</Label>
+                    <Input
+                      id="unscheduled"
+                      value={isPledgeLoading ? "Loading..." : (() => {
+                        const unscheduledAmount = (
+                          Number.parseFloat(pledgeData?.balance || "0") -
+                          Number.parseFloat(pledgeData?.scheduledAmount || "0")
+                        ).toString();
+                        return formatCurrency(unscheduledAmount, editingPayment.pledgeOriginalCurrency || editingPayment.currency).symbol +
+                          formatCurrency(unscheduledAmount, editingPayment.pledgeOriginalCurrency || editingPayment.currency).amount;
+                      })()}
+                      disabled
+                      className="bg-gray-50"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="reference-number">Reference Number</Label>
+                    <Input
+                      id="reference-number"
+                      value={editingPayment.referenceNumber || ""}
+                      onChange={(e) => handleInputChange("referenceNumber", e.target.value)}
+                      disabled={!isEditing}
+                      className={!isEditing ? "bg-gray-50" : ""}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="check-number">Check Number</Label>
+                    <Input
+                      id="check-number"
+                      value={editingPayment.checkNumber || ""}
+                      onChange={(e) => handleInputChange("checkNumber", e.target.value)}
+                      disabled={!isEditing}
+                      className={!isEditing ? "bg-gray-50" : ""}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="receipt-number">Receipt Number</Label>
+                    <Input
+                      id="receipt-number"
+                      value={editingPayment.receiptNumber || ""}
+                      onChange={(e) => handleInputChange("receiptNumber", e.target.value)}
+                      disabled={!isEditing}
+                      className={!isEditing ? "bg-gray-50" : ""}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes Section */}
+              <div className="space-y-4">
+                <h4 className="font-semibold text-gray-900 text-lg">
+                  Notes
+                </h4>
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Notes</Label>
+                  <Textarea
+                    id="notes"
+                    value={editingPayment.notes || ""}
+                    onChange={(e) => handleInputChange("notes", e.target.value)}
+                    disabled={!isEditing}
+                    className={!isEditing ? "bg-gray-50" : ""}
+                    rows={4}
+                    placeholder="Enter payment notes..."
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCloseModal}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
