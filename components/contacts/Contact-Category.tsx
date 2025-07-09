@@ -49,27 +49,7 @@ export default function ContactCategoriesCard({
     const numericAmount = formatted.replace(/[^\d,.\s]/g, "").trim();
 
     return { symbol: currencySymbol, amount: numericAmount };
-  };
-
-  // Function to calculate total scheduled amount from all pledges in a category
-  const calculateScheduledAmount = (category: Category) => {
-    // If the category has pledges array
-    if (category.pledges && Array.isArray(category.pledges)) {
-      const totalScheduled = category.pledges.reduce((sum, pledge) => {
-        const balance = parseFloat(pledge.balance || "0.00");
-        return sum + balance;
-      }, 0);
-      return totalScheduled.toFixed(2);
-    }
-    
-    // If pledges is a single object (backward compatibility)
-    if (category.pledge && typeof category.pledge === 'object' && !Array.isArray(category.pledge)) {
-      return category.pledge.balance || "0.00";
-    }
-    
-    // If no pledges data available
-    return "0.00";
-  };
+  }
 
   // Function to get the currency for scheduled amount display
   const getCategoryCurrency = (category: Category) => {
