@@ -394,21 +394,37 @@ export default function PledgesTable() {
                           <TableCell className="text-right">
                             <div className="flex justify-end items-center gap-1">
                               <span>
-                                {formatCurrency(scheduledAmount, pledge.currency).symbol}
-                              </span>
-                              <span>
-                                {formatCurrency(scheduledAmount, pledge.currency).amount}
-                              </span>
+                              {
+                                formatCurrency(pledge.balance, pledge.currency)
+                                  .symbol
+                              }
+                            </span>
+                            <span>
+                              {
+                                formatCurrency(pledge.balance, pledge.currency)
+                                  .amount
+                              }
+                            </span>
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end items-center gap-1">
                               <span>
-                                {formatCurrency(unscheduledAmount, pledge.currency).symbol}
-                              </span>
-                              <span>
-                                {formatCurrency(unscheduledAmount, pledge.currency).amount}
-                              </span>
+                              {
+                                formatCurrency(
+                                  pledge.originalAmount,
+                                  pledge.currency
+                                ).symbol
+                              }
+                            </span>
+                            <span>
+                              {
+                                formatCurrency(
+                                  pledge.originalAmount,
+                                  pledge.currency
+                                ).amount
+                              }
+                            </span>
                             </div>
                           </TableCell>
                           <TableCell className="font-medium">

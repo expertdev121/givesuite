@@ -49,22 +49,7 @@ export default function ContactCategoriesCard({
     const numericAmount = formatted.replace(/[^\d,.\s]/g, "").trim();
 
     return { symbol: currencySymbol, amount: numericAmount };
-  }
-
-  // Function to get the currency for scheduled amount display
-  const getCategoryCurrency = (category: Category) => {
-    if (category.pledges && Array.isArray(category.pledges) && category.pledges.length > 0) {
-      // Use the currency from the first pledge, or default to USD
-      return category.pledges[0].currency || "USD";
-    }
-    
-    if (category.pledge && typeof category.pledge === 'object' && !Array.isArray(category.pledge)) {
-      return category.pledge.currency || "USD";
-    }
-    
-    return "USD";
   };
-  
   const categoryMap = new Map<string, Category>();
   categories.forEach((cat) => {
     categoryMap.set(cat.categoryName.toLowerCase(), cat);
@@ -99,10 +84,6 @@ export default function ContactCategoriesCard({
           </TableHeader>
           <TableBody>
             {sortedCategories.map((category) => {
-              const scheduledAmount = calculateScheduledAmount(category);
-              const balanceMinusScheduled = (parseFloat(category.currentBalanceUsd) - parseFloat(scheduledAmount)).toFixed(2);
-              const categoryCurrency = getCategoryCurrency(category);
-              
               return (
                 <TableRow key={category.categoryId}>
                   <TableCell className="font-medium">
@@ -128,22 +109,12 @@ export default function ContactCategoriesCard({
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-evenly">
-                      <span>
-                        {formatCurrency(scheduledAmount, categoryCurrency).symbol}
-                      </span>
-                      <span>
-                        {formatCurrency(scheduledAmount, categoryCurrency).amount}
-                      </span>
+                                          $ {category.currentBalanceUsd}
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-evenly">
-                      <span>
-                        {formatCurrency(balanceMinusScheduled, categoryCurrency).symbol}
-                      </span>
-                      <span>
-                        {formatCurrency(balanceMinusScheduled, categoryCurrency).amount}
-                      </span>
+                                         $ {category.totalPledgedUsd}
                     </div>
                   </TableCell>
                 </TableRow>
