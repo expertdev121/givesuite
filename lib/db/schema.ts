@@ -196,6 +196,20 @@ export const bonusPaymentTypeEnum = pgEnum("bonus_payment_type", [
   "both",
 ]);
 
+// new enum for distribution type
+export const distributionTypeEnum = pgEnum("distribution_type", [
+  "fixed",
+  "custom",
+]);
+
+// new enum for installment status
+export const installmentStatusEnum = pgEnum("installment_status", [
+  "pending",
+  "paid",
+  "overdue",
+  "cancelled",
+]);
+
 export const contact = pgTable("contact", {
   id: serial("id").primaryKey(),
   firstName: text("first_name").notNull(),
@@ -356,6 +370,9 @@ export const paymentPlan = pgTable(
     planName: text("plan_name"),
     frequency: frequencyEnum("frequency").notNull(),
 
+    // NEW FIELD: Distribution type
+    distributionType: distributionTypeEnum("distribution_type").notNull().default("fixed"),
+
     totalPlannedAmount: numeric("total_planned_amount", {
       precision: 10,
       scale: 2,
@@ -403,6 +420,46 @@ export const paymentPlan = pgTable(
 
 export type PaymentPlan = typeof paymentPlan.$inferSelect;
 export type NewPaymentPlan = typeof paymentPlan.$inferInsert;
+
+// NEW TABLE: Installment Schedules
+export const installmentSchedule = pgTable(
+  "installment_schedule",
+  {
+    id: serial("id").primaryKey(),
+    paymentPlanId: integer("payment_plan_id") 
+      .references(() => paymentPlan.id, { onDelete: "cascade" })
+      .notNull(),
+    installmentDate: date("installment_date").notNull(),
+    installmentAmount: numeric("installment_amount", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    currency: currencyEnum("currency").notNull(),
+    status: installmentStatusEnum("status").notNull().default("pending"),
+    paidDate: date("paid_date"),
+    paymentId: integer("payment_id").references(() => payment.id, {
+      onDelete: "set null",
+    }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    paymentPlanIdIdx: index("installment_schedule_payment_plan_id_idx").on(
+      table.paymentPlanId
+    ),
+    installmentDateIdx: index("installment_schedule_installment_date_idx").on(
+      table.installmentDate
+    ),
+    statusIdx: index("installment_schedule_status_idx").on(table.status),
+    paymentIdIdx: index("installment_schedule_payment_id_idx").on(
+      table.paymentId
+    ),
+  })
+);
+
+export type InstallmentSchedule = typeof installmentSchedule.$inferSelect;
+export type NewInstallmentSchedule = typeof installmentSchedule.$inferInsert;
 
 // *** NEW TABLES FOR SOLICITOR SYSTEM ***
 
@@ -525,6 +582,12 @@ export const payment = pgTable(
     paymentPlanId: integer("payment_plan_id").references(() => paymentPlan.id, {
       onDelete: "set null",
     }),
+
+ // NEW FIELD: Link to specific installment
+    installmentScheduleId: integer("installment_schedule_id").references(
+      () => installmentSchedule.id,
+      { onDelete: "set null" }
+    ),
 
     amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
     currency: currencyEnum("currency").notNull(),
@@ -668,7 +731,22 @@ export const paymentPlanRelations = relations(paymentPlan, ({ one, many }) => ({
     references: [pledge.id],
   }),
   payments: many(payment),
+  installmentSchedules: many(installmentSchedule),
 }));
+
+export const installmentScheduleRelations = relations(
+  installmentSchedule,
+  ({ one }) => ({
+    paymentPlan: one(paymentPlan, {
+      fields: [installmentSchedule.paymentPlanId],
+      references: [paymentPlan.id],
+    }),
+    payment: one(payment, {
+      fields: [installmentSchedule.paymentId],
+      references: [payment.id],
+    }),
+  })
+);
 
 // *** UPDATED PAYMENT RELATIONS (with solicitor) ***
 export const paymentRelations = relations(payment, ({ one }) => ({
@@ -680,7 +758,10 @@ export const paymentRelations = relations(payment, ({ one }) => ({
     fields: [payment.paymentPlanId],
     references: [paymentPlan.id],
   }),
-  // *** NEW RELATIONS ***
+  installmentSchedule: one(installmentSchedule, {
+    fields: [payment.installmentScheduleId],
+    references: [installmentSchedule.id],
+  }),
   solicitor: one(solicitor, {
     fields: [payment.solicitorId],
     references: [solicitor.id],
@@ -694,6 +775,7 @@ export const paymentRelations = relations(payment, ({ one }) => ({
     references: [bonusCalculation.paymentId],
   }),
 }));
+
 
 // *** NEW SOLICITOR RELATIONS ***
 export const solicitorRelations = relations(solicitor, ({ one, many }) => ({
