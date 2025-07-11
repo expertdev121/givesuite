@@ -1,10 +1,15 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { paymentPlan, pledge } from "@/lib/db/schema";
+import { paymentPlan, pledge, installmentSchedule } from "@/lib/db/schema";
 import { sql, eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { ErrorHandler } from "@/lib/error-handler";
+
+const installmentSchema = z.object({
+  date: z.string().min(1, "Installment date is required"),
+  amount: z.number().positive("Installment amount must be positive"),
+  notes: z.string().optional(),
+});
 
 const paymentPlanSchema = z.object({
   pledgeId: z.number().positive(),
@@ -18,95 +23,132 @@ const paymentPlanSchema = z.object({
     "one_time",
     "custom",
   ]),
-  totalPlannedAmount: z
-    .number()
-    .positive("Total planned amount must be positive"),
+  distributionType: z.enum(["fixed", "custom"]).default("fixed"),
+  totalPlannedAmount: z.number().positive("Total planned amount must be positive"),
   currency: z.enum(["USD", "ILS", "EUR", "JPY", "GBP", "AUD", "CAD", "ZAR"]),
   installmentAmount: z.number().positive("Installment amount must be positive"),
-  numberOfInstallments: z
-    .number()
-    .int()
-    .positive("Number of installments must be positive"),
+  numberOfInstallments: z.number().int().positive("Number of installments must be positive"),
   startDate: z.string().min(1, "Start date is required"),
   endDate: z.string().optional(),
   nextPaymentDate: z.string().optional(),
   autoRenew: z.boolean().default(false),
+  planStatus: z.enum(["active", "completed", "cancelled", "paused", "overdue"]).optional(),
   notes: z.string().optional(),
   internalNotes: z.string().optional(),
+  customInstallments: z.array(installmentSchema).optional(),
 });
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const validatedData = paymentPlanSchema.parse(body);
-    const currentPledge = await db
-      .select()
-      .from(pledge)
-      .where(eq(pledge.id, validatedData.pledgeId))
-      .limit(1);
+  const transaction = await db.transaction(async (tx) => {
+    try {
+      const body = await request.json();
+      const validatedData = paymentPlanSchema.parse(body);
 
-    if (currentPledge.length === 0) {
-      return NextResponse.json({ error: "Pledge not found" }, { status: 404 });
-    }
+      // Validate custom installment data if distribution type is custom
+      if (validatedData.distributionType === "custom") {
+        if (!validatedData.customInstallments || validatedData.customInstallments.length === 0) {
+          return NextResponse.json(
+            { error: "Validation failed", details: [{ field: "customInstallments", message: "Custom installments must be provided for 'custom' distribution type." }] },
+            { status: 400 }
+          );
+        }
 
-    const newPaymentPlan = {
-      pledgeId: validatedData.pledgeId,
-      planName: validatedData.planName || null,
-      frequency: validatedData.frequency,
-      totalPlannedAmount: validatedData.totalPlannedAmount.toString(),
-      currency: validatedData.currency,
-      installmentAmount: validatedData.installmentAmount.toString(),
-      numberOfInstallments: validatedData.numberOfInstallments,
-      startDate: validatedData.startDate,
-      endDate: validatedData.endDate || null,
-      nextPaymentDate: validatedData.nextPaymentDate || validatedData.startDate,
-      remainingAmount: validatedData.totalPlannedAmount.toString(),
-      planStatus: "active" as const,
-      autoRenew: validatedData.autoRenew,
-      remindersSent: 0,
-      lastReminderDate: null,
-      isActive: true,
-      notes: validatedData.notes || null,
-      internalNotes: validatedData.internalNotes || null,
-    };
+        const totalCustomAmount = validatedData.customInstallments.reduce((sum, installment) => sum + installment.amount, 0);
+        if (totalCustomAmount !== validatedData.totalPlannedAmount) {
+          return NextResponse.json(
+            { error: "Validation failed", details: [{ field: "totalPlannedAmount", message: "Sum of custom installments must equal the total planned amount." }] },
+            { status: 400 }
+          );
+        }
+      }
 
-    // Create the payment plan
-    const paymentPlanResult = await db
-      .insert(paymentPlan)
-      .values(newPaymentPlan)
-      .returning();
+      const currentPledge = await tx
+        .select()
+        .from(pledge)
+        .where(eq(pledge.id, validatedData.pledgeId))
+        .limit(1);
 
-    if (paymentPlanResult.length === 0) {
-      return NextResponse.json(
-        { error: "Failed to create payment plan" },
-        { status: 500 }
-      );
-    }
+      if (currentPledge.length === 0) {
+        return NextResponse.json({ error: "Pledge not found" }, { status: 404 });
+      }
 
-    return NextResponse.json(
-      {
-        message: "Payment plan created successfully",
-        paymentPlan: paymentPlanResult[0],
-      },
-      { status: 201 }
-    );
-  } catch (error) {
-    if (error instanceof z.ZodError) {
+      const newPaymentPlan = {
+        pledgeId: validatedData.pledgeId,
+        planName: validatedData.planName || null,
+        frequency: validatedData.frequency,
+        distributionType: validatedData.distributionType,
+        totalPlannedAmount: validatedData.totalPlannedAmount.toString(),
+        currency: validatedData.currency,
+        installmentAmount: validatedData.installmentAmount.toString(),
+        numberOfInstallments: validatedData.numberOfInstallments,
+        startDate: validatedData.startDate,
+        endDate: validatedData.endDate || null,
+        nextPaymentDate: validatedData.nextPaymentDate || validatedData.startDate,
+        remainingAmount: validatedData.totalPlannedAmount.toString(),
+        planStatus: "active" as const,
+        autoRenew: validatedData.autoRenew,
+        remindersSent: 0,
+        lastReminderDate: null,
+        isActive: true,
+        notes: validatedData.notes || null,
+        internalNotes: validatedData.internalNotes || null,
+      };
+
+      // Create the payment plan
+      const paymentPlanResult = await tx
+        .insert(paymentPlan)
+        .values(newPaymentPlan)
+        .returning();
+
+      if (paymentPlanResult.length === 0) {
+        return NextResponse.json(
+          { error: "Failed to create payment plan" },
+          { status: 500 }
+        );
+      }
+      
+      const createdPaymentPlan = paymentPlanResult[0];
+
+      // If distribution is custom, create installment schedule entries
+      if (validatedData.distributionType === "custom" && validatedData.customInstallments) {
+        const installmentsToInsert = validatedData.customInstallments.map((inst) => ({
+          paymentPlanId: createdPaymentPlan.id,
+          installmentDate: inst.date,
+          installmentAmount: inst.amount.toString(),
+          currency: createdPaymentPlan.currency,
+          notes: inst.notes || null,
+        }));
+
+        await tx.insert(installmentSchedule).values(installmentsToInsert);
+      }
+
       return NextResponse.json(
         {
-          error: "Validation failed",
-          details: error.issues.map((issue) => ({
-            field: issue.path.join("."),
-            message: issue.message,
-          })),
+          message: "Payment plan created successfully",
+          paymentPlan: createdPaymentPlan,
         },
-        { status: 400 }
+        { status: 201 }
       );
-    }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return NextResponse.json(
+          {
+            error: "Validation failed",
+            details: error.issues.map((issue) => ({
+              field: issue.path.join("."),
+              message: issue.message,
+            })),
+          },
+          { status: 400 }
+        );
+      }
 
-    console.error("Error creating payment plan:", error);
-    return ErrorHandler.handle(error);
-  }
+      console.error("Error creating payment plan:", error);
+      return ErrorHandler.handle(error);
+    }
+  });
+
+  return transaction;
 }
 
 const querySchema = z.object({
@@ -128,6 +170,7 @@ const querySchema = z.object({
       "custom",
     ])
     .optional(),
+  distributionType: z.enum(["fixed", "custom"]).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -144,6 +187,7 @@ export async function GET(request: NextRequest) {
       limit: searchParams.get("limit") ?? undefined,
       planStatus: searchParams.get("planStatus") ?? undefined,
       frequency: searchParams.get("frequency") ?? undefined,
+      distributionType: searchParams.get("distributionType") ?? undefined,
     });
 
     if (!parsedParams.success) {
@@ -159,7 +203,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { pledgeId, contactId, page, limit, planStatus, frequency } =
+    const { pledgeId, contactId, page, limit, planStatus, frequency, distributionType } =
       parsedParams.data;
     const offset = (page - 1) * limit;
     const conditions = [];
@@ -181,6 +225,10 @@ export async function GET(request: NextRequest) {
     if (frequency) {
       conditions.push(eq(paymentPlan.frequency, frequency));
     }
+    
+    if (distributionType) {
+      conditions.push(eq(paymentPlan.distributionType, distributionType));
+    }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -190,6 +238,7 @@ export async function GET(request: NextRequest) {
         pledgeId: paymentPlan.pledgeId,
         planName: paymentPlan.planName,
         frequency: paymentPlan.frequency,
+        distributionType: paymentPlan.distributionType,
         totalPlannedAmount: paymentPlan.totalPlannedAmount,
         currency: paymentPlan.currency,
         installmentAmount: paymentPlan.installmentAmount,
@@ -258,6 +307,7 @@ export async function GET(request: NextRequest) {
         contactId,
         planStatus,
         frequency,
+        distributionType,
       },
     };
 

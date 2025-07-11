@@ -24,6 +24,21 @@ export interface PaymentPlanFormData {
   internalNotes?: string;
 }
 
+export interface InstallmentSchedule {
+  id: number;
+  paymentPlanId: number;
+  installmentDate: string; 
+  installmentAmount: string;
+  currency: string;
+  status: "pending" | "paid" | "overdue" | "cancelled";
+  paidDate?: string | null;
+  paymentId?: number | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+
 export interface PaymentPlanUpdateData
   extends Omit<Partial<PaymentPlanFormData>, "pledgeId"> {
   planStatus?: "active" | "completed" | "cancelled" | "paused" | "overdue";
@@ -34,6 +49,7 @@ export interface PaymentPlan {
   pledgeId: number;
   planName?: string;
   frequency: string;
+   distributionType: "fixed" | "custom";
   totalPlannedAmount: number;
   currency: string;
   installmentAmount: number;
@@ -54,6 +70,7 @@ export interface PaymentPlan {
   pledgeDescription?: string;
   pledgeOriginalAmount?: string;
   contactId?: number;
+  installmentSchedule?: InstallmentSchedule[];
 }
 
 export interface PledgeDetails {
@@ -97,6 +114,20 @@ export interface PledgeDetails {
   paymentPlans: PaymentPlan[];
   activePaymentPlans: PaymentPlan[];
 }
+
+export const useInstallmentScheduleQuery = (paymentPlanId: number) => {
+  return useQuery({
+    queryKey: ["installment_schedule", paymentPlanId],
+    queryFn: async (): Promise<InstallmentSchedule[]> => {
+      const res = await fetch(`/api/payment-plans/${paymentPlanId}/installments`);
+      if (!res.ok) throw new Error("Failed to fetch installment schedule");
+      return res.json();
+    },
+    enabled: !!paymentPlanId,
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
 
 export const useCreatePaymentPlanMutation = () => {
   const queryClient = useQueryClient();
