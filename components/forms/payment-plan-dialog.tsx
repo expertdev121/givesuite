@@ -390,7 +390,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
 
   // Set first pledge as default when no initialPledgeId is provided
   useEffect(() => {
-    if (
+    if (  
       !isEditMode &&
       !initialPledgeId &&
       !selectedPledgeId &&
@@ -482,7 +482,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
     if (currentAmount > 0) {
       const convertedAmount = convertAmount(
         currentAmount,
-        previousCurrencyRef.current,
+        previousCurrencyRef.current,  
         watchedCurrency,
         exchangeRates
       );
@@ -508,35 +508,37 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
     previousCurrencyRef.current = watchedCurrency;
   }, [watchedCurrency, exchangeRates, form, manualInstallment]);
 
-  // Update form when existing plan data loads (edit mode)
-  useEffect(() => {
-    if (isEditMode && existingPlan && !form.formState.isDirty) {
-      form.reset({
-        pledgeId: existingPlan.pledgeId,
-        planName: existingPlan.planName || "",
-        frequency: existingPlan.frequency as any,
-        totalPlannedAmount: Number.parseFloat(
-          existingPlan.totalPlannedAmount?.toString() || "0"
-        ),
-        currency: existingPlan.currency as any,
-        installmentAmount: Number.parseFloat(
-          existingPlan.installmentAmount?.toString() || "0"
-        ),
-        numberOfInstallments: existingPlan.numberOfInstallments || 1,
-        startDate: existingPlan.startDate?.split("T")[0] || "",
-        endDate: existingPlan.endDate?.split("T")[0] || "",
-        nextPaymentDate: existingPlan.nextPaymentDate?.split("T")[0] || "",
-        autoRenew: existingPlan.autoRenew || false,
-        planStatus: existingPlan.planStatus || "active",
-        notes: existingPlan.notes || "",
-        internalNotes: existingPlan.internalNotes || "",
-      });
+// Update form when existing plan data loads (edit mode)
+useEffect(() => {
+  if (isEditMode && existingPlan && !form.formState.isDirty) {
+    form.reset({
+      pledgeId: existingPlan.pledgeId,
+      planName: existingPlan.planName || "",
+      frequency: existingPlan.frequency as any,
+      distributionType: existingPlan.distributionType as any,
+      totalPlannedAmount: Number.parseFloat(
+        existingPlan.totalPlannedAmount?.toString() || "0"
+      ),
+      currency: existingPlan.currency as any,
+      installmentAmount: Number.parseFloat(
+        existingPlan.installmentAmount?.toString() || "0"
+      ),
+      numberOfInstallments: existingPlan.numberOfInstallments || 1,
+      startDate: existingPlan.startDate?.split("T")[0] || "",
+      endDate: existingPlan.endDate?.split("T")[0] || "",
+      nextPaymentDate: existingPlan.nextPaymentDate?.split("T")[0] || "",
+      autoRenew: existingPlan.autoRenew || false,
+      planStatus: existingPlan.planStatus || "active",
+      notes: existingPlan.notes || "",
+      internalNotes: existingPlan.internalNotes || "",
+      customInstallments: existingPlan.customInstallments || undefined,
+    });
 
-      // Set the previous currency and mark form as initialized
-      previousCurrencyRef.current = existingPlan.currency;
-      isFormInitializedRef.current = true;
-    }
-  }, [existingPlan, isEditMode, form]);
+    // Set the previous currency and mark form as initialized
+    previousCurrencyRef.current = existingPlan.currency;
+    isFormInitializedRef.current = true;
+  }
+}, [existingPlan, isEditMode, form]);
 
   // Update form when selectedPledgeId changes (create mode)
   useEffect(() => {
@@ -710,104 +712,56 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
       isFormInitializedRef.current = true;
     }, 100);
   };
+const onSubmit = async (data: PaymentPlanFormData) => {
+  try {
+    // Check if we're in edit mode and have an existing plan ID
+    if (isEditMode && paymentPlanId) {
+      console.log('UPDATING payment plan with ID:', paymentPlanId);
 
-  const onSubmit = async (data: PaymentPlanFormData) => {
-    try {
-      if (isEditMode && existingPlan) {
-        // Update existing plan
-        const updateData: any = {};
+      // Prepare update data
+      const updateData: Partial<PaymentPlanFormData> = {
+        ...data,
+        // Only include customInstallments if distributionType is custom
+        customInstallments: data.distributionType === 'custom' 
+          ? data.customInstallments 
+          : undefined,
+      };
 
-        // Only include changed fields
-        if (data.planName !== existingPlan.planName)
-          updateData.planName = data.planName;
+      console.log('Update data:', updateData);
 
-        if (data.frequency !== existingPlan.frequency)
-          updateData.frequency = data.frequency;
+      await updatePaymentPlanMutation.mutateAsync({
+        id: paymentPlanId,
+        data: updateData,
+      });
 
-        if (
-          data.totalPlannedAmount !==
-          Number.parseFloat(existingPlan.totalPlannedAmount?.toString() || "0")
-        ) {
-          updateData.totalPlannedAmount = data.totalPlannedAmount;
-        }
+      setIsEditing(false);
+      onSuccess?.();
+      setOpen(false);
+    } else {
+      console.log('CREATING new payment plan');
 
-        if (data.currency !== existingPlan.currency)
-          updateData.currency = data.currency;
+      // Create new plan
+      const payload = {
+        ...data,
+        customInstallments: data.distributionType === 'custom' 
+          ? data.customInstallments 
+          : undefined,
+      };
 
-        if (
-          data.installmentAmount !==
-          Number.parseFloat(existingPlan.installmentAmount?.toString() || "0")
-        ) {
-          updateData.installmentAmount = data.installmentAmount;
-        }
+      console.log('Create data:', payload);
 
-        if (data.numberOfInstallments !== existingPlan.numberOfInstallments) {
-          updateData.numberOfInstallments = data.numberOfInstallments;
-        }
+      await createPaymentPlanMutation.mutateAsync(payload);
 
-        if (data.startDate !== existingPlan.startDate?.split("T")[0])
-          updateData.startDate = data.startDate;
-
-        if (data.endDate !== (existingPlan.endDate?.split("T")[0] || ""))
-          updateData.endDate = data.endDate;
-
-        if (
-          data.nextPaymentDate !==
-          (existingPlan.nextPaymentDate?.split("T")[0] || "")
-        ) {
-          updateData.nextPaymentDate = data.nextPaymentDate;
-        }
-
-        if (data.autoRenew !== existingPlan.autoRenew)
-          updateData.autoRenew = data.autoRenew;
-
-        if (data.planStatus !== existingPlan.planStatus)
-          updateData.planStatus = data.planStatus;
-
-        if (data.notes !== (existingPlan.notes || ""))
-          updateData.notes = data.notes;
-
-        if (data.internalNotes !== (existingPlan.internalNotes || ""))
-          updateData.internalNotes = data.internalNotes;
-
-        await updatePaymentPlanMutation.mutateAsync({
-          id: existingPlan.id,
-          data: updateData,
-        });
-
-        setIsEditing(false);
-      } else {
-        console.log(data);
-
-        // Create new plan
-        const payload = {
-          ...data,
-          // Only include customInstallments if distributionType is custom
-          customInstallments: data.distributionType === 'custom' ? data.customInstallments : undefined,
-          // Convert amounts to strings if needed (as per your API)
-          totalPlannedAmount: data.totalPlannedAmount,
-          installmentAmount: data.installmentAmount,
-        };
-
-        if (isEditMode && existingPlan) {
-          await updatePaymentPlanMutation.mutateAsync({
-            id: existingPlan.id,
-            data: payload,
-          });
-          setIsEditing(false);
-        } else {
-          await createPaymentPlanMutation.mutateAsync(payload);
-        }
-
-        onSuccess?.();
-        setOpen(false);
-      } }catch (error) {
-        console.error(
-          `Error ${isEditMode ? "updating" : "creating"} payment plan:`,
-          error
-        );
-      }
-    };
+      onSuccess?.();
+      setOpen(false);
+    }
+  } catch (error) {
+    console.error(
+      `Error ${isEditMode ? "updating" : "creating"} payment plan:`,
+      error
+    );
+  }
+};
 
     const handleOpenChange = (newOpen: boolean) => {
       setOpen(newOpen);
@@ -893,377 +847,404 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
           <span className="ml-2">Loading...</span>
         </div>
       );
-    }
-
-    return (
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogTrigger asChild>{trigger || defaultTrigger}</DialogTrigger>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {isEditMode ? "Edit Payment Plan" : "Create Payment Plan"}
-            </DialogTitle>
-            <DialogDescription>
-              {isLoadingPledge ? (
-                "Loading pledge details..."
-              ) : (
-                <div>
-                  {isEditMode ? "Update the payment plan" : "Set up a"} payment
-                  plan for pledge: {effectivePledgeDescription}
-                  {effectiveRemainingBalance > 0 && (
-                    <span className="block mt-1 text-sm text-muted-foreground">
-                      Remaining Balance: {effectivePledgeCurrency}{" "}
-                      {effectiveRemainingBalance.toLocaleString()}
-                    </span>
-                  )}
-                  {(pledgeData?.contact || existingPlan) && (
-                    <span className="block mt-1 text-sm text-muted-foreground">
-                      Contact: {pledgeData?.contact?.fullName || "Loading..."}
-                    </span>
-                  )}
-                  <div className="mt-2">
-                    <ExchangeRateDisplay
-                      currency={effectivePledgeCurrency}
-                      exchangeRates={exchangeRates}
-                      isLoading={isLoadingRates}
-                    />
-                  </div>
-                </div>
+    }return (
+  <Dialog open={open} onOpenChange={handleOpenChange}>
+    <DialogTrigger asChild>{trigger || defaultTrigger}</DialogTrigger>
+    <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+      <DialogHeader>
+        <DialogTitle>
+          {isEditMode ? "Edit Payment Plan" : "Create Payment Plan"}
+        </DialogTitle>
+        <DialogDescription>
+          {isLoadingPledge ? (
+            "Loading pledge details..."
+          ) : (
+            <div>
+              {isEditMode ? "Update the payment plan" : "Set up a"} payment
+              plan for pledge: {effectivePledgeDescription}
+              {effectiveRemainingBalance > 0 && (
+                <span className="block mt-1 text-sm text-muted-foreground">
+                  Remaining Balance: {effectivePledgeCurrency}{" "}
+                  {effectiveRemainingBalance.toLocaleString()}
+                </span>
               )}
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* Action buttons for edit mode */}
-          {isEditMode && existingPlan && !isEditing && (
-            <div className="flex gap-2 mb-4 p-3 bg-gray-50 rounded-lg">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setIsEditing(true)}
-              >
-                <Edit className="w-4 h-4 mr-2" />
-                Edit
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  handlePauseResume(
-                    existingPlan.planStatus === "paused" ? "resume" : "pause"
-                  )
-                }
-                disabled={pauseResumeMutation.isPending}
-              >
-                {existingPlan.planStatus === "paused" ? (
-                  <>
-                    <Play className="w-4 h-4 mr-2" />
-                    Resume
-                  </>
-                ) : (
-                  <>
-                    <Pause className="w-4 h-4 mr-2" />
-                    Pause
-                  </>
-                )}
-              </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button size="sm" variant="destructive">
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Delete
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Payment Plan</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Are you sure you want to delete this payment plan? This
-                      action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDelete}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      Delete Plan
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              {(pledgeData?.contact || existingPlan) && (
+                <span className="block mt-1 text-sm text-muted-foreground">
+                  Contact: {pledgeData?.contact?.fullName || existingPlan?.pledgeContact || "Loading..."}
+                </span>
+              )}
+              <div className="mt-2">
+                <ExchangeRateDisplay
+                  currency={effectivePledgeCurrency}
+                  exchangeRates={exchangeRates}
+                  isLoading={isLoadingRates}
+                />
+              </div>
             </div>
           )}
+        </DialogDescription>
+      </DialogHeader>
 
-          <Form {...form}>
-            <div
-              className={cn(
-                "space-y-4",
-                !isEditing && isEditMode && "opacity-60 pointer-events-none"
+      {/* Action buttons for edit mode */}
+      {isEditMode && existingPlan && !isEditing && (
+        <div className="flex gap-2 mb-4 p-3 bg-gray-50 rounded-lg">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsEditing(true)}
+          >
+            <Edit className="w-4 h-4 mr-2" />
+            Edit
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              handlePauseResume(
+                existingPlan.planStatus === "paused" ? "resume" : "pause"
+              )
+            }
+            disabled={pauseResumeMutation.isPending}
+          >
+            {existingPlan.planStatus === "paused" ? (
+              <>
+                <Play className="w-4 h-4 mr-2" />
+                Resume
+              </>
+            ) : (
+              <>
+                <Pause className="w-4 h-4 mr-2" />
+                Pause
+              </>
+            )}
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" variant="destructive">
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Payment Plan</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete this payment plan? This
+                  action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Delete Plan
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
+
+      <Form {...form}>
+        <div
+          className={cn(
+            "space-y-4",
+            !isEditing && isEditMode && "opacity-60 pointer-events-none"
+          )}
+        >
+          {showPledgeSelector && !isEditMode && (
+            <FormField
+              control={form.control}
+              name="pledgeId"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Select Pledge *</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className={cn(
+                            "w-full justify-between",
+                            !field.value && "text-muted-foreground"
+                          )}
+                          disabled={isLoadingPledges}
+                        >
+                          {field.value
+                            ? pledgeOptions.find(
+                                (pledge) => pledge.value === field.value
+                              )?.label
+                            : isLoadingPledges
+                            ? "Loading pledges..."
+                            : "Select pledge"}
+                          <ChevronsUpDown className="opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0">
+                      <Command>
+                        <CommandInput
+                          placeholder="Search pledges..."
+                          className="h-9"
+                        />
+                        <CommandList>
+                          <CommandEmpty>No pledge found.</CommandEmpty>
+                          <CommandGroup>
+                            {pledgeOptions.map((pledge) => (
+                              <CommandItem
+                                value={pledge.label}
+                                key={pledge.value}
+                                onSelect={() => {
+                                  setSelectedPledgeId(pledge.value);
+                                  form.setValue("pledgeId", pledge.value);
+                                }}
+                              >
+                                {pledge.label}
+                                <Check
+                                  className={cn(
+                                    "ml-auto",
+                                    pledge.value === field.value
+                                      ? "opacity-100"
+                                      : "opacity-0"
+                                  )}
+                                />
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
               )}
-            >
-              {showPledgeSelector && !isEditMode && (
-                <FormField
-                  control={form.control}
-                  name="pledgeId"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Select Pledge *</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
+            />
+          )}
+
+          <FormField
+            control={form.control}
+            name="totalPlannedAmount"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Total Planned Amount *</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    {...field}
+                    value={field.value || ""}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      field.onChange(value ? Number.parseFloat(value) : 0);
+                    }}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="currency"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Currency *</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value || ""}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select currency" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {supportedCurrencies.map((curr) => (
+                      <SelectItem key={curr} value={curr}>
+                        {curr}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="mt-2">
+                  <ExchangeRateDisplay
+                    currency={field.value}
+                    exchangeRates={exchangeRates}
+                    isLoading={isLoadingRates}
+                  />
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="frequency"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Payment Frequency *</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value || ""}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select frequency" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {frequencies.map((freq) => (
+                      <SelectItem key={freq.value} value={freq.value}>
+                        {freq.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="distributionType"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Distribution Type</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value || "fixed"}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select distribution type" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="fixed">Fixed Amount</SelectItem>
+                    <SelectItem value="custom">Custom Schedule</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Custom Installments Section - Only show for custom distribution */}
+          {form.watch("distributionType") === "custom" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium">Custom Installments</h4>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const currentInstallments = form.getValues("customInstallments") || [];
+                    form.setValue("customInstallments", [
+                      ...currentInstallments,
+                      {
+                        date: form.getValues("startDate") || new Date().toISOString().split("T")[0],
+                        amount: 0,
+                        notes: "",
+                      },
+                    ]);
+                  }}
+                >
+                  Add Installment
+                </Button>
+              </div>
+
+              {form.watch("customInstallments")?.map((installment, index) => (
+                <div key={index} className="grid grid-cols-3 gap-4 items-end p-3 bg-gray-50 rounded-lg">
+                  <FormField
+                    control={form.control}
+                    name={`customInstallments.${index}.date`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Date</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`customInstallments.${index}.amount`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Amount</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            {...field}
+                            value={field.value || ""}
+                            onChange={(e) => field.onChange(Number(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex items-end gap-2">
+                    <FormField
+                      control={form.control}
+                      name={`customInstallments.${index}.notes`}
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <FormLabel>Notes</FormLabel>
                           <FormControl>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              className={cn(
-                                "w-full justify-between",
-                                !field.value && "text-muted-foreground"
-                              )}
-                              disabled={isLoadingPledges}
-                            >
-                              {field.value
-                                ? pledgeOptions.find(
-                                  (pledge) => pledge.value === field.value
-                                )?.label
-                                : isLoadingPledges
-                                  ? "Loading pledges..."
-                                  : "Select pledge"}
-                              <ChevronsUpDown className="opacity-50" />
-                            </Button>
+                            <Input {...field} />
                           </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-full p-0">
-                          <Command>
-                            <CommandInput
-                              placeholder="Search pledges..."
-                              className="h-9"
-                            />
-                            <CommandList>
-                              <CommandEmpty>No pledge found.</CommandEmpty>
-                              <CommandGroup>
-                                {pledgeOptions.map((pledge) => (
-                                  <CommandItem
-                                    value={pledge.label}
-                                    key={pledge.value}
-                                    onSelect={() => {
-                                      setSelectedPledgeId(pledge.value);
-                                      form.setValue("pledgeId", pledge.value);
-                                    }}
-                                  >
-                                    {pledge.label}
-                                    <Check
-                                      className={cn(
-                                        "ml-auto",
-                                        pledge.value === field.value
-                                          ? "opacity-100"
-                                          : "opacity-0"
-                                      )}
-                                    />
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-
-              <FormField
-                control={form.control}
-                name="totalPlannedAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Total Planned Amount *</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        {...field}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          field.onChange(value ? Number.parseFloat(value) : 0);
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="currency"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Currency *</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select currency" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {supportedCurrencies.map((curr) => (
-                          <SelectItem key={curr} value={curr}>
-                            {curr}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <div className="mt-2">
-                      <ExchangeRateDisplay
-                        currency={field.value}
-                        exchangeRates={exchangeRates}
-                        isLoading={isLoadingRates}
-                      />
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="frequency"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Payment Frequency *</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select frequency" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {frequencies.map((freq) => (
-                          <SelectItem key={freq.value} value={freq.value}>
-                            {freq.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="distributionType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Distribution Type</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select distribution type" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="fixed">Fixed Amount</SelectItem>
-                        <SelectItem value="custom">Custom Schedule</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {form.watch("distributionType") === "custom" && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium">Custom Installments</h4>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       onClick={() => {
                         const currentInstallments = form.getValues("customInstallments") || [];
-                        form.setValue("customInstallments", [
-                          ...currentInstallments,
-                          {
-                            date: form.getValues("startDate") || new Date().toISOString().split("T")[0],
-                            amount: 0,
-                            notes: "",
-                          },
-                        ]);
+                        form.setValue(
+                          "customInstallments",
+                          currentInstallments.filter((_, i) => i !== index)
+                        );
                       }}
                     >
-                      Add Installment
+                      <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
-
-                  {form.watch("customInstallments")?.map((_, index) => (
-                    <div key={index} className="grid grid-cols-3 gap-4 items-end">
-                      <FormField
-                        control={form.control}
-                        name={`customInstallments.${index}.date`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Date</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name={`customInstallments.${index}.amount`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Amount</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                min="0.01"
-                                step="0.01"
-                                {...field}
-                                onChange={(e) => field.onChange(Number(e.target.value))}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <div className="flex items-end gap-2">
-                        <FormField
-                          control={form.control}
-                          name={`customInstallments.${index}.notes`}
-                          render={({ field }) => (
-                            <FormItem className="flex-1">
-                              <FormLabel>Notes</FormLabel>
-                              <FormControl>
-                                <Input {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const currentInstallments = form.getValues("customInstallments") || [];
-                            form.setValue(
-                              "customInstallments",
-                              currentInstallments.filter((_, i) => i !== index)
-                            );
-                          }}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                  
+                  {/* Show payment status for existing installments in edit mode */}
+                  {isEditMode && installment.isPaid && (
+                    <div className="col-span-3 text-sm text-green-600 bg-green-50 p-2 rounded">
+                      ✓ Paid on {installment.paidDate} - Amount: {form.watch("currency")} {installment.paidAmount}
                     </div>
-                  ))}
+                  )}
+                </div>
+              ))}
+
+              {/* Custom installments summary */}
+              {form.watch("customInstallments")?.length > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <h5 className="text-sm font-medium text-blue-900 mb-2">Custom Schedule Summary</h5>
+                  <div className="text-sm text-blue-800">
+                    <div>Total Installments: {form.watch("customInstallments")?.length || 0}</div>
+                    <div>
+                      Total Amount: {form.watch("currency")} {
+                        form.watch("customInstallments")?.reduce((sum, inst) => sum + (inst.amount || 0), 0).toLocaleString() || 0
+                      }
+                    </div>
+                  </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Fixed Distribution Fields - Only show for fixed distribution */}
+          {form.watch("distributionType") !== "custom" && (
+            <>
               {isEditMode && (
                 <FormField
                   control={form.control}
@@ -1271,7 +1252,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Plan Status</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select status" />
@@ -1322,6 +1303,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                           type="number"
                           min="1"
                           {...field}
+                          value={field.value || ""}
                           onChange={(e) => {
                             const value = e.target.value;
                             field.onChange(value ? Number.parseInt(value) : 1);
@@ -1344,13 +1326,13 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                           type="number"
                           step="0.01"
                           {...field}
+                          value={field.value || ""}
                           onChange={(e) => {
                             const value = e.target.value;
                             field.onChange(value ? Number.parseFloat(value) : 0);
                           }}
                           readOnly={!manualInstallment}
                           className={!manualInstallment ? "bg-gray-50" : ""}
-                          value={field.value || 0}
                         />
                       </FormControl>
                       <FormMessage />
@@ -1363,285 +1345,336 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                   )}
                 />
               </div>
+            </>
+          )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="startDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Start Date *</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="endDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>End Date (Estimated)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="date"
-                          {...field}
-                          readOnly
-                          className="bg-gray-50"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="nextPaymentDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Next Payment Date</FormLabel>
+          {/* Status field for edit mode and custom distribution */}
+          {isEditMode && form.watch("distributionType") === "custom" && (
+            <FormField
+              control={form.control}
+              name="planStatus"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Plan Status</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
                     <FormControl>
-                      <Input
-                        type="date"
-                        {...field}
-                        readOnly
-                        className="bg-gray-50"
-                      />
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="autoRenew"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel>Auto Renew</FormLabel>
-                      <p className="text-sm text-muted-foreground">
-                        Automatically create a new plan when this one completes
-                      </p>
-                    </div>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Notes</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        {...field}
-                        placeholder="Public notes about this payment plan"
-                        rows={2}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="internalNotes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Internal Notes</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        {...field}
-                        placeholder="Internal notes (not visible to donor)"
-                        rows={2}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Progress Information for Edit Mode */}
-              {isEditMode && existingPlan && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <h4 className="font-medium text-green-900 mb-2">
-                    Payment Progress
-                  </h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm text-green-800">
-                    <div>
-                      Installments Paid: {existingPlan.installmentsPaid} /{" "}
-                      {existingPlan.numberOfInstallments}
-                    </div>
-                    <div>
-                      Total Paid: {existingPlan.currency}{" "}
-                      {Number.parseFloat(
-                        existingPlan.totalPaid.toString()
-                      ).toLocaleString()}
-                    </div>
-                    <div>
-                      Remaining: {existingPlan.currency}{" "}
-                      {Number.parseFloat(
-                        existingPlan.remainingAmount.toString()
-                      ).toLocaleString()}
-                    </div>
-                    <div>
-                      Status:{" "}
-                      <span className="capitalize">
-                        {existingPlan.planStatus}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                    <SelectContent>
+                      {statusOptions.map((status) => (
+                        <SelectItem key={status.value} value={status.value}>
+                          {status.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
               )}
+            />
+          )}
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
-                <h4 className="font-medium text-blue-900 mb-2">
-                  Payment Plan Summary
-                </h4>
-                <div className="grid grid-cols-2 gap-2 text-sm text-blue-800">
-                  <div>
-                    Total Amount: {form.watch("currency")}{" "}
-                    {form.watch("totalPlannedAmount")?.toLocaleString()}
-                  </div>
-                  <div>Installments: {form.watch("numberOfInstallments")}</div>
-                  <div>
-                    Per Payment: {form.watch("currency")}{" "}
-                    {form.watch("installmentAmount")?.toLocaleString()}
-                  </div>
-                  <div>
-                    Frequency:{" "}
-                    {
-                      frequencies.find((f) => f.value === form.watch("frequency"))
-                        ?.label
-                    }
-                  </div>
-                  {isEditMode && (
-                    <div className="col-span-2 pt-2 border-t border-blue-200">
-                      Plan Status:{" "}
-                      <span className="capitalize">
-                        {form.watch("planStatus")}
-                      </span>
-                    </div>
-                  )}
-                  {/* Exchange rate summary */}
-                  {exchangeRates &&
-                    watchedCurrency &&
-                    watchedCurrency !== "USD" && (
-                      <div className="col-span-2 pt-2 border-t border-blue-200">
-                        <div className="text-xs text-blue-600">
-                          USD Equivalent: ~$
-                          {(
-                            form.watch("totalPlannedAmount") *
-                            Number.parseFloat(
-                              exchangeRates[watchedCurrency] || "1"
-                            )
-                          ).toLocaleString(undefined, {
-                            maximumFractionDigits: 2,
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  {manualInstallment &&
-                    watchedInstallmentAmount &&
-                    watchedTotalPlannedAmount && (
-                      <div className="col-span-2 pt-2 border-t border-blue-200 text-xs">
-                        <div className="flex justify-between">
-                          <span>
-                            Manual Total ({form.watch("numberOfInstallments")} ×{" "}
-                            {form.watch("currency")}{" "}
-                            {form.watch("installmentAmount")}):
-                          </span>
-                          <span className="font-medium">
-                            {form.watch("currency")}{" "}
-                            {(
-                              form.watch("numberOfInstallments") *
-                              form.watch("installmentAmount")
-                            ).toLocaleString()}
-                          </span>
-                        </div>
-                        {Math.abs(
-                          form.watch("numberOfInstallments") *
-                          form.watch("installmentAmount") -
-                          form.watch("totalPlannedAmount")
-                        ) > 0.01 && (
-                            <div className="flex justify-between text-amber-700 mt-1">
-                              <span>Difference from planned total:</span>
-                              <span className="font-medium">
-                                {form.watch("currency")}{" "}
-                                {Math.abs(
-                                  form.watch("numberOfInstallments") *
-                                  form.watch("installmentAmount") -
-                                  form.watch("totalPlannedAmount")
-                                ).toLocaleString()}
-                              </span>
-                            </div>
-                          )}
-                      </div>
-                    )}
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="startDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Start Date *</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} value={field.value || ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="endDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>End Date (Estimated)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="date"
+                      {...field}
+                      value={field.value || ""}
+                      readOnly
+                      className="bg-gray-50"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name="nextPaymentDate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Next Payment Date</FormLabel>
+                <FormControl>
+                  <Input
+                    type="date"
+                    {...field}
+                    value={field.value || ""}
+                    readOnly
+                    className="bg-gray-50"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="autoRenew"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value || false}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel>Auto Renew</FormLabel>
+                  <p className="text-sm text-muted-foreground">
+                    Automatically create a new plan when this one completes
+                  </p>
+                </div>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="notes"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Notes</FormLabel>
+                <FormControl>
+                  <Textarea
+                    {...field}
+                    value={field.value || ""}
+                    placeholder="Public notes about this payment plan"
+                    rows={2}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="internalNotes"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Internal Notes</FormLabel>
+                <FormControl>
+                  <Textarea
+                    {...field}
+                    value={field.value || ""}
+                    placeholder="Internal notes (not visible to donor)"
+                    rows={2}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Progress Information for Edit Mode */}
+          {isEditMode && existingPlan && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <h4 className="font-medium text-green-900 mb-2">
+                Payment Progress
+              </h4>
+              <div className="grid grid-cols-2 gap-2 text-sm text-green-800">
+                <div>
+                  Installments Paid: {existingPlan.installmentsPaid || 0} 
+                  {existingPlan.distributionType === "custom" 
+                    ? ` / ${existingPlan.customInstallments?.length || 0}`
+                    : ` / ${existingPlan.numberOfInstallments || 0}`
+                  }
+                </div>
+                <div>
+                  Total Paid: {existingPlan.currency}{" "}
+                  {Number.parseFloat(
+                    (existingPlan.totalPaid || 0).toString()
+                  ).toLocaleString()}
+                </div>
+                <div>
+                  Remaining: {existingPlan.currency}{" "}
+                  {Number.parseFloat(
+                    (existingPlan.remainingAmount || 0).toString()
+                  ).toLocaleString()}
+                </div>
+                <div>
+                  Status:{" "}
+                  <span className="capitalize">
+                    {existingPlan.planStatus || "active"}
+                  </span>
                 </div>
               </div>
-
-              {/* Form buttons - only show when editing or in create mode */}
-              {(isEditing || !isEditMode) && (
-                <div className="flex justify-end space-x-2 pt-4 border-t">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      if (isEditMode) {
-                        setIsEditing(false);
-                        resetForm();
-                      } else {
-                        handleOpenChange(false);
-                      }
-                    }}
-                    disabled={
-                      createPaymentPlanMutation.isPending ||
-                      updatePaymentPlanMutation.isPending
-                    }
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={form.handleSubmit(onSubmit)}
-                    disabled={
-                      createPaymentPlanMutation.isPending ||
-                      updatePaymentPlanMutation.isPending ||
-                      isLoadingPledge ||
-                      (!isEditMode && !selectedPledgeId) ||
-                      (!isEditMode && showPledgeSelector && isLoadingPledges)
-                    }
-                    className="text-white"
-                  >
-                    {createPaymentPlanMutation.isPending ||
-                      updatePaymentPlanMutation.isPending
-                      ? isEditMode
-                        ? "Updating..."
-                        : "Creating..."
-                      : isEditMode
-                        ? "Update Payment Plan"
-                        : "Create Payment Plan"}
-                  </Button>
-                </div>
-              )}
             </div>
-          </Form>
-        </DialogContent>
-      </Dialog>
-    );
-  }
+          )}
+
+          {/* Payment Plan Summary */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
+            <h4 className="font-medium text-blue-900 mb-2">
+              Payment Plan Summary
+            </h4>
+            <div className="grid grid-cols-2 gap-2 text-sm text-blue-800">
+              <div>
+                Total Amount: {form.watch("currency")}{" "}
+                {form.watch("totalPlannedAmount")?.toLocaleString() || 0}
+              </div>
+              <div>
+                Installments: {
+                  form.watch("distributionType") === "custom"
+                    ? form.watch("customInstallments")?.length || 0
+                    : form.watch("numberOfInstallments") || 0
+                }
+              </div>
+              {form.watch("distributionType") !== "custom" && (
+                <div>
+                  Per Payment: {form.watch("currency")}{" "}
+                  {form.watch("installmentAmount")?.toLocaleString() || 0}
+                </div>
+              )}
+              <div>
+                Frequency:{" "}
+                {
+                  frequencies.find((f) => f.value === form.watch("frequency"))
+                    ?.label || "Not selected"
+                }
+              </div>
+              <div>
+                Distribution: {form.watch("distributionType") === "custom" ? "Custom Schedule" : "Fixed Amount"}
+              </div>
+              {isEditMode && (
+                <div className="col-span-2 pt-2 border-t border-blue-200">
+                  Plan Status:{" "}
+                  <span className="capitalize">
+                    {form.watch("planStatus") || "active"}
+                  </span>
+                </div>
+              )}
+              {/* Exchange rate summary */}
+              {exchangeRates &&
+                watchedCurrency &&
+                watchedCurrency !== "USD" && (
+                  <div className="col-span-2 pt-2 border-t border-blue-200">
+                    <div className="text-xs text-blue-600">
+                      USD Equivalent: ~$
+                      {(
+                        (form.watch("totalPlannedAmount") || 0) *
+                        Number.parseFloat(
+                          exchangeRates[watchedCurrency] || "1"
+                        )
+                      ).toLocaleString(undefined, {
+                        maximumFractionDigits: 2,
+                      })}
+                    </div>
+                  </div>
+                )}
+              {/* Manual installment calculation warning */}
+              {manualInstallment &&
+                form.watch("distributionType") !== "custom" &&
+                watchedInstallmentAmount &&
+                watchedTotalPlannedAmount && (
+                  <div className="col-span-2 pt-2 border-t border-blue-200 text-xs">
+                    <div className="flex justify-between">
+                      <span>
+                        Manual Total ({form.watch("numberOfInstallments")} ×{" "}
+                        {form.watch("currency")}{" "}
+                        {form.watch("installmentAmount")}):
+                      </span>
+                      <span className="font-medium">
+                        {form.watch("currency")}{" "}
+                        {(
+                          (form.watch("numberOfInstallments") || 0) *
+                          (form.watch("installmentAmount") || 0)
+                        ).toLocaleString()}
+                      </span>
+                    </div>
+                    {Math.abs(
+                      (form.watch("numberOfInstallments") || 0) *
+                        (form.watch("installmentAmount") || 0) -
+                        (form.watch("totalPlannedAmount") || 0)
+                    ) > 0.01 && (
+                      <div className="flex justify-between text-amber-700 mt-1">
+                        <span>Difference from planned total:</span>
+                        <span className="font-medium">
+                          {form.watch("currency")}{" "}
+                          {Math.abs(
+                            (form.watch("numberOfInstallments") || 0) *
+                              (form.watch("installmentAmount") || 0) -
+                              (form.watch("totalPlannedAmount") || 0)
+                          ).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+            </div>
+          </div>
+
+          {/* Form buttons - only show when editing or in create mode */}
+          {(isEditing || !isEditMode) && (
+            <div className="flex justify-end space-x-2 pt-4 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  if (isEditMode) {
+                    setIsEditing(false);
+                    resetForm();
+                  } else {
+                    handleOpenChange(false);
+                  }
+                }}
+                disabled={
+                  createPaymentPlanMutation.isPending ||
+                  updatePaymentPlanMutation.isPending
+                }
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={form.handleSubmit(onSubmit)}
+                disabled={
+                  createPaymentPlanMutation.isPending ||
+                  updatePaymentPlanMutation.isPending ||
+                  isLoadingPledge ||
+                  (!isEditMode && !selectedPledgeId) ||
+                  (!isEditMode && showPledgeSelector && isLoadingPledges)
+                }
+                className="text-white"
+              >
+                {createPaymentPlanMutation.isPending ||
+                updatePaymentPlanMutation.isPending
+                  ? isEditMode
+                    ? "Updating..."
+                    : "Creating..."
+                  : isEditMode
+                  ? "Update Payment Plan"
+                  : "Create Payment Plan"}
+              </Button>
+            </div>
+          )}
+        </div>
+      </Form>
+    </DialogContent>
+  </Dialog>
+);
+}

@@ -116,19 +116,17 @@ export interface PledgeDetails {
 }
 
 export const useInstallmentScheduleQuery = (paymentPlanId: number) => {
-  return useQuery({
-    queryKey: ["installment_schedule", paymentPlanId],
-    queryFn: async (): Promise<InstallmentSchedule[]> => {
-      const res = await fetch(`/api/payment-plans/${paymentPlanId}/installments`);
-      if (!res.ok) throw new Error("Failed to fetch installment schedule");
-      return res.json();
-    },
-    enabled: !!paymentPlanId,
-    staleTime: 5 * 60 * 1000,
-  });
+    return useQuery({
+        queryKey: ["installment_schedule", paymentPlanId],
+        queryFn: async (): Promise<InstallmentSchedule[]> => {
+            const res = await fetch(`/api/payment-plans/${paymentPlanId}/installments`);
+            if (!res.ok) throw new Error("Failed to fetch installment schedule");
+            return res.json();
+        },
+        enabled: !!paymentPlanId,
+        staleTime: 5 * 60 * 1000,
+    });
 };
-
-
 export const useCreatePaymentPlanMutation = () => {
   const queryClient = useQueryClient();
 
@@ -140,17 +138,41 @@ export const useCreatePaymentPlanMutation = () => {
         body: JSON.stringify(data),
       });
 
+      // --- CRITICAL FIX: READ RESPONSE BODY ONLY ONCE ---
+      let responseData: any; // Declare a variable to hold the parsed response data
+      try {
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          responseData = await response.json(); // READ THE BODY ONCE HERE
+        } else {
+          // Fallback for non-JSON responses
+          responseData = {
+            error: await response.text() || "Server returned a non-JSON response or empty body."
+          };
+        }
+      } catch (e) {
+        // Fallback if parsing itself fails (e.g., malformed JSON)
+        console.error("Error parsing response body:", e);
+        responseData = { error: "Failed to parse response from server." };
+      }
+      // --- END CRITICAL FIX ---
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to create payment plan");
+        // If the response was not OK (e.g., 4xx, 5xx status)
+        // Use the 'responseData' that was already parsed
+        const errorMessage = responseData.error || responseData.message || "Failed to create payment plan";
+        console.error("API Error Response:", responseData); // Log the actual error response
+        throw new Error(errorMessage);
       }
 
-      return response.json();
+      // If the response IS OK, 'responseData' already holds the parsed JSON.
+      // Simply return it. No need to call response.json() again.
+      return responseData;
     },
-    onSuccess: (variables) => {
-      queryClient.invalidateQueries();
-
-      toast.success("Payment plan created successfully Here!");
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payment-plans"] });
+      queryClient.invalidateQueries({ queryKey: ["pledges"] });
+      toast.success("Payment plan created successfully!");
     },
     onError: (error) => {
       console.error("Error creating payment plan:", error);
