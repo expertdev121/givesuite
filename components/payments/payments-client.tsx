@@ -477,7 +477,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Payment Date:
+                                      Scheduled Date:
                                     </span>
                                     <span className="font-medium">
                                       {formatDate(payment.paymentDate)}
@@ -485,7 +485,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">
-                                      Received Date:
+                                      Effective Date:
                                     </span>
                                     <span className="font-medium">
                                       {formatDate(payment.receivedDate || "")}

@@ -138,35 +138,20 @@ export const useCreatePaymentPlanMutation = () => {
         body: JSON.stringify(data),
       });
 
-      // --- CRITICAL FIX: READ RESPONSE BODY ONLY ONCE ---
-      let responseData: any; // Declare a variable to hold the parsed response data
-      try {
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-          responseData = await response.json(); // READ THE BODY ONCE HERE
-        } else {
-          // Fallback for non-JSON responses
-          responseData = {
-            error: await response.text() || "Server returned a non-JSON response or empty body."
-          };
-        }
-      } catch (e) {
-        // Fallback if parsing itself fails (e.g., malformed JSON)
-        console.error("Error parsing response body:", e);
-        responseData = { error: "Failed to parse response from server." };
-      }
-      // --- END CRITICAL FIX ---
+      const responseData = await response.json();
 
       if (!response.ok) {
-        // If the response was not OK (e.g., 4xx, 5xx status)
-        // Use the 'responseData' that was already parsed
-        const errorMessage = responseData.error || responseData.message || "Failed to create payment plan";
-        console.error("API Error Response:", responseData); // Log the actual error response
-        throw new Error(errorMessage);
+        // Handle validation errors specifically
+        if (response.status === 400 && responseData.details) {
+          // Combine all validation messages into one
+          const combinedMessages = responseData.details
+            .map((d: { field: string; message: string }) => d.message)
+            .join(", ");
+          throw new Error(combinedMessages);
+        }
+        throw new Error(responseData.error || "Failed to create payment plan");
       }
 
-      // If the response IS OK, 'responseData' already holds the parsed JSON.
-      // Simply return it. No need to call response.json() again.
       return responseData;
     },
     onSuccess: () => {
@@ -277,14 +262,22 @@ export const useUpdatePaymentPlanMutation = () => {
         body: JSON.stringify(data),
       });
 
+      const responseData = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to update payment plan");
+        // Handle validation errors specifically
+        if (response.status === 400 && responseData.details) {
+          const combinedMessages = responseData.details
+            .map((d: { field: string; message: string }) => d.message)
+            .join(", ");
+          throw new Error(combinedMessages);
+        }
+        throw new Error(responseData.error || "Failed to update payment plan");
       }
 
-      return response.json();
+      return responseData;
     },
-    onSuccess: (data, variables) => {
+     onSuccess: (data, variables) => {
       queryClient.invalidateQueries();
       queryClient.invalidateQueries({
         queryKey: ["payment-plan", variables.id],

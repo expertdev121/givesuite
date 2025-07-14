@@ -722,7 +722,7 @@ export default function PaymentFormDialog({
                 name="paymentDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Payment Date *</FormLabel>
+                    <FormLabel>Schedule Date *</FormLabel>
                     <FormControl>
                       <Input type="date" {...field} />
                     </FormControl>
@@ -736,7 +736,7 @@ export default function PaymentFormDialog({
                 name="receivedDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Received Date</FormLabel>
+                    <FormLabel>Effective Date</FormLabel>
                     <FormControl>
                       <Input type="date" {...field} />
                     </FormControl>

@@ -373,10 +373,10 @@ export async function PATCH(
         }
         const totalCustomAmount = validatedData.customInstallments.reduce((sum, installment) => sum + installment.amount, 0);
         if (validatedData.totalPlannedAmount && totalCustomAmount !== validatedData.totalPlannedAmount) {
-             return NextResponse.json(
-                { error: "Validation failed", details: [{ field: "totalPlannedAmount", message: "Sum of custom installments must equal the total planned amount." }] },
-                { status: 400 }
-            );
+          return NextResponse.json(
+            { error: "Validation failed", details: [{ field: "totalPlannedAmount", message: "Sum of custom installments must equal the total planned amount." }] },
+            { status: 400 }
+          );
         }
         // 2. Delete existing installment schedules (if any, from old 'custom' or even 'fixed' if previous data was messy)
         await db.delete(installmentSchedule).where(eq(installmentSchedule.paymentPlanId, planId));
@@ -391,12 +391,13 @@ export async function PATCH(
         }));
         await db.insert(installmentSchedule).values(installmentsToInsert);
 
-        // For custom plans, installmentAmount and numberOfInstallments might become irrelevant
-        // or need to be derived/set to sensible defaults.
-        // For now, we'll let the user provide them as optional, but if not provided, they won't be updated.
-        // If you want to explicitly null them out for custom plans:
-        // updateData.installmentAmount = null;
-        // updateData.numberOfInstallments = null;
+        // Set numberOfInstallments based on the count of custom installments
+        updateData.numberOfInstallments = validatedData.customInstallments.length;
+        // For custom plans, installmentAmount might become irrelevant, setting to null if it's not provided
+        if (validatedData.installmentAmount === undefined) {
+            updateData.installmentAmount = null;
+        }
+
       } else if (newDistributionType === "fixed") {
         // Transition to FIXED:
         // 1. Delete all existing custom installment schedules for this plan
@@ -404,57 +405,63 @@ export async function PATCH(
 
         // 2. Ensure installmentAmount and numberOfInstallments are provided for fixed
         if (validatedData.installmentAmount === undefined || validatedData.numberOfInstallments === undefined) {
-             return NextResponse.json(
-                { error: "Validation failed", details: [{ field: "installmentAmount/numberOfInstallments", message: "Installment amount and number of installments are required for 'fixed' distribution type." }] },
-                { status: 400 }
-            );
+          return NextResponse.json(
+            { error: "Validation failed", details: [{ field: "installmentAmount/numberOfInstallments", message: "Installment amount and number of installments are required for 'fixed' distribution type." }] },
+            { status: 400 }
+          );
         }
         updateData.installmentAmount = validatedData.installmentAmount.toString();
         updateData.numberOfInstallments = validatedData.numberOfInstallments;
       }
     } else if (newDistributionType === "custom" && oldDistributionType === "custom" && validatedData.customInstallments) {
-        // Distribution type remains CUSTOM, but customInstallments are provided for an update
-        // This is a replacement of the custom schedule.
-        // 1. Delete existing installment schedules
-        await db.delete(installmentSchedule).where(eq(installmentSchedule.paymentPlanId, planId));
+      // Distribution type remains CUSTOM, but customInstallments are provided for an update
+      // This is a replacement of the custom schedule.
+      // 1. Delete existing installment schedules
+      await db.delete(installmentSchedule).where(eq(installmentSchedule.paymentPlanId, planId));
 
-        // 2. Insert new custom installments
-        const installmentsToInsert = validatedData.customInstallments.map((inst) => ({
-            paymentPlanId: planId,
-            installmentDate: inst.date,
-            installmentAmount: inst.amount.toString(),
-            currency: validatedData.currency || existingPlan.currency, // Use new currency if provided, else old
-            notes: inst.notes || null,
-        }));
-        await db.insert(installmentSchedule).values(installmentsToInsert);
+      // 2. Insert new custom installments
+      const installmentsToInsert = validatedData.customInstallments.map((inst) => ({
+        paymentPlanId: planId,
+        installmentDate: inst.date,
+        installmentAmount: inst.amount.toString(),
+        currency: validatedData.currency || existingPlan.currency, // Use new currency if provided, else old
+        notes: inst.notes || null,
+      }));
+      await db.insert(installmentSchedule).values(installmentsToInsert);
 
-        // Validate custom installment total if totalPlannedAmount is provided
-        const totalCustomAmount = validatedData.customInstallments.reduce((sum, installment) => sum + installment.amount, 0);
-        if (validatedData.totalPlannedAmount && totalCustomAmount !== validatedData.totalPlannedAmount) {
-             return NextResponse.json(
-                { error: "Validation failed", details: [{ field: "totalPlannedAmount", message: "Sum of custom installments must equal the total planned amount." }] },
-                { status: 400 }
-            );
-        }
+      // Set numberOfInstallments based on the count of custom installments
+      updateData.numberOfInstallments = validatedData.customInstallments.length;
+      // For custom plans, installmentAmount might become irrelevant, setting to null if it's not provided
+      if (validatedData.installmentAmount === undefined) {
+          updateData.installmentAmount = null;
+      }
+
+      // Validate custom installment total if totalPlannedAmount is provided
+      const totalCustomAmount = validatedData.customInstallments.reduce((sum, installment) => sum + installment.amount, 0);
+      if (validatedData.totalPlannedAmount && totalCustomAmount !== validatedData.totalPlannedAmount) {
+        return NextResponse.json(
+          { error: "Validation failed", details: [{ field: "totalPlannedAmount", message: "Sum of custom installments must equal the total planned amount." }] },
+          { status: 400 }
+        );
+      }
     } else {
-        // No change in distributionType OR distributionType is not provided OR it's fixed and no customInstallments.
-        // If distributionType is not provided in PATCH, it means it doesn't change.
-        // If it's fixed and installmentAmount/numberOfInstallments are provided, update them.
-        if (validatedData.installmentAmount !== undefined) {
-            updateData.installmentAmount = validatedData.installmentAmount.toString();
-        }
-        if (validatedData.numberOfInstallments !== undefined) {
-            updateData.numberOfInstallments = validatedData.numberOfInstallments;
-        }
-        // Ensure customInstallments are not provided if type is fixed
-        if (validatedData.customInstallments && existingPlan.distributionType === "fixed") {
-            return NextResponse.json(
-                { error: "Validation failed", details: [{ field: "customInstallments", message: "Custom installments cannot be provided for 'fixed' distribution type unless the distributionType is also being changed to 'custom'." }] },
-                { status: 400 }
-            );
-        }
+      // No change in distributionType OR distributionType is not provided OR it's fixed and no customInstallments.
+      // If distributionType is not provided in PATCH, it means it doesn't change.
+      // If it's fixed and installmentAmount/numberOfInstallments are provided, update them.
+      if (validatedData.installmentAmount !== undefined) {
+        updateData.installmentAmount = validatedData.installmentAmount.toString();
+      }
+      if (validatedData.numberOfInstallments !== undefined) {
+        updateData.numberOfInstallments = validatedData.numberOfInstallments;
+      }
+      // Ensure customInstallments are not provided if type is fixed
+      if (validatedData.customInstallments && existingPlan.distributionType === "fixed") {
+        return NextResponse.json(
+          { error: "Validation failed", details: [{ field: "customInstallments", message: "Custom installments cannot be provided for 'fixed' distribution type unless the distributionType is also being changed to 'custom'." }] },
+          { status: 400 }
+        );
+      }
     }
-
 
     // --- Perform the main paymentPlan update ---
     const updatedPlanResult = await db
@@ -495,34 +502,33 @@ export async function PATCH(
     // Handle database errors specifically if needed (e.g., foreign key, not null)
     const pgError = error as any;
     if (pgError.code) {
-        switch (pgError.code) {
-            case '23502': // NOT NULL violation
-                console.error("PostgreSQL NOT NULL constraint violation:", pgError.detail || pgError.message);
-                return NextResponse.json(
-                    { error: "Required data is missing or invalid (database constraint violation).", detail: pgError.detail || pgError.message },
-                    { status: 400 }
-                );
-            case '23503': // Foreign key violation
-                console.error("PostgreSQL Foreign Key constraint violation:", pgError.detail || pgError.message);
-                return NextResponse.json(
-                    { error: "Associated record not found (foreign key violation).", detail: pgError.detail || pgError.message },
-                    { status: 400 }
-                );
-            case '23505': // Unique constraint violation
-                console.error("PostgreSQL Unique constraint violation:", pgError.detail || pgError.message);
-                return NextResponse.json(
-                    { error: "Duplicate data entry (unique constraint violation).", detail: pgError.detail || pgError.message },
-                    { status: 409 }
-                );
-            default:
-                console.error(`Unhandled PostgreSQL error (Code: ${pgError.code}):`, pgError.message, pgError.detail);
-                return NextResponse.json(
-                    { error: "A database error occurred.", message: pgError.message },
-                    { status: 500 }
-                );
-        }
+      switch (pgError.code) {
+        case '23502': // NOT NULL violation
+          console.error("PostgreSQL NOT NULL constraint violation:", pgError.detail || pgError.message);
+          return NextResponse.json(
+            { error: "Required data is missing or invalid (database constraint violation).", detail: pgError.detail || pgError.message },
+            { status: 400 }
+          );
+        case '23503': // Foreign key violation
+          console.error("PostgreSQL Foreign Key constraint violation:", pgError.detail || pgError.message);
+          return NextResponse.json(
+            { error: "Associated record not found (foreign key violation).", detail: pgError.detail || pgError.message },
+            { status: 400 }
+          );
+        case '23505': // Unique constraint violation
+          console.error("PostgreSQL Unique constraint violation:", pgError.detail || pgError.message);
+          return NextResponse.json(
+            { error: "Duplicate data entry (unique constraint violation).", detail: pgError.detail || pgError.message },
+            { status: 409 }
+          );
+        default:
+          console.error(`Unhandled PostgreSQL error (Code: ${pgError.code}):`, pgError.message, pgError.detail);
+          return NextResponse.json(
+            { error: "A database error occurred.", message: pgError.message },
+            { status: 500 }
+          );
+      }
     }
-
     return ErrorHandler.handle(error);
   }
 }
