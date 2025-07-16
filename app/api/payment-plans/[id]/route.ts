@@ -270,20 +270,19 @@ export async function GET(
     return ErrorHandler.handle(error);
   }
 }
-
 /**
  * PATCH handler for updating a specific payment plan by its ID.
  * This now handles changes to `distributionType` and associated installment schedules.
- * Route: /api/payment-plans/[id] (where [id] is paymentPlan.id)
+ * Route: /api/payments/[pledgeId]/route.ts (where [pledgeId] is the pledgeId parameter)
  */
 export async function PATCH(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ pledgeId: string }> } // Changed from { id: string } to { pledgeId: string }
 ) {
   let paymentPlanIdForRollback: number | null = null; // To store ID in case of partial update failure
   try {
     const params = await context.params;
-    const planId = parseInt(params.id, 10);
+    const planId = parseInt(params.pledgeId, 10); // Changed from params.id to params.pledgeId
     if (isNaN(planId) || planId <= 0) {
       return NextResponse.json(
         { error: "Invalid payment plan ID" },
