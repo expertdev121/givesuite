@@ -1,20 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import React, { useEffect, useState, useCallback } from "react";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Check, ChevronsUpDown, Edit } from "lucide-react";
+import { Check, ChevronsUpDown, X, Plus, Edit } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
+  CommandInput,
 } from "@/components/ui/command";
 import {
   Dialog,
@@ -51,15 +51,69 @@ import { useExchangeRates } from "@/lib/query/useExchangeRates";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useUpdatePaymentMutation } from "@/lib/query/payments/usePaymentQuery";
+import { usePledgeDetailsQuery } from "@/lib/query/payment-plans/usePaymentPlanQuery";
+import { usePledgesQuery } from "@/lib/query/usePledgeData";
 
-// Solicitors hook and types
-interface SolicitorsParams {
-  search?: string;
-  status?: "active" | "inactive" | "suspended";
+interface Solicitor {
+  id: number;
+  firstName: string;
+  lastName: string;
+  commissionRate: number;
+  contact: any;
 }
 
-const useSolicitors = (params: SolicitorsParams = {}) => {
-  return useQuery({
+interface Pledge {
+  id: number;
+  description: string;
+  currency: string;
+  balance: string;
+  originalAmount: string;
+  remainingBalance?: number;
+  contact?: {
+    fullName: string;
+  };
+}
+
+interface Allocation {
+  pledgeId: number;
+  allocatedAmount: number;
+  installmentScheduleId: number | null;
+  notes: string | null;
+}
+
+interface Payment {
+  id: number;
+  pledgeId: number;
+  amount: string;
+  currency: string;
+  amountUsd: string | null;
+  amountInPledgeCurrency: string | null;
+  exchangeRate: string | null;
+  paymentDate: string;
+  receivedDate: string | null;
+  paymentMethod: string;
+  methodDetail: string | null;
+  paymentStatus: string;
+  referenceNumber: string | null;
+  checkNumber: string | null;
+  receiptNumber: string | null;
+  receiptType: string | null;
+  receiptIssued: boolean;
+  solicitorId: number | null;
+  bonusPercentage: string | null;
+  bonusAmount: string | null;
+  bonusRuleId: number | null;
+  notes: string | null;
+  paymentPlanId: number | null;
+  installmentScheduleId: number | null;
+  isSplitPayment: boolean;
+  allocations: Allocation[];
+  solicitorName?: string | null;
+  pledgeDescription?: string | null;
+}
+
+const useSolicitors = (params: { search?: string; status?: "active" | "inactive" | "suspended"; } = {}) => {
+  return useQuery<{ solicitors: Solicitor[] }>({
     queryKey: ["solicitors", params],
     queryFn: async () => {
       const searchParams = new URLSearchParams();
@@ -73,7 +127,6 @@ const useSolicitors = (params: SolicitorsParams = {}) => {
   });
 };
 
-// Constants
 const supportedCurrencies = [
   "USD",
   "ILS",
@@ -86,13 +139,87 @@ const supportedCurrencies = [
 ] as const;
 
 const paymentMethods = [
-  { value: "credit_card", label: "Credit Card" },
+  { value: "ach", label: "ACH" },
+  { value: "bill_pay", label: "Bill Pay" },
   { value: "cash", label: "Cash" },
   { value: "check", label: "Check" },
-  { value: "bank_transfer", label: "Bank Transfer" },
+  { value: "credit", label: "Credit" },
+  { value: "credit_card", label: "Credit Card" },
+  { value: "expected", label: "Expected" },
+  { value: "goods_and_services", label: "Goods and Services" },
+  { value: "matching_funds", label: "Matching Funds" },
+  { value: "money_order", label: "Money Order" },
+  { value: "p2p", label: "P2P" },
+  { value: "pending", label: "Pending" },
+  { value: "refund", label: "Refund" },
+  { value: "scholarship", label: "Scholarship" },
+  { value: "stock", label: "Stock" },
+  { value: "student_portion", label: "Student Portion" },
+  { value: "unknown", label: "Unknown" },
+  { value: "wire", label: "Wire" },
+  { value: "xfer", label: "Xfer" },
+] as const;
+
+const methodDetails = [
+  { value: "achisomoch", label: "Achisomoch" },
+  { value: "authorize", label: "Authorize" },
+  { value: "bank_of_america_charitable", label: "Bank of America Charitable" },
+  { value: "banquest", label: "Banquest" },
+  { value: "banquest_cm", label: "Banquest CM" },
+  { value: "benevity", label: "Benevity" },
+  { value: "chai_charitable", label: "Chai Charitable" },
+  { value: "charityvest_inc", label: "Charityvest Inc." },
+  { value: "cjp", label: "CJP" },
+  { value: "donors_fund", label: "Donors' Fund" },
+  { value: "earthport", label: "EarthPort" },
+  { value: "e_transfer", label: "e-transfer" },
+  { value: "facts", label: "FACTS" },
+  { value: "fidelity", label: "Fidelity" },
+  { value: "fjc", label: "FJC" },
+  { value: "foundation", label: "Foundation" },
+  { value: "goldman_sachs", label: "Goldman Sachs" },
+  { value: "htc", label: "HTC" },
+  { value: "jcf", label: "JCF" },
+  { value: "jcf_san_diego", label: "JCF San Diego" },
+  { value: "jgive", label: "Jgive" },
+  { value: "keshet", label: "Keshet" },
+  { value: "masa", label: "MASA" },
+  { value: "masa_old", label: "MASA Old" },
+  { value: "matach", label: "Matach" },
+  { value: "matching_funds", label: "Matching Funds" },
+  { value: "mizrachi_canada", label: "Mizrachi Canada" },
+  { value: "mizrachi_olami", label: "Mizrachi Olami" },
+  { value: "montrose", label: "Montrose" },
+  { value: "morgan_stanley_gift", label: "Morgan Stanley Gift" },
+  { value: "ms", label: "MS" },
+  { value: "mt", label: "MT" },
+  { value: "ojc", label: "OJC" },
   { value: "paypal", label: "PayPal" },
-  { value: "wire_transfer", label: "Wire Transfer" },
-  { value: "other", label: "Other" },
+  { value: "pelecard", label: "PeleCard (EasyCount)" },
+  { value: "schwab_charitable", label: "Schwab Charitable" },
+  { value: "stripe", label: "Stripe" },
+  { value: "tiaa", label: "TIAA" },
+  { value: "touro", label: "Touro" },
+  { value: "uktoremet", label: "UKToremet (JGive)" },
+  { value: "vanguard_charitable", label: "Vanguard Charitable" },
+  { value: "venmo", label: "Venmo" },
+  { value: "vmm", label: "VMM" },
+  { value: "wise", label: "Wise" },
+  { value: "worldline", label: "Worldline" },
+  { value: "yaadpay", label: "YaadPay" },
+  { value: "yaadpay_cm", label: "YaadPay CM" },
+  { value: "yourcause", label: "YourCause" },
+  { value: "yu", label: "YU" },
+  { value: "zelle", label: "Zelle" },
+] as const;
+
+const paymentStatuses = [
+  { value: "expected", label: "Expected" },
+  { value: "pending", label: "Pending" },
+  { value: "completed", label: "Completed" },
+  { value: "refund", label: "Refund" },
+  { value: "returned", label: "Returned" },
+  { value: "declined", label: "Declined" },
 ] as const;
 
 const receiptTypes = [
@@ -102,96 +229,48 @@ const receiptTypes = [
   { value: "other", label: "Other" },
 ] as const;
 
-const paymentStatuses = [
-  { value: "pending", label: "Pending" },
-  { value: "completed", label: "Completed" },
-  { value: "failed", label: "Failed" },
-  { value: "cancelled", label: "Cancelled" },
-  { value: "refunded", label: "Refunded" },
-  { value: "processing", label: "Processing" },
-] as const;
+const allocationSchema = z.object({
+  pledgeId: z.number().optional(),
+  allocatedAmount: z.number().optional(),
+  installmentScheduleId: z.number().optional().nullable(),
+  notes: z.string().optional().nullable(),
+});
 
-// Edit schema (similar to create but all fields are optional except paymentId)
 const editPaymentSchema = z.object({
   paymentId: z.number().positive(),
-  amount: z.number().positive("Payment amount must be positive").optional(),
-  currency: z.enum(supportedCurrencies).optional(),
-  amountUsd: z
-    .number()
-    .positive("Payment amount in USD must be positive")
-    .optional(),
-  exchangeRate: z
-    .number()
-    .positive("Exchange rate must be positive")
-    .optional(),
+  amount: z.number().positive("Amount must be positive").optional(),
+  currency: z.enum(supportedCurrencies as [string, ...string[]]).optional(),
+  amountUsd: z.number().positive("Amount in USD must be positive").optional(),
+  amountInPledgeCurrency: z.number().positive("Amount in pledge currency must be positive").optional(),
+  exchangeRate: z.number().positive("Exchange rate must be positive").optional(),
+
   paymentDate: z.string().min(1, "Payment date is required").optional(),
-  receivedDate: z.string().optional(),
-  paymentMethod: z
-    .enum([
-      "credit_card",
-      "cash",
-      "check",
-      "bank_transfer",
-      "paypal",
-      "wire_transfer",
-      "other",
-    ])
-    .optional(),
-  paymentStatus: z
-    .enum([
-      "pending",
-      "completed",
-      "failed",
-      "cancelled",
-      "refunded",
-      "processing",
-    ])
-    .optional(),
-  referenceNumber: z.string().optional(),
-  checkNumber: z.string().optional(),
-  receiptNumber: z.string().optional(),
-  receiptType: z
-    .enum(["invoice", "confirmation", "receipt", "other"])
-    .optional(),
+  receivedDate: z.string().optional().nullable(),
+  methodDetail: z.string().optional().nullable(),
+  paymentMethod: z.string().optional(),
+  paymentStatus: z.string().optional(),
+
+  referenceNumber: z.string().optional().nullable(),
+  checkNumber: z.string().optional().nullable(),
+  receiptNumber: z.string().optional().nullable(),
+  receiptType: z.string().optional().nullable(),
   receiptIssued: z.boolean().optional(),
-  // Solicitor fields
-  solicitorId: z.number().positive().optional(),
-  bonusPercentage: z.number().min(0).max(100).optional(),
-  bonusAmount: z.number().min(0).optional(),
-  bonusRuleId: z.number().positive().optional(),
-  notes: z.string().optional(),
-  paymentPlanId: z.number().positive().optional(),
+
+  solicitorId: z.number().positive("Solicitor ID must be positive").optional().nullable(),
+  bonusPercentage: z.number().min(0).max(100).optional().nullable(),
+  bonusAmount: z.number().min(0).optional().nullable(),
+  bonusRuleId: z.number().positive("Bonus rule ID must be positive").optional().nullable(),
+  notes: z.string().optional().nullable(),
+
+  pledgeId: z.number().positive("Pledge ID must be positive").optional().nullable(),
+  paymentPlanId: z.number().positive("Payment plan ID must be positive").optional().nullable(),
+  installmentScheduleId: z.number().positive().optional().nullable(),
+
+  isSplitPayment: z.boolean().optional(),
+  allocations: z.array(allocationSchema).optional(),
 });
 
 type EditPaymentFormData = z.infer<typeof editPaymentSchema>;
-
-// Payment interface for props - matches your API response
-interface Payment {
-  id: number;
-  pledgeId: number;
-  amount: string;
-  currency: string;
-  amountUsd: string | null;
-  exchangeRate: string | null;
-  paymentDate: string;
-  receivedDate: string | null;
-  paymentMethod: string;
-  paymentStatus: string;
-  referenceNumber: string | null;
-  checkNumber: string | null;
-  receiptNumber: string | null;
-  receiptType: string | null;
-  receiptIssued: boolean;
-  solicitorId: number | null;
-  bonusPercentage: string | null;
-  bonusAmount: string | null;
-  bonusRuleId: number | null;
-  notes: string | null;
-  paymentPlanId: number | null;
-  // Additional fields for display
-  solicitorName?: string | null;
-  pledgeDescription?: string | null;
-}
 
 interface EditPaymentDialogProps {
   payment: Payment;
@@ -206,7 +285,6 @@ export default function EditPaymentDialog({
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
 }: EditPaymentDialogProps) {
-  // Queries
   const {
     data: exchangeRatesData,
     isLoading: isLoadingRates,
@@ -216,126 +294,184 @@ export default function EditPaymentDialog({
     useSolicitors({ status: "active" });
   const updatePaymentMutation = useUpdatePaymentMutation(payment.pledgeId);
 
-  // State
   const [internalOpen, setInternalOpen] = useState(false);
   const [showSolicitorSection, setShowSolicitorSection] = useState(
     !!payment.solicitorId
   );
 
-  // Use controlled or internal open state
-  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
-  const setOpen = controlledOnOpenChange || setInternalOpen;
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = isControlled ? (controlledOnOpenChange || (() => {})) : setInternalOpen;
 
-  // Form setup with payment data
-  const form = useForm({
+  const { data: pledgesData, isLoading: isLoadingPledges } = usePledgesQuery(
+    {
+      contactId: payment.pledgeId, // Adjust as needed based on your data structure
+      page: 1,
+      limit: 100,
+      status: undefined,
+    },
+    { enabled: !!payment.pledgeId }
+  );
+
+  const { data: pledgeData, isLoading: isLoadingPledge } = usePledgeDetailsQuery(
+    payment.pledgeId,
+    { enabled: !!payment.pledgeId && !payment.isSplitPayment }
+  );
+
+  const form = useForm<EditPaymentFormData>({
     resolver: zodResolver(editPaymentSchema),
     defaultValues: {
       paymentId: payment.id,
       amount: parseFloat(payment.amount),
-      currency: payment.currency as any,
+      currency: payment.currency,
       amountUsd: payment.amountUsd ? parseFloat(payment.amountUsd) : undefined,
+      amountInPledgeCurrency: payment.amountInPledgeCurrency ? parseFloat(payment.amountInPledgeCurrency) : undefined,
       exchangeRate: payment.exchangeRate ? parseFloat(payment.exchangeRate) : 1,
       paymentDate: payment.paymentDate,
-      receivedDate: payment.receivedDate || "",
-      paymentMethod: payment.paymentMethod as any,
-      paymentStatus: payment.paymentStatus as any,
-      referenceNumber: payment.referenceNumber || "",
-      checkNumber: payment.checkNumber || "",
-      receiptNumber: payment.receiptNumber || "",
-      receiptType: payment.receiptType as any,
+      receivedDate: payment.receivedDate || null,
+      paymentMethod: payment.paymentMethod,
+      methodDetail: payment.methodDetail || null,
+      paymentStatus: payment.paymentStatus,
+      referenceNumber: payment.referenceNumber || null,
+      checkNumber: payment.checkNumber || null,
+      receiptNumber: payment.receiptNumber || null,
+      receiptType: payment.receiptType || null,
       receiptIssued: payment.receiptIssued,
-      solicitorId: payment.solicitorId || undefined,
-      bonusPercentage: payment.bonusPercentage
-        ? parseFloat(payment.bonusPercentage)
-        : undefined,
-      bonusAmount: payment.bonusAmount
-        ? parseFloat(payment.bonusAmount)
-        : undefined,
-      bonusRuleId: payment.bonusRuleId || undefined,
-      notes: payment.notes || "",
-      paymentPlanId: payment.paymentPlanId || undefined,
+      solicitorId: payment.solicitorId || null,
+      bonusPercentage: payment.bonusPercentage ? parseFloat(payment.bonusPercentage) : null,
+      bonusAmount: payment.bonusAmount ? parseFloat(payment.bonusAmount) : null,
+      bonusRuleId: payment.bonusRuleId || null,
+      notes: payment.notes || null,
+      pledgeId: payment.pledgeId || null,
+      paymentPlanId: payment.paymentPlanId || null,
+      installmentScheduleId: payment.installmentScheduleId || null,
+      isSplitPayment: payment.isSplitPayment || false,
+      allocations: payment.allocations?.length ? payment.allocations : [
+        {
+          pledgeId: payment.pledgeId || 0,
+          allocatedAmount: parseFloat(payment.amount),
+          installmentScheduleId: payment.installmentScheduleId || null,
+          notes: payment.notes || null,
+        }
+      ],
     },
   });
 
-  // Watch values
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "allocations",
+  });
+
   const watchedCurrency = form.watch("currency");
   const watchedAmount = form.watch("amount");
   const watchedPaymentDate = form.watch("paymentDate");
-  const watchedPaymentMethod = form.watch("paymentMethod");
   const watchedSolicitorId = form.watch("solicitorId");
   const watchedBonusPercentage = form.watch("bonusPercentage");
-  const watchedExchangeRate = form.watch("exchangeRate"); // Extract for dependency array
+  const watchedExchangeRate = form.watch("exchangeRate");
+  const watchedAllocations = form.watch("allocations");
+  const watchedIsSplitPayment = form.watch("isSplitPayment");
+  const watchedMainPledgeId = form.watch("pledgeId");
 
-  // Effects - similar to create dialog but respects existing data
+  const totalAllocatedAmount = watchedAllocations?.reduce((sum, alloc) => sum + (alloc.allocatedAmount || 0), 0) || 0;
+  const remainingToAllocate = (watchedAmount || 0) - totalAllocatedAmount;
+
   useEffect(() => {
-    if (
-      watchedCurrency &&
-      watchedPaymentDate &&
-      exchangeRatesData?.data?.rates
-    ) {
-      const rate =
-        parseFloat(exchangeRatesData.data.rates[watchedCurrency]) || 1;
+    if (watchedCurrency && watchedPaymentDate && exchangeRatesData?.data?.rates) {
+      const rate = parseFloat(exchangeRatesData.data.rates[watchedCurrency]) || 1;
       form.setValue("exchangeRate", rate);
     }
   }, [watchedCurrency, watchedPaymentDate, exchangeRatesData, form]);
 
   useEffect(() => {
-    const exchangeRate = form.getValues("exchangeRate");
-    if (watchedAmount && exchangeRate) {
-      const usdAmount = watchedAmount * exchangeRate;
+    if (watchedAmount && watchedExchangeRate) {
+      const usdAmount = watchedAmount / watchedExchangeRate;
       form.setValue("amountUsd", Math.round(usdAmount * 100) / 100);
     }
-  }, [watchedAmount, watchedExchangeRate, form]); // Fix: Use extracted variable
+  }, [watchedAmount, watchedExchangeRate, form]);
 
   useEffect(() => {
-    if (watchedBonusPercentage && watchedAmount) {
+    if (watchedBonusPercentage != null && watchedAmount != null) {
       const bonusAmount = (watchedAmount * watchedBonusPercentage) / 100;
       form.setValue("bonusAmount", Math.round(bonusAmount * 100) / 100);
+    } else {
+      form.setValue("bonusAmount", null);
     }
   }, [watchedBonusPercentage, watchedAmount, form]);
 
-  // Update showSolicitorSection when solicitorId changes
   useEffect(() => {
     setShowSolicitorSection(!!watchedSolicitorId);
   }, [watchedSolicitorId]);
 
-  // Handlers
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     form.reset({
       paymentId: payment.id,
       amount: parseFloat(payment.amount),
-      currency: payment.currency as any,
+      currency: payment.currency,
       amountUsd: payment.amountUsd ? parseFloat(payment.amountUsd) : undefined,
+      amountInPledgeCurrency: payment.amountInPledgeCurrency ? parseFloat(payment.amountInPledgeCurrency) : undefined,
       exchangeRate: payment.exchangeRate ? parseFloat(payment.exchangeRate) : 1,
       paymentDate: payment.paymentDate,
-      receivedDate: payment.receivedDate || "",
-      paymentMethod: payment.paymentMethod as any,
-      paymentStatus: payment.paymentStatus as any,
-      referenceNumber: payment.referenceNumber || "",
-      checkNumber: payment.checkNumber || "",
-      receiptNumber: payment.receiptNumber || "",
-      receiptType: payment.receiptType as any,
+      receivedDate: payment.receivedDate || null,
+      paymentMethod: payment.paymentMethod,
+      methodDetail: payment.methodDetail || null,
+      paymentStatus: payment.paymentStatus,
+      referenceNumber: payment.referenceNumber || null,
+      checkNumber: payment.checkNumber || null,
+      receiptNumber: payment.receiptNumber || null,
+      receiptType: payment.receiptType || null,
       receiptIssued: payment.receiptIssued,
-      solicitorId: payment.solicitorId || undefined,
-      bonusPercentage: payment.bonusPercentage
-        ? parseFloat(payment.bonusPercentage)
-        : undefined,
-      bonusAmount: payment.bonusAmount
-        ? parseFloat(payment.bonusAmount)
-        : undefined,
-      bonusRuleId: payment.bonusRuleId || undefined,
-      notes: payment.notes || "",
-      paymentPlanId: payment.paymentPlanId || undefined,
+      solicitorId: payment.solicitorId || null,
+      bonusPercentage: payment.bonusPercentage ? parseFloat(payment.bonusPercentage) : null,
+      bonusAmount: payment.bonusAmount ? parseFloat(payment.bonusAmount) : null,
+      bonusRuleId: payment.bonusRuleId || null,
+      notes: payment.notes || null,
+      pledgeId: payment.pledgeId || null,
+      paymentPlanId: payment.paymentPlanId || null,
+      installmentScheduleId: payment.installmentScheduleId || null,
+      isSplitPayment: payment.isSplitPayment || false,
+      allocations: payment.allocations?.length ? payment.allocations : [
+        {
+          pledgeId: payment.pledgeId || 0,
+          allocatedAmount: parseFloat(payment.amount),
+          installmentScheduleId: payment.installmentScheduleId || null,
+          notes: payment.notes || null,
+        }
+      ],
     });
     setShowSolicitorSection(!!payment.solicitorId);
+  }, [form, payment]);
+
+  const convertAmountBetweenCurrencies = (
+    amount: number,
+    fromCurrency: string,
+    toCurrency: string,
+    exchangeRates: Record<string, string> | undefined
+  ): number => {
+    if (fromCurrency === toCurrency || !exchangeRates) {
+      return Math.round(amount * 100) / 100;
+    }
+
+    const fromRate = parseFloat(exchangeRates[fromCurrency] || "1");
+    const toRate = parseFloat(exchangeRates[toCurrency] || "1");
+
+    if (isNaN(fromRate) || isNaN(toRate) || fromRate === 0 || toRate === 0) {
+      console.warn(
+        `Invalid exchange rates for ${fromCurrency} or ${toCurrency}, defaulting to direct conversion`
+      );
+      return Math.round(amount * 100) / 100;
+    }
+
+    const amountInUsd = amount / fromRate;
+    const convertedAmount = amountInUsd * toRate;
+
+    return Math.round(convertedAmount * 100) / 100;
   };
 
   const onSubmit = async (data: EditPaymentFormData) => {
     try {
-      // Fix: Remove unused variable
       const updateData = Object.fromEntries(
         Object.entries(data).filter(
-          ([, value]) => value !== undefined && value !== ""
+          ([, value]) => value !== undefined && value !== null && value !== ""
         )
       );
 
@@ -351,22 +487,58 @@ export default function EditPaymentDialog({
   };
 
   const handleOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen);
+    if (isControlled) {
+      if (controlledOnOpenChange) {
+        controlledOnOpenChange(newOpen);
+      }
+    } else {
+      setInternalOpen(newOpen);
+    }
+
     if (!newOpen) {
       resetForm();
     }
   };
 
-  // Format solicitor options
+  const pledgeOptions =
+    pledgesData?.pledges?.map((pledge: Pledge) => ({
+      label: `#${pledge.id} - ${pledge.description || "No description"} (${pledge.currency
+        } ${parseFloat(pledge.balance).toLocaleString()})`,
+      value: pledge.id,
+      balance: parseFloat(pledge.balance),
+      currency: pledge.currency,
+      description: pledge.description,
+      originalAmount: parseFloat(pledge.originalAmount),
+    })) || [];
+
   const solicitorOptions =
-    solicitorsData?.solicitors?.map((solicitor: any) => ({
-      label: `${solicitor?.firstName} ${solicitor?.lastName}${
-        solicitor.id ? ` (${solicitor.id})` : ""
-      }`,
+    solicitorsData?.solicitors?.map((solicitor: Solicitor) => ({
+      label: `${solicitor.firstName} ${solicitor.lastName}${solicitor.id ? ` (${solicitor.id})` : ""
+        }`,
       value: solicitor.id,
       commissionRate: solicitor.commissionRate,
       contact: solicitor.contact,
     })) || [];
+
+  const getPledgeById = (id: number): Pledge | undefined => {
+    return pledgesData?.pledges?.find((p: Pledge) => p.id === id);
+  };
+
+  const addAllocation = () => {
+    append({ pledgeId: 0, allocatedAmount: 0, installmentScheduleId: null, notes: null });
+  };
+
+  const removeAllocation = (index: number) => {
+    remove(index);
+  };
+
+  const getInstallmentOptionsForAllocation = useCallback((pledgeId: number) => {
+    return [];
+  }, []);
+
+  const effectivePledgeDescription = pledgeData?.pledge?.description || payment.pledgeDescription || "N/A";
+  const effectivePledgeCurrency = pledgeData?.pledge?.currency || "USD";
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
@@ -377,41 +549,67 @@ export default function EditPaymentDialog({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[800px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Payment</DialogTitle>
           <DialogDescription>
-            <div>
-              Edit payment for pledge{" "}
-              {payment.pledgeDescription
-                ? `"${payment.pledgeDescription}"`
-                : `#${payment.pledgeId}`}
-              <span className="block mt-1 text-sm text-muted-foreground">
-                Current Amount: {payment.currency}{" "}
-                {parseFloat(payment.amount).toLocaleString()}
-              </span>
-              {payment.solicitorName && (
-                <span className="block mt-1 text-sm text-muted-foreground">
-                  Solicitor: {payment.solicitorName}
-                </span>
-              )}
-            </div>
+            {watchedIsSplitPayment ? (
+              "Edit split payment across multiple pledges"
+            ) : isLoadingPledge ? (
+              "Loading pledge details..."
+            ) : (
+              <div>
+                Edit payment for pledge: {effectivePledgeDescription}
+                {pledgeData?.pledge?.remainingBalance && (
+                  <span className="block mt-1 text-sm text-muted-foreground">
+                    Remaining Balance: {effectivePledgeCurrency}{" "}
+                    {pledgeData.pledge.remainingBalance.toLocaleString()}
+                  </span>
+                )}
+                {pledgeData?.contact && (
+                  <span className="block mt-1 text-sm text-muted-foreground">
+                    Contact: {pledgeData.contact.fullName}
+                  </span>
+                )}
+                {payment.solicitorName && (
+                  <span className="block mt-1 text-sm text-muted-foreground">
+                    Solicitor: {payment.solicitorName}
+                  </span>
+                )}
+              </div>
+            )}
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
-          <div className="space-y-4">
-            {/* Payment ID (hidden) */}
-            <input type="hidden" {...form.register("paymentId")} />
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Split Payment Toggle */}
+            {payment.isSplitPayment && (
+              <div className="border-b pb-4">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="isSplitPayment"
+                    checked={watchedIsSplitPayment}
+                    onCheckedChange={(checked) => {
+                      form.setValue("isSplitPayment", checked);
+                    }}
+                    disabled // Disable changing split payment status for existing payments
+                  />
+                  <label htmlFor="isSplitPayment" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    Split Payment Across Multiple Pledges
+                  </label>
+                </div>
+              </div>
+            )}
 
-            {/* Amount and Currency Row */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* Main Payment Details */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="amount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Payment Amount ({watchedCurrency}) *</FormLabel>
+                    <FormLabel>Payment Amount</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -419,7 +617,7 @@ export default function EditPaymentDialog({
                         {...field}
                         onChange={(e) => {
                           const value = e.target.value;
-                          field.onChange(value ? parseFloat(value) : undefined);
+                          field.onChange(value ? parseFloat(value) : 0);
                         }}
                       />
                     </FormControl>
@@ -427,97 +625,63 @@ export default function EditPaymentDialog({
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={form.control}
                 name="currency"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Currency *</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                      disabled={isLoadingRates}
-                    >
+                    <FormLabel>Currency</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue
-                            placeholder={
-                              isLoadingRates
-                                ? "Loading currencies..."
-                                : "Select currency"
-                            }
-                          />
+                          <SelectValue placeholder="Select a currency" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {supportedCurrencies.map((curr) => (
-                          <SelectItem key={curr} value={curr}>
-                            {curr}
+                        {supportedCurrencies.map((currency) => (
+                          <SelectItem key={currency} value={currency}>
+                            {currency}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    {ratesError && (
-                      <FormMessage>Error loading exchange rates</FormMessage>
-                    )}
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </div>
-
-            {/* Exchange Rate and USD Amount Row */}
-            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="exchangeRate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Exchange Rate (to USD)</FormLabel>
+                    <FormLabel>Exchange Rate (1 {watchedCurrency} = {field.value} USD)</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
-                        step="0.0001"
-                        {...field}
-                        readOnly
-                        className="bg-gray-50"
-                      />
+                      <Input type="number" step="0.0001" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={form.control}
                 name="amountUsd"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Payment Amount (USD)</FormLabel>
+                    <FormLabel>Amount in USD</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        {...field}
-                        readOnly
-                        className="bg-gray-50"
-                      />
+                      <Input type="number" step="0.01" {...field} disabled />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </div>
 
-            {/* Payment Date and Received Date Row */}
-            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="paymentDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Payment Date *</FormLabel>
+                    <FormLabel>Payment Date</FormLabel>
                     <FormControl>
                       <Input type="date" {...field} />
                     </FormControl>
@@ -525,34 +689,29 @@ export default function EditPaymentDialog({
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={form.control}
                 name="receivedDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Received Date</FormLabel>
+                    <FormLabel>Effective Date</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <Input type="date" {...field} value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </div>
-
-            {/* Payment Method and Status Row */}
-            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="paymentMethod"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Payment Method *</FormLabel>
+                    <FormLabel>Payment Method</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select payment method" />
+                          <SelectValue placeholder="Select a payment method" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -567,17 +726,45 @@ export default function EditPaymentDialog({
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="methodDetail"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Method Detail</FormLabel>
+                    <Select
+                      onValueChange={(value) => field.onChange(value === "__NONE_SELECTED__" ? null : value)}
+                      value={field.value || ""}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a method detail" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="__NONE_SELECTED__">None</SelectItem>
+                        {methodDetails.map((detail) => (
+                          <SelectItem key={detail.value} value={detail.value}>
+                            {detail.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}
                 name="paymentStatus"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Payment Status *</FormLabel>
+                    <FormLabel>Payment Status</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select payment status" />
+                          <SelectValue placeholder="Select status" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -592,10 +779,6 @@ export default function EditPaymentDialog({
                   </FormItem>
                 )}
               />
-            </div>
-
-            {/* Reference Numbers Row */}
-            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="referenceNumber"
@@ -603,62 +786,42 @@ export default function EditPaymentDialog({
                   <FormItem>
                     <FormLabel>Reference Number</FormLabel>
                     <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="Transaction reference number"
-                      />
+                      <Input {...field} value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
-              {watchedPaymentMethod === "check" ? (
-                <FormField
-                  control={form.control}
-                  name="checkNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Check Number</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Check number" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ) : (
-                <FormField
-                  control={form.control}
-                  name="receiptNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Receipt Number</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Receipt number" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-            </div>
-
-            {/* Receipt Type and Receipt Issued Row */}
-            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="receiptNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Receipt Number</FormLabel>
+                    <FormControl>
+                      <Input {...field} value={field.value || ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="receiptType"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Receipt Type</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select
+                      onValueChange={(value) => field.onChange(value === "__NONE_SELECTED__" ? null : value)}
+                      value={field.value || ""}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select receipt type" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
+                        <SelectItem value="__NONE_SELECTED__">None</SelectItem>
                         {receiptTypes.map((type) => (
                           <SelectItem key={type.value} value={type.value}>
                             {type.label}
@@ -670,59 +833,50 @@ export default function EditPaymentDialog({
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={form.control}
                 name="receiptIssued"
                 render={({ field }) => (
-                  <FormItem className="flex items-center space-x-2 pt-6">
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm col-span-2">
+                    <div className="space-y-0.5">
+                      <FormLabel>Receipt Issued</FormLabel>
+                      <DialogDescription>
+                        Mark if a receipt has been issued for this payment.
+                      </DialogDescription>
+                    </div>
                     <FormControl>
                       <Switch
                         checked={field.value}
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>
-                    <FormLabel className="!mt-0">Receipt Issued</FormLabel>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
-            {/* Solicitor Section Toggle */}
-            <div className="border-t pt-4">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">
-                  Solicitor Commission
-                </label>
-                <Switch
-                  checked={showSolicitorSection}
-                  onCheckedChange={(checked) => {
-                    setShowSolicitorSection(checked);
-                    if (!checked) {
-                      form.setValue("solicitorId", undefined);
-                      form.setValue("bonusPercentage", undefined);
-                      form.setValue("bonusAmount", undefined);
-                      form.setValue("bonusRuleId", undefined);
-                    }
-                  }}
-                />
-              </div>
+
+            <div className="border-t pt-4 mt-4">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSolicitorSection(!showSolicitorSection)}
+                className="flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                {showSolicitorSection ? "Hide Solicitor Info" : "Add Solicitor Info"}
+              </Button>
             </div>
 
-            {/* Solicitor Fields - Conditional */}
             {showSolicitorSection && (
-              <div className="space-y-4 bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <h4 className="font-medium text-blue-900">
-                  Solicitor Commission Details
-                </h4>
-
-                {/* Solicitor Selection */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border p-4 rounded-lg bg-gray-50">
                 <FormField
                   control={form.control}
                   name="solicitorId"
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
-                      <FormLabel>Select Solicitor</FormLabel>
+                      <FormLabel>Solicitor</FormLabel>
                       <Popover>
                         <PopoverTrigger asChild>
                           <FormControl>
@@ -737,17 +891,16 @@ export default function EditPaymentDialog({
                             >
                               {field.value
                                 ? solicitorOptions.find(
-                                    (solicitor: any) =>
-                                      solicitor.value === field.value
-                                  )?.label || "Select solicitor"
+                                  (solicitor: any) => solicitor.value === field.value
+                                )?.label
                                 : isLoadingSolicitors
-                                ? "Loading solicitors..."
-                                : "Select solicitor"}
-                              <ChevronsUpDown className="opacity-50" />
+                                  ? "Loading solicitors..."
+                                  : "Select solicitor"}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
-                        <PopoverContent className="w-full p-0">
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                           <Command>
                             <CommandInput
                               placeholder="Search solicitors..."
@@ -761,25 +914,16 @@ export default function EditPaymentDialog({
                                     value={solicitor.label}
                                     key={solicitor.value}
                                     onSelect={() => {
-                                      form.setValue(
-                                        "solicitorId",
-                                        solicitor.value
-                                      );
-                                      if (
-                                        solicitor.commissionRate &&
-                                        !form.getValues("bonusPercentage")
-                                      ) {
-                                        form.setValue(
-                                          "bonusPercentage",
-                                          parseFloat(solicitor.commissionRate)
-                                        );
+                                      field.onChange(solicitor.value);
+                                      if (solicitor.commissionRate != null) {
+                                        form.setValue("bonusPercentage", solicitor.commissionRate);
                                       }
                                     }}
                                   >
                                     {solicitor.label}
                                     <Check
                                       className={cn(
-                                        "ml-auto",
+                                        "ml-auto h-4 w-4",
                                         solicitor.value === field.value
                                           ? "opacity-100"
                                           : "opacity-0"
@@ -796,239 +940,271 @@ export default function EditPaymentDialog({
                     </FormItem>
                   )}
                 />
-
-                {/* Commission Percentage and Amount */}
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="bonusPercentage"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Commission Percentage (%)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max="100"
-                            {...field}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              field.onChange(
-                                value ? parseFloat(value) : undefined
-                              );
-                            }}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="bonusAmount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          Commission Amount ({watchedCurrency})
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            {...field}
-                            readOnly
-                            className="bg-gray-50"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                {/* Bonus Rule ID */}
                 <FormField
                   control={form.control}
-                  name="bonusRuleId"
+                  name="bonusPercentage"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Bonus Rule ID (Optional)</FormLabel>
+                      <FormLabel>Bonus Percentage (%)</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
+                          step="0.01"
                           {...field}
+                          value={field.value ?? ""}
                           onChange={(e) => {
                             const value = e.target.value;
-                            field.onChange(value ? parseInt(value) : undefined);
+                            field.onChange(value === "" ? null : parseFloat(value));
                           }}
-                          placeholder="Reference to specific bonus rule"
                         />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
-                {/* Commission Summary */}
-                {watchedSolicitorId && watchedBonusPercentage && (
-                  <div className="bg-blue-100 border border-blue-300 rounded p-3 mt-4">
-                    <h5 className="font-medium text-blue-900 mb-2">
-                      Commission Summary
-                    </h5>
-                    <div className="text-sm text-blue-800 space-y-1">
-                      <div>
-                        Solicitor:{" "}
-                        {solicitorOptions.find(
-                          (s: { value: number }) =>
-                            s.value === watchedSolicitorId
-                        )?.label || "Unknown"}
-                      </div>
-                      <div>Commission Rate: {watchedBonusPercentage}%</div>
-                      <div>
-                        Commission Amount: {watchedCurrency}{" "}
-                        {form.watch("bonusAmount")?.toLocaleString() || "0"}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Show current vs new commission if editing existing solicitor payment */}
-                {payment.solicitorId && watchedSolicitorId && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
-                    <h5 className="font-medium text-yellow-900 mb-2">
-                      Commission Changes
-                    </h5>
-                    <div className="text-sm text-yellow-800 grid grid-cols-2 gap-4">
-                      <div>
-                        <div className="font-medium">Current:</div>
-                        <div>Rate: {payment.bonusPercentage}%</div>
-                        <div>
-                          Amount: {payment.currency} {payment.bonusAmount}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="font-medium">New:</div>
-                        <div>Rate: {watchedBonusPercentage}%</div>
-                        <div>
-                          Amount: {watchedCurrency}{" "}
-                          {form.watch("bonusAmount")?.toLocaleString() || "0"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Notes */}
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Notes</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      placeholder="Additional notes about this payment"
-                      rows={3}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Payment Summary */}
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mt-6">
-              <h4 className="font-medium text-orange-900 mb-2">
-                Payment Update Summary
-              </h4>
-              <div className="grid grid-cols-2 gap-2 text-sm text-orange-800">
-                <div>
-                  Payment Amount: {form.watch("currency")}{" "}
-                  {form.watch("amount")?.toLocaleString()}
-                </div>
-                <div>
-                  Amount (USD): ${form.watch("amountUsd")?.toLocaleString()}
-                </div>
-                <div>
-                  Payment Method:{" "}
-                  {
-                    paymentMethods.find(
-                      (m) => m.value === form.watch("paymentMethod")
-                    )?.label
-                  }
-                </div>
-                <div>
-                  Status:{" "}
-                  {
-                    paymentStatuses.find(
-                      (s) => s.value === form.watch("paymentStatus")
-                    )?.label
-                  }
-                </div>
-                <div>Payment Date: {form.watch("paymentDate")}</div>
-                {showSolicitorSection && watchedSolicitorId && (
-                  <div>
-                    Commission: {form.watch("currency")}{" "}
-                    {form.watch("bonusAmount")?.toLocaleString() || "0"}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Warning for completed payments */}
-            {payment.paymentStatus === "completed" && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <h4 className="font-medium text-red-900 mb-1">⚠️ Warning</h4>
-                <p className="text-sm text-red-800">
-                  This payment is marked as completed. Changes may affect
-                  accounting records and pledge balances.
-                  {payment.solicitorId &&
-                    " Commission calculations may also be affected."}
-                </p>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex justify-end space-x-2 pt-4 border-t">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => handleOpenChange(false)}
-                disabled={updatePaymentMutation.isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={resetForm}
-                disabled={updatePaymentMutation.isPending}
-              >
-                Reset
-              </Button>
-              <Button
-                type="button"
-                onClick={form.handleSubmit(onSubmit)}
-                disabled={
-                  updatePaymentMutation.isPending ||
-                  isLoadingRates ||
-                  (showSolicitorSection && isLoadingSolicitors)
-                }
-                className="bg-orange-600 hover:bg-orange-700"
-              >
-                {updatePaymentMutation.isPending
-                  ? "Updating..."
-                  : "Update Payment"}
-              </Button>
-            </div>
-          </div>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  );
-}
+                <FormField
+                  control={form.control}
+                  name="bonusAmount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Bonus Amount</FormLabel>
+                                            <FormControl>
+                                              <Input type="number" step="0.01" {...field} disabled value={field.value ?? ""} />
+                                            </FormControl>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
+                                      <FormField
+                                        control={form.control}
+                                        name="bonusRuleId"
+                                        render={({ field }) => (
+                                          <FormItem>
+                                            <FormLabel>Bonus Rule ID</FormLabel>
+                                            <FormControl>
+                                              <Input
+                                                type="number"
+                                                {...field}
+                                                value={field.value ?? ""}
+                                                onChange={(e) => {
+                                                  const value = e.target.value;
+                                                  field.onChange(value === "" ? null : parseInt(value, 10));
+                                                }}
+                                              />
+                                            </FormControl>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
+                                    </div>
+                                  )}
+                      
+                                  <FormField
+                                    control={form.control}
+                                    name="notes"
+                                    render={({ field }) => (
+                                      <FormItem>
+                                        <FormLabel>Notes</FormLabel>
+                                        <FormControl>
+                                          <Textarea {...field} value={field.value || ""} />
+                                        </FormControl>
+                                        <FormMessage />
+                                      </FormItem>
+                                    )}
+                                  />
+                      
+                                  {/* Split Payment Section */}
+                                  {watchedIsSplitPayment && (
+                                    <div className="space-y-4 bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                      <div className="flex items-center justify-between">
+                                        <h4 className="font-medium text-blue-900">Payment Allocations</h4>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={addAllocation}
+                                          className="flex items-center gap-2"
+                                        >
+                                          <Plus className="h-4 w-4" />
+                                          Add Allocation
+                                        </Button>
+                                      </div>
+                      
+                                      <div className="mb-4">
+                                        <p className="text-sm text-gray-700">
+                                          Total Payment Amount: <span className="font-semibold">{watchedCurrency} {watchedAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        </p>
+                                        <p className="text-sm text-gray-700">
+                                          Total Allocated: <span className="font-semibold">{watchedCurrency} {totalAllocatedAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        </p>
+                                        <p className={cn("text-sm font-semibold", remainingToAllocate < 0 ? "text-red-600" : "text-green-600")}>
+                                          Remaining to Allocate: {watchedCurrency} {remainingToAllocate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </p>
+                                      </div>
+                      
+                                      {/* Allocation Items */}
+                                      <div className="space-y-4">
+                                        {fields.map((field, index) => (
+                                          <div key={field.id} className="border rounded-lg p-4 bg-white shadow-sm relative">
+                                            <div className="flex items-center justify-between mb-4">
+                                              <h5 className="font-medium text-sm text-gray-800">Allocation {index + 1}</h5>
+                                              {fields.length > 1 && (
+                                                <Button
+                                                  type="button"
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  onClick={() => removeAllocation(index)}
+                                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                                                >
+                                                  <X className="h-4 w-4" />
+                                                </Button>
+                                              )}
+                                            </div>
+                      
+                                            {/* Grid layout for fields */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                              {/* Pledge Selection */}
+                                              <div className="space-y-2">
+                                                <FormField
+                                                  control={form.control}
+                                                  name={`allocations.${index}.pledgeId`}
+                                                  render={({ field }) => (
+                                                    <FormItem>
+                                                      <FormLabel>Pledge *</FormLabel>
+                                                      <Popover>
+                                                        <PopoverTrigger asChild>
+                                                          <FormControl>
+                                                            <Button
+                                                              variant="outline"
+                                                              role="combobox"
+                                                              className={cn(
+                                                                "w-full justify-between",
+                                                                !field.value && "text-muted-foreground"
+                                                              )}
+                                                              disabled={isLoadingPledges}
+                                                            >
+                                                              {field.value
+                                                                ? pledgeOptions.find(
+                                                                  (pledge) => pledge.value === field.value
+                                                                )?.label
+                                                                : isLoadingPledges
+                                                                  ? "Loading pledges..."
+                                                                  : "Select pledge"}
+                                                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                            </Button>
+                                                          </FormControl>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-[400px] p-0">
+                                                          <Command>
+                                                            <CommandInput placeholder="Search pledges..." className="h-9" />
+                                                            <CommandList>
+                                                              <CommandEmpty>No pledge found.</CommandEmpty>
+                                                              <CommandGroup>
+                                                                {pledgeOptions.map((pledge) => (
+                                                                  <CommandItem
+                                                                    value={pledge.label}
+                                                                    key={pledge.value}
+                                                                    onSelect={() => {
+                                                                      field.onChange(pledge.value);
+                                                                      form.setValue(`allocations.${index}.installmentScheduleId`, null);
+                                                                    }}
+                                                                  >
+                                                                    {pledge.label}
+                                                                    <Check
+                                                                      className={cn(
+                                                                        "ml-auto h-4 w-4",
+                                                                        pledge.value === field.value
+                                                                          ? "opacity-100"
+                                                                          : "opacity-0"
+                                                                      )}
+                                                                    />
+                                                                  </CommandItem>
+                                                                ))}
+                                                              </CommandGroup>
+                                                            </CommandList>
+                                                          </Command>
+                                                        </PopoverContent>
+                                                      </Popover>
+                                                      <FormMessage className="text-xs text-red-500" />
+                                                      {field.value && getPledgeById(field.value) && (
+                                                        <p className="text-xs text-muted-foreground mt-1">
+                                                          Pledge Balance: {getPledgeById(field.value)?.currency}{" "}
+                                                          {parseFloat(getPledgeById(field.value)?.balance || "").toLocaleString()}
+                                                        </p>
+                                                      )}
+                                                    </FormItem>
+                                                  )}
+                                                />
+                                              </div>
+                      
+                                              {/* Allocated Amount */}
+                                              <div className="space-y-2">
+                                                <FormField
+                                                  control={form.control}
+                                                  name={`allocations.${index}.allocatedAmount`}
+                                                  render={({ field }) => (
+                                                    <FormItem>
+                                                      <FormLabel>Allocated Amount *</FormLabel>
+                                                      <FormControl>
+                                                        <Input
+                                                          type="number"
+                                                          step="0.01"
+                                                          {...field}
+                                                          onChange={(e) => {
+                                                            const value = e.target.value;
+                                                            field.onChange(value ? parseFloat(value) : 0);
+                                                          }}
+                                                        />
+                                                      </FormControl>
+                                                      <FormMessage className="text-xs text-red-500" />
+                                                    </FormItem>
+                                                  )}
+                                                />
+                                              </div>
+                                            </div>
+                      
+                                            {/* Allocation Notes */}
+                                            <div className="mt-4 space-y-2">
+                                              <FormField
+                                                control={form.control}
+                                                name={`allocations.${index}.notes`}
+                                                render={({ field }) => (
+                                                  <FormItem>
+                                                    <FormLabel>Allocation Notes</FormLabel>
+                                                    <FormControl>
+                                                      <Textarea
+                                                        {...field}
+                                                        value={field.value || ""}
+                                                        rows={2}
+                                                        className="resize-none"
+                                                      />
+                                                    </FormControl>
+                                                    <FormMessage className="text-xs text-red-500" />
+                                                  </FormItem>
+                                                )}
+                                              />
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div className="flex justify-end space-x-2 pt-4 border-t">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      onClick={() => handleOpenChange(false)}
+                                      disabled={updatePaymentMutation.isPending}
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button type="submit" disabled={updatePaymentMutation.isPending || isLoadingRates || isLoadingSolicitors || isLoadingPledges}>
+                                      {updatePaymentMutation.isPending ? "Creating Payment..." : "Record Payment"}
+                                    </Button>
+                                  </div>
+                                </form>
+                              </Form>
+                            </DialogContent>
+                          </Dialog>
+                        );
+                      }

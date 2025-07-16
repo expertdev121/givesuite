@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { PaymentAllocation } from '@lib/db/schema';
 
 export interface PaymentQueryParams {
   pledgeId?: number;
@@ -58,6 +59,15 @@ export interface Payment {
   pledgeExchangeRate: string;
   contactId: number | null;
   solicitorName: string | null;
+}
+
+export interface PaymentAllocationWithPledge extends PaymentAllocation {
+  pledge?: {
+    id: number;
+    contactId: number;
+    campaignId: number;
+    currency: string;
+  };
 }
 
 export interface PaymentsResponse {
@@ -197,6 +207,29 @@ const fetchPayments = async (
   return response.json();
 };
 
+const fetchPaymentAllocations = async (params?: {
+  paymentIds?: number[];
+}): Promise<PaymentAllocationWithPledge[]> => {
+  if (!params?.paymentIds?.length) return [];
+  
+  const { data } = await api.get("/api/payments", {
+    params: {
+      endpoint: "allocations",
+      paymentIds: params.paymentIds.join(","),
+    },
+  });
+  return data;
+};
+
+export const usePaymentAllocationsQuery = (params?: { paymentIds?: number[] }) => {
+  return useQuery({
+    queryKey: ["paymentAllocations", params?.paymentIds],
+    queryFn: () => fetchPaymentAllocations(params),
+    enabled: !!params?.paymentIds?.length,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+};
+
 const createPayment = async (
   data: CreatePaymentData
 ): Promise<CreatePaymentResponse> => {
@@ -216,13 +249,12 @@ const createPayment = async (
   }
   return response.json();
 };
-
 const updatePayment = async (
-  pledgeId: number,
+  pledgeId: number, // It might be paymentId here, based on your backend
   data: UpdatePaymentData
 ): Promise<UpdatePaymentResponse> => {
-  const response = await fetch(`/api/payments/${pledgeId}`, {
-    method: "PUT",
+  const response = await fetch(`/api/payments/${pledgeId}`, { // Confirm if this should be pledgeId or paymentId
+    method: "PATCH", 
     headers: {
       "Content-Type": "application/json",
     },
@@ -230,7 +262,7 @@ const updatePayment = async (
   });
 
   if (!response.ok) {
-    const errorData = await response.json();
+    const errorData = await response.json(); // This will now likely work if backend returns JSON on error
     throw new Error(
       errorData.error || `Failed to update payment: ${response.statusText}`
     );

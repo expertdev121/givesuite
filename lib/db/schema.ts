@@ -337,6 +337,7 @@ export const pledge = pgTable("pledge", {
     scale: 2,
   }).notNull(),
   currency: currencyEnum("currency").notNull().default("USD"),
+  // These fields remain unchanged, to be kept in sync by backend logic
   totalPaid: numeric("total_paid", { precision: 10, scale: 2 })
     .default("0")
     .notNull(),
@@ -421,12 +422,62 @@ export const paymentPlan = pgTable(
 export type PaymentPlan = typeof paymentPlan.$inferSelect;
 export type NewPaymentPlan = typeof paymentPlan.$inferInsert;
 
+// NEW TABLE: payment_allocations
+// This table links a payment to one or more pledges, specifying the allocated amount for each.
+// It also links a portion of a payment to a specific installment schedule.
+export const paymentAllocations = pgTable(
+  "payment_allocations",
+  {
+    id: serial("id").primaryKey(),
+    paymentId: integer("payment_id")
+      .references(() => payment.id, { onDelete: "cascade" })
+      .notNull(),
+    pledgeId: integer("pledge_id")
+      .references(() => pledge.id, { onDelete: "cascade" })
+      .notNull(),
+    // Link to installment schedule if this specific allocation fulfills one
+    installmentScheduleId: integer("installment_schedule_id").references(
+      () => installmentSchedule.id,
+      { onDelete: "set null" }
+    ),
+    allocatedAmount: numeric("allocated_amount", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    currency: currencyEnum("currency").notNull(), // Currency of the allocation (typically matches payment/pledge currency)
+    allocatedAmountUsd: numeric("allocated_amount_usd", {
+      precision: 10,
+      scale: 2,
+    }), // USD equivalent of allocated amount for this specific allocation
+    notes: text("notes"), // Specific notes for this allocation
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    paymentIdIdx: index("payment_allocations_payment_id_idx").on(
+      table.paymentId
+    ),
+    pledgeIdIdx: index("payment_allocations_pledge_id_idx").on(
+      table.pledgeId
+    ),
+    installmentScheduleIdIdx: index("payment_allocations_installment_schedule_id_idx").on(table.installmentScheduleId),
+    uniqueAllocation: uniqueIndex("payment_allocations_unique").on(
+      table.paymentId,
+      table.pledgeId,
+      table.installmentScheduleId // Ensures a payment can only allocate to a specific pledge-installment once.
+    ),
+  })
+);
+
+export type PaymentAllocation = typeof paymentAllocations.$inferSelect;
+export type NewPaymentAllocation = typeof paymentAllocations.$inferInsert;
+
 // NEW TABLE: Installment Schedules
 export const installmentSchedule = pgTable(
   "installment_schedule",
   {
     id: serial("id").primaryKey(),
-    paymentPlanId: integer("payment_plan_id") 
+    paymentPlanId: integer("payment_plan_id")
       .references(() => paymentPlan.id, { onDelete: "cascade" })
       .notNull(),
     installmentDate: date("installment_date").notNull(),
@@ -437,12 +488,15 @@ export const installmentSchedule = pgTable(
     currency: currencyEnum("currency").notNull(),
     status: installmentStatusEnum("status").notNull().default("pending"),
     paidDate: date("paid_date"),
-    paymentId: integer("payment_id").references(() => payment.id, {
-      onDelete: "set null",
-    }),
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    // paymentId foreign key remains as per your request
+    // It's up to your application logic to determine if an installment
+    // is fulfilled directly by a payment or via an allocation.
+    paymentId: integer("payment_id").references(() => payment.id, {
+        onDelete: "set null",
+    }),
   },
   (table) => ({
     paymentPlanIdIdx: index("installment_schedule_payment_plan_id_idx").on(
@@ -452,9 +506,8 @@ export const installmentSchedule = pgTable(
       table.installmentDate
     ),
     statusIdx: index("installment_schedule_status_idx").on(table.status),
-    paymentIdIdx: index("installment_schedule_payment_id_idx").on(
-      table.paymentId
-    ),
+    // Index for paymentId remains
+    paymentIdIdx: index("installment_schedule_payment_id_idx").on(table.paymentId),
   })
 );
 
@@ -576,14 +629,15 @@ export const payment = pgTable(
   "payment",
   {
     id: serial("id").primaryKey(),
-    pledgeId: integer("pledge_id")
-      .references(() => pledge.id, { onDelete: "cascade" })
-      .notNull(),
+    // pledgeId remains, can be null if split across multiple pledges via allocations
+    pledgeId: integer("pledge_id").references(() => pledge.id, {
+      onDelete: "set null",
+    }),
     paymentPlanId: integer("payment_plan_id").references(() => paymentPlan.id, {
       onDelete: "set null",
     }),
 
- // NEW FIELD: Link to specific installment
+    // installmentScheduleId remains, can be null if fulfilled via allocations or multiple installments
     installmentScheduleId: integer("installment_schedule_id").references(
       () => installmentSchedule.id,
       { onDelete: "set null" }
@@ -592,6 +646,7 @@ export const payment = pgTable(
     amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
     currency: currencyEnum("currency").notNull(),
     amountUsd: numeric("amount_usd", { precision: 10, scale: 2 }),
+    // amountInPledgeCurrency remains as well
     amountInPledgeCurrency: numeric("amount_pledge_currency", {
       precision: 10,
       scale: 2,
@@ -639,6 +694,7 @@ export const payment = pgTable(
     referenceIdx: index("payment_reference_idx").on(table.referenceNumber),
     // *** NEW INDEX ***
     solicitorIdIdx: index("payment_solicitor_id_idx").on(table.solicitorId),
+    installmentScheduleIdIdx: index("payment_installment_schedule_id_idx").on(table.installmentScheduleId),
   })
 );
 
@@ -722,7 +778,9 @@ export const pledgeRelations = relations(pledge, ({ one, many }) => ({
     references: [category.id],
   }),
   paymentPlans: many(paymentPlan),
-  payments: many(payment),
+  payments: many(payment), // KEPT: Direct payment relation
+  // NEW RELATION: Pledge can have many allocations (for split payments)
+  paymentAllocations: many(paymentAllocations),
 }));
 
 export const paymentPlanRelations = relations(paymentPlan, ({ one, many }) => ({
@@ -736,21 +794,24 @@ export const paymentPlanRelations = relations(paymentPlan, ({ one, many }) => ({
 
 export const installmentScheduleRelations = relations(
   installmentSchedule,
-  ({ one }) => ({
+  ({ one, many }) => ({ // ADDED 'many' for paymentAllocations
     paymentPlan: one(paymentPlan, {
       fields: [installmentSchedule.paymentPlanId],
       references: [paymentPlan.id],
     }),
-    payment: one(payment, {
+    payment: one(payment, { // KEPT: Direct payment relation for installment
       fields: [installmentSchedule.paymentId],
       references: [payment.id],
     }),
+    // NEW RELATION: An installment schedule can have multiple allocations
+    // (e.g., partial payments, or parts of different split payments)
+    paymentAllocations: many(paymentAllocations),
   })
 );
 
-// *** UPDATED PAYMENT RELATIONS (with solicitor) ***
-export const paymentRelations = relations(payment, ({ one }) => ({
-  pledge: one(pledge, {
+// *** UPDATED PAYMENT RELATIONS (with solicitor and paymentAllocations) ***
+export const paymentRelations = relations(payment, ({ one, many }) => ({ // ADDED 'many' for paymentAllocations
+  pledge: one(pledge, { // KEPT: Direct pledge relation
     fields: [payment.pledgeId],
     references: [pledge.id],
   }),
@@ -758,7 +819,7 @@ export const paymentRelations = relations(payment, ({ one }) => ({
     fields: [payment.paymentPlanId],
     references: [paymentPlan.id],
   }),
-  installmentSchedule: one(installmentSchedule, {
+  installmentSchedule: one(installmentSchedule, { // KEPT: Direct installment relation
     fields: [payment.installmentScheduleId],
     references: [installmentSchedule.id],
   }),
@@ -774,6 +835,8 @@ export const paymentRelations = relations(payment, ({ one }) => ({
     fields: [payment.id],
     references: [bonusCalculation.paymentId],
   }),
+  // NEW RELATION: A payment can have multiple allocations
+  paymentAllocations: many(paymentAllocations),
 }));
 
 
@@ -821,3 +884,22 @@ export const auditLogRelations = relations(auditLog, ({ one }) => ({
     references: [contact.id],
   }),
 }));
+
+// NEW RELATIONS for paymentAllocations
+export const paymentAllocationsRelations = relations(
+  paymentAllocations,
+  ({ one }) => ({
+    payment: one(payment, {
+      fields: [paymentAllocations.paymentId],
+      references: [payment.id],
+    }),
+    pledge: one(pledge, {
+      fields: [paymentAllocations.pledgeId],
+      references: [pledge.id],
+    }),
+    installmentSchedule: one(installmentSchedule, {
+      fields: [paymentAllocations.installmentScheduleId],
+      references: [installmentSchedule.id],
+    }),
+  })
+);

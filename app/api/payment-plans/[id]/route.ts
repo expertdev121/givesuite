@@ -393,11 +393,6 @@ export async function PATCH(
 
         // Set numberOfInstallments based on the count of custom installments
         updateData.numberOfInstallments = validatedData.customInstallments.length;
-        // For custom plans, installmentAmount might become irrelevant, setting to null if it's not provided
-        if (validatedData.installmentAmount === undefined) {
-            updateData.installmentAmount = null;
-        }
-
       } else if (newDistributionType === "fixed") {
         // Transition to FIXED:
         // 1. Delete all existing custom installment schedules for this plan
@@ -431,10 +426,6 @@ export async function PATCH(
 
       // Set numberOfInstallments based on the count of custom installments
       updateData.numberOfInstallments = validatedData.customInstallments.length;
-      // For custom plans, installmentAmount might become irrelevant, setting to null if it's not provided
-      if (validatedData.installmentAmount === undefined) {
-          updateData.installmentAmount = null;
-      }
 
       // Validate custom installment total if totalPlannedAmount is provided
       const totalCustomAmount = validatedData.customInstallments.reduce((sum, installment) => sum + installment.amount, 0);
