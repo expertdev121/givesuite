@@ -1,13 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { db } from "@/lib/db";
-import { paymentPlan, pledge, installmentSchedule } from "@/lib/db/schema"; // Ensure installmentSchedule is imported
+import { paymentPlan, pledge, installmentSchedule } from "@/lib/db/schema";
 import { ErrorHandler } from "@/lib/error-handler";
 import { eq, desc, or, ilike, and, SQL, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-
-// Import the specific types from your schema file for clarity and safety
-import { PaymentPlan, NewPaymentPlan } from "@/lib/db/schema";
 
 const PlanStatusEnum = z.enum([
   "active",
@@ -26,7 +23,6 @@ const QueryParamsSchema = z.object({
 
 type QueryParams = z.infer<typeof QueryParamsSchema>;
 
-// Zod schema for validating individual custom installments (re-used from POST)
 const installmentSchema = z.object({
   date: z.string().min(1, "Installment date is required"),
   amount: z.number().positive("Installment amount must be positive"),
@@ -46,7 +42,7 @@ const updatePaymentPlanSchema = z.object({
       "custom",
     ])
     .optional(),
-  distributionType: z.enum(["fixed", "custom"]).optional(), // Added distributionType to PATCH schema
+  distributionType: z.enum(["fixed", "custom"]).optional(),
   totalPlannedAmount: z
     .number()
     .positive("Total planned amount must be positive")
@@ -54,11 +50,11 @@ const updatePaymentPlanSchema = z.object({
   currency: z
     .enum(["USD", "ILS", "EUR", "JPY", "GBP", "AUD", "CAD", "ZAR"])
     .optional(),
-  installmentAmount: z // Still optional for custom, but might be required if switching to fixed
+  installmentAmount: z
     .number()
     .positive("Installment amount must be positive")
     .optional(),
-  numberOfInstallments: z // Still optional for custom, but might be required if switching to fixed
+  numberOfInstallments: z
     .number()
     .int()
     .positive("Number of installments must be positive")
@@ -67,12 +63,9 @@ const updatePaymentPlanSchema = z.object({
   endDate: z.string().optional(),
   nextPaymentDate: z.string().optional(),
   autoRenew: z.boolean().optional(),
-  planStatus: z
-    .enum(["active", "completed", "cancelled", "paused", "overdue"])
-    .optional(),
+  planStatus: PlanStatusEnum.optional(),
   notes: z.string().optional(),
   internalNotes: z.string().optional(),
-  // Add customInstallments for when distributionType is 'custom' or being changed to 'custom'
   customInstallments: z.array(installmentSchema).optional(),
 });
 
@@ -80,16 +73,17 @@ type UpdatePaymentPlanRequest = z.infer<typeof updatePaymentPlanSchema>;
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { pledgeId: string } }
-) {
+  { params }: { params: { id: string } }
+): Promise<NextResponse> {
   try {
-    const pledgeId = parseInt(params.pledgeId, 10);
+    const pledgeId = parseInt(params.id, 10);
     if (isNaN(pledgeId) || pledgeId <= 0) {
       return NextResponse.json(
         { error: "Invalid Pledge ID provided in URL" },
         { status: 400 }
       );
     }
+
     const { searchParams } = new URL(request.url);
     const queryParams: QueryParams = QueryParamsSchema.parse({
       page: parseInt(searchParams.get("page") || "1", 10),
@@ -132,7 +126,6 @@ export async function GET(
         pledgeCurrency: sql<string>`(SELECT ${pledge.currency} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("pledgeCurrency"),
         originalAmountUsd: sql<string>`(SELECT ${pledge.originalAmountUsd} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("originalAmountUsd"),
         originalAmount: sql<string>`(SELECT ${pledge.originalAmount} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("originalAmount"),
-        // Add pledge contact information
         pledgeContact: sql<string>`(SELECT CONCAT(c.first_name, ' ', c.last_name) FROM ${pledge} p JOIN contact c ON p.contact_id = c.id WHERE p.id = ${paymentPlan.pledgeId})`.as("pledgeContact"),
         pledgeDescription: sql<string>`(SELECT ${pledge.description} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("pledgeDescription"),
       })
@@ -170,49 +163,29 @@ export async function GET(
       .offset(offset)
       .orderBy(desc(paymentPlan.createdAt));
 
-    // Fetch installment schedules for custom distribution plans
     const paymentPlansWithInstallments = await Promise.all(
       paymentPlans.map(async (plan) => {
-        let installmentSchedules: any[] = [];
-        let customInstallments: any[] = [];
+        if (plan.distributionType !== "custom") return plan;
 
-        // Fetch installment schedules if distribution type is custom
-        if (plan.distributionType === "custom") {
-          installmentSchedules = await db
-            .select({
-              id: installmentSchedule.id,
-              paymentPlanId: installmentSchedule.paymentPlanId,
-              installmentDate: installmentSchedule.installmentDate,
-              installmentAmount: installmentSchedule.installmentAmount,
-              currency: installmentSchedule.currency,
-              notes: installmentSchedule.notes,
-              isPaid: installmentSchedule.isPaid,
-              paidDate: installmentSchedule.paidDate,
-              paidAmount: installmentSchedule.paidAmount,
-              createdAt: installmentSchedule.createdAt,
-              updatedAt: installmentSchedule.updatedAt,
-            })
-            .from(installmentSchedule)
-            .where(eq(installmentSchedule.paymentPlanId, plan.id))
-            .orderBy(installmentSchedule.installmentDate);
+        const installmentSchedules = await db
+          .select()
+          .from(installmentSchedule)
+          .where(eq(installmentSchedule.paymentPlanId, plan.id))
+          .orderBy(installmentSchedule.installmentDate);
 
-          // Transform installment schedules to the format expected by the form
-          customInstallments = installmentSchedules.map(schedule => ({
-            date: schedule.installmentDate,
-            amount: parseFloat(schedule.installmentAmount),
-            notes: schedule.notes || "",
-            isPaid: schedule.isPaid,
-            paidDate: schedule.paidDate,
-            paidAmount: schedule.paidAmount ? parseFloat(schedule.paidAmount) : null,
-          }));
-        }
+        const customInstallments = installmentSchedules.map(schedule => ({
+          date: schedule.installmentDate,
+          amount: parseFloat(schedule.installmentAmount),
+          notes: schedule.notes || "",
+          isPaid: schedule.isPaid,
+          paidDate: schedule.paidDate,
+          paidAmount: schedule.paidAmount ? parseFloat(schedule.paidAmount) : null,
+        }));
 
         return {
           ...plan,
-          ...(installmentSchedules.length > 0 && {
-            installmentSchedules,
-            customInstallments,
-          }),
+          installmentSchedules,
+          customInstallments,
         };
       })
     );
@@ -220,7 +193,7 @@ export async function GET(
     const countQuery = db
       .select({ count: sql<number>`count(*)` })
       .from(paymentPlan)
-      .where(and(eq(paymentPlan.pledgeId, pledgeId), ...(conditions.length > 0 ? conditions : [])));
+      .where(and(eq(paymentPlan.pledgeId, pledgeId), ...conditions));
 
     const totalCountResult = await countQuery;
     const totalCount = Number(totalCountResult[0]?.count || 0);
@@ -236,11 +209,6 @@ export async function GET(
           totalPages,
           hasNextPage: page < totalPages,
           hasPreviousPage: page > 1,
-        },
-        filters: {
-          pledgeId,
-          search,
-          planStatus,
         },
       },
       {
@@ -267,19 +235,13 @@ export async function GET(
     return ErrorHandler.handle(error);
   }
 }
-/**
- * PATCH handler for updating a specific payment plan by its ID.
- * This now handles changes to `distributionType` and associated installment schedules.
- * Route: /api/payments/[pledgeId]/route.ts (where [pledgeId] is the pledgeId parameter)
- */
+
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { pledgeId: string } }
-) {
-  let paymentPlanIdForRollback: number | null = null; // To store ID in case of partial update failure
+  { params }: { params: { id: string } }
+): Promise<NextResponse> {
   try {
-    const params = await context.params;
-    const planId = parseInt(params.pledgeId, 10); // Changed from params.id to params.pledgeId
+    const planId = parseInt(params.id, 10);
     if (isNaN(planId) || planId <= 0) {
       return NextResponse.json(
         { error: "Invalid payment plan ID" },
@@ -290,192 +252,68 @@ export async function PATCH(
     const body = await request.json();
     const validatedData: UpdatePaymentPlanRequest = updatePaymentPlanSchema.parse(body);
 
-    // Get current payment plan details to compare distributionType
-    const existingPlanArray = await db
+    const [existingPlan] = await db
       .select()
       .from(paymentPlan)
       .where(eq(paymentPlan.id, planId))
       .limit(1);
 
-    if (existingPlanArray.length === 0) {
+    if (!existingPlan) {
       return NextResponse.json(
         { error: "Payment plan not found" },
         { status: 404 }
       );
     }
 
-    const existingPlan = existingPlanArray[0];
-    paymentPlanIdForRollback = existingPlan.id; // Store for potential rollback
-
-    // --- Prepare updateData for paymentPlan table ---
-    const updateData: Partial<NewPaymentPlan> = {
+    const updateData: Partial<PaymentPlan> = {
       updatedAt: new Date(),
     };
 
-    // Apply all validated fields
-    if (validatedData.planName !== undefined) {
-      updateData.planName = validatedData.planName || null;
-    }
-    if (validatedData.frequency !== undefined) {
-      updateData.frequency = validatedData.frequency;
-    }
-    if (validatedData.totalPlannedAmount !== undefined) {
-      updateData.totalPlannedAmount = validatedData.totalPlannedAmount.toString();
-      const totalPaid = parseFloat(existingPlan.totalPaid || "0");
-      updateData.remainingAmount = (
-        validatedData.totalPlannedAmount - totalPaid
-      ).toString();
-    }
-    if (validatedData.currency !== undefined) {
-      updateData.currency = validatedData.currency;
-    }
-    if (validatedData.startDate !== undefined) {
-      updateData.startDate = validatedData.startDate;
-    }
-    if (validatedData.endDate !== undefined) {
-      updateData.endDate = validatedData.endDate || null;
-    }
-    if (validatedData.nextPaymentDate !== undefined) {
-      updateData.nextPaymentDate = validatedData.nextPaymentDate || null;
-    }
-    if (validatedData.autoRenew !== undefined) {
-      updateData.autoRenew = validatedData.autoRenew;
-    }
-    if (validatedData.planStatus !== undefined) {
-      updateData.planStatus = validatedData.planStatus;
-      updateData.isActive = validatedData.planStatus === "active";
-    }
-    if (validatedData.notes !== undefined) {
-      updateData.notes = validatedData.notes || null;
-    }
-    if (validatedData.internalNotes !== undefined) {
-      updateData.internalNotes = validatedData.internalNotes || null;
-    }
+    // Apply validated fields
+    Object.entries(validatedData).forEach(([key, value]) => {
+      if (value !== undefined && key !== "customInstallments") {
+        updateData[key as keyof PaymentPlan] = value;
+      }
+    });
 
-    // --- Handle distributionType change and installment schedules ---
-    const oldDistributionType = existingPlan.distributionType;
-    const newDistributionType = validatedData.distributionType;
-
-    if (newDistributionType !== undefined && newDistributionType !== oldDistributionType) {
-      // Distribution type is changing or explicitly set
-      updateData.distributionType = newDistributionType;
-
-      if (newDistributionType === "custom") {
-        // Transition to CUSTOM:
-        // 1. Validate customInstallments
-        if (!validatedData.customInstallments || validatedData.customInstallments.length === 0) {
+    // Handle distribution type changes
+    if (validatedData.distributionType !== undefined) {
+      if (validatedData.distributionType === "custom") {
+        if (!validatedData.customInstallments) {
           return NextResponse.json(
-            { error: "Validation failed", details: [{ field: "customInstallments", message: "Custom installments must be provided when setting distribution type to 'custom'." }] },
+            { error: "Custom installments required when changing to custom distribution" },
             { status: 400 }
           );
         }
-        const totalCustomAmount = validatedData.customInstallments.reduce((sum, installment) => sum + installment.amount, 0);
-        if (validatedData.totalPlannedAmount && totalCustomAmount !== validatedData.totalPlannedAmount) {
-          return NextResponse.json(
-            { error: "Validation failed", details: [{ field: "totalPlannedAmount", message: "Sum of custom installments must equal the total planned amount." }] },
-            { status: 400 }
-          );
-        }
-        // 2. Delete existing installment schedules (if any, from old 'custom' or even 'fixed' if previous data was messy)
         await db.delete(installmentSchedule).where(eq(installmentSchedule.paymentPlanId, planId));
-
-        // 3. Insert new custom installments
-        const installmentsToInsert = validatedData.customInstallments.map((inst) => ({
-          paymentPlanId: planId,
-          installmentDate: inst.date,
-          installmentAmount: inst.amount.toString(),
-          currency: validatedData.currency || existingPlan.currency, // Use new currency if provided, else old
-          notes: inst.notes || null,
-        }));
-        await db.insert(installmentSchedule).values(installmentsToInsert);
-
-        // Set numberOfInstallments based on the count of custom installments
-        updateData.numberOfInstallments = validatedData.customInstallments.length;
-      } else if (newDistributionType === "fixed") {
-        // Transition to FIXED:
-        // 1. Delete all existing custom installment schedules for this plan
+        
+        await db.insert(installmentSchedule).values(
+          validatedData.customInstallments.map(inst => ({
+            paymentPlanId: planId,
+            installmentDate: inst.date,
+            installmentAmount: inst.amount.toString(),
+            currency: validatedData.currency || existingPlan.currency,
+            notes: inst.notes || null,
+          }))
+        );
+      } else if (validatedData.distributionType === "fixed") {
         await db.delete(installmentSchedule).where(eq(installmentSchedule.paymentPlanId, planId));
-
-        // 2. Ensure installmentAmount and numberOfInstallments are provided for fixed
-        if (validatedData.installmentAmount === undefined || validatedData.numberOfInstallments === undefined) {
-          return NextResponse.json(
-            { error: "Validation failed", details: [{ field: "installmentAmount/numberOfInstallments", message: "Installment amount and number of installments are required for 'fixed' distribution type." }] },
-            { status: 400 }
-          );
-        }
-        updateData.installmentAmount = validatedData.installmentAmount.toString();
-        updateData.numberOfInstallments = validatedData.numberOfInstallments;
-      }
-    } else if (newDistributionType === "custom" && oldDistributionType === "custom" && validatedData.customInstallments) {
-      // Distribution type remains CUSTOM, but customInstallments are provided for an update
-      // This is a replacement of the custom schedule.
-      // 1. Delete existing installment schedules
-      await db.delete(installmentSchedule).where(eq(installmentSchedule.paymentPlanId, planId));
-
-      // 2. Insert new custom installments
-      const installmentsToInsert = validatedData.customInstallments.map((inst) => ({
-        paymentPlanId: planId,
-        installmentDate: inst.date,
-        installmentAmount: inst.amount.toString(),
-        currency: validatedData.currency || existingPlan.currency, // Use new currency if provided, else old
-        notes: inst.notes || null,
-      }));
-      await db.insert(installmentSchedule).values(installmentsToInsert);
-
-      // Set numberOfInstallments based on the count of custom installments
-      updateData.numberOfInstallments = validatedData.customInstallments.length;
-
-      // Validate custom installment total if totalPlannedAmount is provided
-      const totalCustomAmount = validatedData.customInstallments.reduce((sum, installment) => sum + installment.amount, 0);
-      if (validatedData.totalPlannedAmount && totalCustomAmount !== validatedData.totalPlannedAmount) {
-        return NextResponse.json(
-          { error: "Validation failed", details: [{ field: "totalPlannedAmount", message: "Sum of custom installments must equal the total planned amount." }] },
-          { status: 400 }
-        );
-      }
-    } else {
-      // No change in distributionType OR distributionType is not provided OR it's fixed and no customInstallments.
-      // If distributionType is not provided in PATCH, it means it doesn't change.
-      // If it's fixed and installmentAmount/numberOfInstallments are provided, update them.
-      if (validatedData.installmentAmount !== undefined) {
-        updateData.installmentAmount = validatedData.installmentAmount.toString();
-      }
-      if (validatedData.numberOfInstallments !== undefined) {
-        updateData.numberOfInstallments = validatedData.numberOfInstallments;
-      }
-      // Ensure customInstallments are not provided if type is fixed
-      if (validatedData.customInstallments && existingPlan.distributionType === "fixed") {
-        return NextResponse.json(
-          { error: "Validation failed", details: [{ field: "customInstallments", message: "Custom installments cannot be provided for 'fixed' distribution type unless the distributionType is also being changed to 'custom'." }] },
-          { status: 400 }
-        );
       }
     }
 
-    // --- Perform the main paymentPlan update ---
-    const updatedPlanResult = await db
+    const [updatedPlan] = await db
       .update(paymentPlan)
       .set(updateData)
       .where(eq(paymentPlan.id, planId))
       .returning();
 
-    if (updatedPlanResult.length === 0) {
-      throw new Error("Failed to update payment plan record. No record returned.");
-    }
-
-    const updatedPaymentPlan = updatedPlanResult[0];
-
     return NextResponse.json({
       message: "Payment plan updated successfully",
-      paymentPlan: updatedPaymentPlan,
+      paymentPlan: updatedPlan,
     });
 
   } catch (error) {
-    // --- Manual Rollback Logic for Partial Failures ---
-    // If the payment plan update succeeded but installment insertion failed,
-    // we might want to revert the payment plan update too (or just delete installments).
     console.error("Error updating payment plan:", error);
-
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         {
@@ -487,36 +325,6 @@ export async function PATCH(
         },
         { status: 400 }
       );
-    }
-    // Handle database errors specifically if needed (e.g., foreign key, not null)
-    const pgError = error as any;
-    if (pgError.code) {
-      switch (pgError.code) {
-        case '23502': // NOT NULL violation
-          console.error("PostgreSQL NOT NULL constraint violation:", pgError.detail || pgError.message);
-          return NextResponse.json(
-            { error: "Required data is missing or invalid (database constraint violation).", detail: pgError.detail || pgError.message },
-            { status: 400 }
-          );
-        case '23503': // Foreign key violation
-          console.error("PostgreSQL Foreign Key constraint violation:", pgError.detail || pgError.message);
-          return NextResponse.json(
-            { error: "Associated record not found (foreign key violation).", detail: pgError.detail || pgError.message },
-            { status: 400 }
-          );
-        case '23505': // Unique constraint violation
-          console.error("PostgreSQL Unique constraint violation:", pgError.detail || pgError.message);
-          return NextResponse.json(
-            { error: "Duplicate data entry (unique constraint violation).", detail: pgError.detail || pgError.message },
-            { status: 409 }
-          );
-        default:
-          console.error(`Unhandled PostgreSQL error (Code: ${pgError.code}):`, pgError.message, pgError.detail);
-          return NextResponse.json(
-            { error: "A database error occurred.", message: pgError.message },
-            { status: 500 }
-          );
-      }
     }
     return ErrorHandler.handle(error);
   }
