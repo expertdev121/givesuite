@@ -80,10 +80,9 @@ type UpdatePaymentPlanRequest = z.infer<typeof updatePaymentPlanSchema>;
 
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ pledgeId: string }> }
+  { params }: { params: { pledgeId: string } }
 ) {
   try {
-    const params = await context.params;
     const pledgeId = parseInt(params.pledgeId, 10);
     if (isNaN(pledgeId) || pledgeId <= 0) {
       return NextResponse.json(
@@ -91,9 +90,7 @@ export async function GET(
         { status: 400 }
       );
     }
-
     const { searchParams } = new URL(request.url);
-
     const queryParams: QueryParams = QueryParamsSchema.parse({
       page: parseInt(searchParams.get("page") || "1", 10),
       limit: parseInt(searchParams.get("limit") || "10", 10),
