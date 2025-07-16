@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { db } from "@/lib/db";
-import { paymentPlan, pledge, installmentSchedule ,type PaymentPlan } from "@/lib/db/schema";
+import { paymentPlan, pledge, installmentSchedule, type PaymentPlan } from "@/lib/db/schema"; // Added 'type PaymentPlan'
 import { ErrorHandler } from "@/lib/error-handler";
 import { eq, desc, or, ilike, and, SQL, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
@@ -23,9 +23,13 @@ const QueryParamsSchema = z.object({
 
 type QueryParams = z.infer<typeof QueryParamsSchema>;
 
+// Your existing Zod schemas for PATCH (not directly relevant to GET error but included for context)
 const installmentSchema = z.object({
   date: z.string().min(1, "Installment date is required"),
-  amount: z.number().positive("Installment amount must be positive"),
+  amount: z.string().refine((val) => { // Changed to string based on Drizzle 'numeric'
+      const num = parseFloat(val);
+      return !isNaN(num) && num > 0;
+  }, "Installment amount must be a positive number string"),
   notes: z.string().optional(),
 });
 
@@ -44,15 +48,21 @@ const updatePaymentPlanSchema = z.object({
     .optional(),
   distributionType: z.enum(["fixed", "custom"]).optional(),
   totalPlannedAmount: z
-    .number()
-    .positive("Total planned amount must be positive")
+    .string() // Changed to string based on Drizzle 'numeric'
+    .refine((val) => {
+        const num = parseFloat(val);
+        return !isNaN(num) && num > 0;
+    }, "Total planned amount must be a positive number string")
     .optional(),
   currency: z
     .enum(["USD", "ILS", "EUR", "JPY", "GBP", "AUD", "CAD", "ZAR"])
     .optional(),
   installmentAmount: z
-    .number()
-    .positive("Installment amount must be positive")
+    .string() // Changed to string based on Drizzle 'numeric'
+    .refine((val) => {
+        const num = parseFloat(val);
+        return !isNaN(num) && num > 0;
+    }, "Installment amount must be a positive number string")
     .optional(),
   numberOfInstallments: z
     .number()
@@ -71,12 +81,16 @@ const updatePaymentPlanSchema = z.object({
 
 type UpdatePaymentPlanRequest = z.infer<typeof updatePaymentPlanSchema>;
 
+
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
-): Promise<NextResponse> {
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const pledgeId = parseInt(params.id, 10);
+    // === AWAIT PARAMS TO GET THE ID ===
+    const { id: pledgeIdString } = await params; // Destructure the id from the awaited params
+
+    const pledgeId = parseInt(pledgeIdString, 10); // Parse the string ID to a number
     if (isNaN(pledgeId) || pledgeId <= 0) {
       return NextResponse.json(
         { error: "Invalid Pledge ID provided in URL" },
@@ -101,17 +115,17 @@ export async function GET(
         pledgeId: paymentPlan.pledgeId,
         frequency: paymentPlan.frequency,
         distributionType: paymentPlan.distributionType,
-        totalPlannedAmount: paymentPlan.totalPlannedAmount,
+        totalPlannedAmount: paymentPlan.totalPlannedAmount, // Will be string from DB
         currency: paymentPlan.currency,
-        installmentAmount: paymentPlan.installmentAmount,
+        installmentAmount: paymentPlan.installmentAmount, // Will be string from DB
         numberOfInstallments: paymentPlan.numberOfInstallments,
         startDate: paymentPlan.startDate,
         endDate: paymentPlan.endDate,
         nextPaymentDate: paymentPlan.nextPaymentDate,
         installmentsPaid: paymentPlan.installmentsPaid,
-        totalPaid: paymentPlan.totalPaid,
-        totalPaidUsd: paymentPlan.totalPaidUsd,
-        remainingAmount: paymentPlan.remainingAmount,
+        totalPaid: paymentPlan.totalPaid, // Will be string from DB
+        totalPaidUsd: paymentPlan.totalPaidUsd, // Will be string from DB
+        remainingAmount: paymentPlan.remainingAmount, // Will be string from DB
         planStatus: paymentPlan.planStatus,
         autoRenew: paymentPlan.autoRenew,
         remindersSent: paymentPlan.remindersSent,
@@ -121,7 +135,7 @@ export async function GET(
         internalNotes: paymentPlan.internalNotes,
         createdAt: paymentPlan.createdAt,
         updatedAt: paymentPlan.updatedAt,
-        exchangeRate: paymentPlan.exchangeRate,
+        exchangeRate: paymentPlan.exchangeRate, // Will be string from DB
         pledgeExchangeRate: sql<string>`(SELECT ${pledge.exchangeRate} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("pledgeExchangeRate"),
         pledgeCurrency: sql<string>`(SELECT ${pledge.currency} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("pledgeCurrency"),
         originalAmountUsd: sql<string>`(SELECT ${pledge.originalAmountUsd} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("originalAmountUsd"),
@@ -175,11 +189,11 @@ export async function GET(
 
         const customInstallments = installmentSchedules.map(schedule => ({
           date: schedule.installmentDate,
-          amount: parseFloat(schedule.installmentAmount),
+          amount: schedule.installmentAmount, // No parseFloat here, it's already a string from DB (numeric type)
           notes: schedule.notes || "",
-          isPaid: schedule.isPaid,
-          paidDate: schedule.paidDate,
-          paidAmount: schedule.paidAmount ? parseFloat(schedule.paidAmount) : null,
+          isPaid: schedule.isPaid, // Assuming these fields exist on installmentSchedule
+          paidDate: schedule.paidDate, // Assuming these fields exist on installmentSchedule
+          paidAmount: schedule.paidAmount, // Assuming these fields exist on installmentSchedule
         }));
 
         return {
@@ -237,11 +251,12 @@ export async function GET(
 }
 
 export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-): Promise<NextResponse> {
+    request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const planId = parseInt(params.id, 10);
+    const { id: planIdString } = await params; // Await params for PATCH as well
+    const planId = parseInt(planIdString, 10);
     if (isNaN(planId) || planId <= 0) {
       return NextResponse.json(
         { error: "Invalid payment plan ID" },
@@ -265,16 +280,24 @@ export async function PATCH(
       );
     }
 
-    const updateData: Partial<PaymentPlan> = {
+    const dataToUpdate: Partial<PaymentPlan> = {
       updatedAt: new Date(),
+      ...(validatedData.planName !== undefined && { planName: validatedData.planName }),
+      ...(validatedData.frequency !== undefined && { frequency: validatedData.frequency }),
+      ...(validatedData.distributionType !== undefined && { distributionType: validatedData.distributionType }),
+      // Ensure these are passed as strings if they come from validatedData as strings
+      ...(validatedData.totalPlannedAmount !== undefined && { totalPlannedAmount: validatedData.totalPlannedAmount }),
+      ...(validatedData.currency !== undefined && { currency: validatedData.currency }),
+      ...(validatedData.installmentAmount !== undefined && { installmentAmount: validatedData.installmentAmount }),
+      ...(validatedData.numberOfInstallments !== undefined && { numberOfInstallments: validatedData.numberOfInstallments }),
+      ...(validatedData.startDate !== undefined && { startDate: validatedData.startDate }),
+      ...(validatedData.endDate !== undefined && { endDate: validatedData.endDate }),
+      ...(validatedData.nextPaymentDate !== undefined && { nextPaymentDate: validatedData.nextPaymentDate }),
+      ...(validatedData.autoRenew !== undefined && { autoRenew: validatedData.autoRenew }),
+      ...(validatedData.planStatus !== undefined && { planStatus: validatedData.planStatus }),
+      ...(validatedData.notes !== undefined && { notes: validatedData.notes }),
+      ...(validatedData.internalNotes !== undefined && { internalNotes: validatedData.internalNotes }),
     };
-
-    // Apply validated fields
-    Object.entries(validatedData).forEach(([key, value]) => {
-      if (value !== undefined && key !== "customInstallments") {
-        updateData[key as keyof PaymentPlan] = value;
-      }
-    });
 
     // Handle distribution type changes
     if (validatedData.distributionType !== undefined) {
@@ -286,12 +309,12 @@ export async function PATCH(
           );
         }
         await db.delete(installmentSchedule).where(eq(installmentSchedule.paymentPlanId, planId));
-        
+
         await db.insert(installmentSchedule).values(
           validatedData.customInstallments.map(inst => ({
             paymentPlanId: planId,
             installmentDate: inst.date,
-            installmentAmount: inst.amount.toString(),
+            installmentAmount: inst.amount, // Now inst.amount is already a string from Zod
             currency: validatedData.currency || existingPlan.currency,
             notes: inst.notes || null,
           }))
@@ -303,7 +326,7 @@ export async function PATCH(
 
     const [updatedPlan] = await db
       .update(paymentPlan)
-      .set(updateData)
+      .set(dataToUpdate) // Use dataToUpdate here
       .where(eq(paymentPlan.id, planId))
       .returning();
 
