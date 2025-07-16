@@ -192,9 +192,9 @@ export async function PATCH(
     // Determine if pledge update is needed (if amount/currency/rates change)
     let updatePledgeTotals = false;
     const oldPaymentData = existingPayment[0]; // Get current values from DB
-    let newAmount = validatedData.amount ?? parseFloat(oldPaymentData.amount || '0');
-    let newAmountUsd = validatedData.amountUsd ?? parseFloat(oldPaymentData.amountUsd || '0');
-    let newAmountInPledgeCurrency = validatedData.amountInPledgeCurrency ?? parseFloat(oldPaymentData.amountInPledgeCurrency || '0');
+    const newAmount = validatedData.amount ?? parseFloat(oldPaymentData.amount || '0');
+    const newAmountUsd = validatedData.amountUsd ?? parseFloat(oldPaymentData.amountUsd || '0');
+    const newAmountInPledgeCurrency = validatedData.amountInPledgeCurrency ?? parseFloat(oldPaymentData.amountInPledgeCurrency || '0');
 
     if (
       validatedData.amount !== undefined ||
