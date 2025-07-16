@@ -80,11 +80,11 @@ type UpdatePaymentPlanRequest = z.infer<typeof updatePaymentPlanSchema>;
 
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ pledgeId: string }> }
 ) {
   try {
     const params = await context.params;
-    const pledgeId = parseInt(params.id, 10);
+    const pledgeId = parseInt(params.pledgeId, 10);
     if (isNaN(pledgeId) || pledgeId <= 0) {
       return NextResponse.json(
         { error: "Invalid Pledge ID provided in URL" },
