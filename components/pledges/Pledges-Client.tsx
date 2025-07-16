@@ -67,6 +67,9 @@ const QueryParamsSchema = z.object({
   search: z.string().optional(),
 });
 
+// Define the type directly from your Zod schema
+export type PledgeQueryParams = z.infer<typeof QueryParamsSchema>;
+
 type StatusType = "fullyPaid" | "partiallyPaid" | "unpaid";
 
 export default function PledgesTable() {
@@ -240,9 +243,9 @@ export default function PledgesTable() {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="fullyPaid">$ Fully Paid</SelectItem>
-                <SelectItem value="partiallyPaid">$ Partially Paid</SelectItem>
-                <SelectItem value="unpaid">$ Unpaid</SelectItem>
+                <SelectItem value="fullyPaid">Fully Paid</SelectItem>
+                <SelectItem value="partiallyPaid">Partially Paid</SelectItem>
+                <SelectItem value="unpaid">Unpaid</SelectItem>
               </SelectContent>
             </Select>
             <PledgeDialog contactId={contactId as number} />
@@ -264,25 +267,25 @@ export default function PledgesTable() {
                     Pledge Amount (USD)
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900 text-right">
-                    Pledge Amount 
+                    Pledge Amount
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900 text-right">
                     Paid (USD)
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900 text-right">
-                    Paid 
+                    Paid
                   </TableHead>
                   <TableHead className="font-semibold text-red-400 text-right">
                     Balance (USD)
                   </TableHead>
                   <TableHead className="font-semibold text-red-400 text-right">
-                    Balance 
+                    Balance
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900 text-right">
-                    Scheduled 
+                    Scheduled
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900 text-right">
-                    Unscheduled   
+                    Unscheduled
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
                     Notes
@@ -295,19 +298,45 @@ export default function PledgesTable() {
                   // Loading skeleton with safe limit value
                   Array.from({ length: currentLimit }).map((_, index) => (
                     <TableRow key={index}>
-                      <TableCell><Skeleton className="h-4 w-4" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                      <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
-                      <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
-                      <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
-                      <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
-                      <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
-                      <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
-                      <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
-                      <TableCell className="text-right"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-4" /></TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-4" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-20" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-32" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Skeleton className="h-4 w-20 ml-auto" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Skeleton className="h-4 w-20 ml-auto" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Skeleton className="h-4 w-20 ml-auto" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Skeleton className="h-4 w-20 ml-auto" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Skeleton className="h-4 w-20 ml-auto" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Skeleton className="h-4 w-20 ml-auto" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Skeleton className="h-4 w-20 ml-auto" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Skeleton className="h-4 w-20 ml-auto" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-16" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-4" />
+                      </TableCell>
                     </TableRow>
                   ))
                 ) : data?.pledges.length === 0 ? (
@@ -325,7 +354,8 @@ export default function PledgesTable() {
                     const scheduledAmount = pledge.scheduledAmount || "0";
                     // Calculate unscheduled amount (balance - scheduled)
                     const unscheduledAmount = (
-                      Number.parseFloat(pledge.balance) - Number.parseFloat(scheduledAmount)
+                      Number.parseFloat(pledge.balance) -
+                      Number.parseFloat(scheduledAmount)
                     ).toString();
 
                     return (
@@ -358,10 +388,20 @@ export default function PledgesTable() {
                           <TableCell className="text-right">
                             <div className="flex justify-end items-center gap-1">
                               <span>
-                                {formatCurrency(pledge.originalAmount, pledge.currency).symbol}
+                                {
+                                  formatCurrency(
+                                    pledge.originalAmount,
+                                    pledge.currency
+                                  ).symbol
+                                }
                               </span>
                               <span>
-                                {formatCurrency(pledge.originalAmount, pledge.currency).amount}
+                                {
+                                  formatCurrency(
+                                    pledge.originalAmount,
+                                    pledge.currency
+                                  ).amount
+                                }
                               </span>
                             </div>
                           </TableCell>
@@ -371,10 +411,20 @@ export default function PledgesTable() {
                           <TableCell className="text-right">
                             <div className="flex justify-end items-center gap-1">
                               <span>
-                                {formatCurrency(pledge.totalPaid, pledge.currency).symbol}
+                                {
+                                  formatCurrency(
+                                    pledge.totalPaid,
+                                    pledge.currency
+                                  ).symbol
+                                }
                               </span>
                               <span>
-                                {formatCurrency(pledge.totalPaid, pledge.currency).amount}
+                                {
+                                  formatCurrency(
+                                    pledge.totalPaid,
+                                    pledge.currency
+                                  ).amount
+                                }
                               </span>
                             </div>
                           </TableCell>
@@ -384,47 +434,57 @@ export default function PledgesTable() {
                           <TableCell className="text-right">
                             <div className="flex justify-end items-center gap-1">
                               <span>
-                                {formatCurrency(pledge.balance, pledge.currency).symbol}
+                                {
+                                  formatCurrency(pledge.balance, pledge.currency)
+                                    .symbol
+                                }
                               </span>
                               <span>
-                                {formatCurrency(pledge.balance, pledge.currency).amount}
+                                {
+                                  formatCurrency(pledge.balance, pledge.currency)
+                                    .amount
+                                }
                               </span>
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end items-center gap-1">
                               <span>
-                              {
-                                formatCurrency(pledge.balance, pledge.currency)
-                                  .symbol
-                              }
-                            </span>
-                            <span>
-                              {
-                                formatCurrency(pledge.balance, pledge.currency)
-                                  .amount
-                              }
-                            </span>
+                                {
+                                  formatCurrency(
+                                    scheduledAmount,
+                                    pledge.currency
+                                  ).symbol
+                                }
+                              </span>
+                              <span>
+                                {
+                                  formatCurrency(
+                                    scheduledAmount,
+                                    pledge.currency
+                                  ).amount
+                                }
+                              </span>
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end items-center gap-1">
                               <span>
-                              {
-                                formatCurrency(
-                                  pledge.originalAmount,
-                                  pledge.currency
-                                ).symbol
-                              }
-                            </span>
-                            <span>
-                              {
-                                formatCurrency(
-                                  pledge.originalAmount,
-                                  pledge.currency
-                                ).amount
-                              }
-                            </span>
+                                {
+                                  formatCurrency(
+                                    unscheduledAmount,
+                                    pledge.currency
+                                  ).symbol
+                                }
+                              </span>
+                              <span>
+                                {
+                                  formatCurrency(
+                                    unscheduledAmount,
+                                    pledge.currency
+                                  ).amount
+                                }
+                              </span>
                             </div>
                           </TableCell>
                           <TableCell className="font-medium">
@@ -438,18 +498,18 @@ export default function PledgesTable() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem>
+                                <DropdownMenuItem asChild>
                                   <Link
                                     href={`/contacts/${contactId}/payments?pledgeId=${pledge.id}`}
                                   >
-                                    $ View Payments
+                                    View Payments
                                   </Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
+                                <DropdownMenuItem asChild>
                                   <Link
                                     href={`/contacts/${contactId}/payment-plans?pledgeId=${pledge.id}`}
                                   >
-                                    $ View Payment Plans
+                                    View Payment Plans
                                   </Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
@@ -462,7 +522,7 @@ export default function PledgesTable() {
                                   }
                                   disabled={isDeleting}
                                 >
-                                  {isDeleting ? "Deleting..." : "$ Delete Pledge"}
+                                  {isDeleting ? "Deleting..." : "Delete Pledge"}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -546,7 +606,7 @@ export default function PledgesTable() {
                                 </div>
                               </div>
 
-                              {/* Action Button */}
+                              {/* Action Buttons */}
                               <div className="mt-6 pt-4 flex gap-2 border-t justify-between">
                                 <div className="flex gap-2">
                                   <PaymentDialogClientt
@@ -578,7 +638,6 @@ export default function PledgesTable() {
                                     View Plans
                                   </LinkButton>
                                 </div>
-                                {/* or */}
                               </div>
                             </TableCell>
                           </TableRow>
@@ -633,9 +692,11 @@ export default function PledgesTable() {
             <AlertDialogTitle>Delete Pledge</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete the pledge{" "}
-              {pledgeToDelete?.description || "Untitled Pledge"}? This action
-              cannot be undone and will permanently remove the pledge and all
-              associated data.
+              <span className="font-semibold">
+                {pledgeToDelete?.description || "Untitled Pledge"}
+              </span>
+              ? This action cannot be undone and will permanently remove the
+              pledge and all associated data.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
