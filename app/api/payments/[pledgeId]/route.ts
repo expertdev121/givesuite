@@ -20,13 +20,13 @@ const PaymentStatusEnum = z.enum([
 ]);
 
 const PaymentMethodEnum = z.enum([
-  "ach", // Added from client form
-  "bill_pay", // Added from client form
+  "ach",
+  "bill_pay", 
   "cash",
   "check",
-  "credit", // Added from client form
+  "credit",
   "credit_card",
-  "expected", // If 'expected' is a method (was status on client) - clarify this one
+  "expected", 
   "goods_and_services", // Added from client form
   "matching_funds", // Added from client form
   "money_order", // Added from client form
@@ -192,9 +192,9 @@ export async function PATCH(
     // Determine if pledge update is needed (if amount/currency/rates change)
     let updatePledgeTotals = false;
     const oldPaymentData = existingPayment[0]; // Get current values from DB
-    let newAmount = validatedData.amount ?? parseFloat(oldPaymentData.amount || '0');
-    let newAmountUsd = validatedData.amountUsd ?? parseFloat(oldPaymentData.amountUsd || '0');
-    let newAmountInPledgeCurrency = validatedData.amountInPledgeCurrency ?? parseFloat(oldPaymentData.amountInPledgeCurrency || '0');
+    const newAmount = validatedData.amount ?? parseFloat(oldPaymentData.amount || '0');
+    const newAmountUsd = validatedData.amountUsd ?? parseFloat(oldPaymentData.amountUsd || '0');
+    const newAmountInPledgeCurrency = validatedData.amountInPledgeCurrency ?? parseFloat(oldPaymentData.amountInPledgeCurrency || '0');
 
     if (
       validatedData.amount !== undefined ||

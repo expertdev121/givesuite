@@ -528,8 +528,8 @@ export const solicitor = pgTable(
     solicitorCode: text("solicitor_code").unique(), // Optional unique identifier
     status: solicitorStatusEnum("status").notNull().default("active"),
     commissionRate: numeric("commission_rate", { precision: 5, scale: 2 }), // Default rate if no specific bonus rule
-    hireDate: date("hire_date"),
-    terminationDate: date("termination_date"),
+    hireDate: date("hire_date"), // Made nullable by removing .notNull()
+    terminationDate: date("termination_date"), // Made nullable by removing .notNull()
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
