@@ -274,7 +274,7 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  context: { params: Promise<{ pledgeId: string }> } // Changed from { id: string } to { pledgeId: string }
+  { params }: { params: { pledgeId: string } }
 ) {
   let paymentPlanIdForRollback: number | null = null; // To store ID in case of partial update failure
   try {
