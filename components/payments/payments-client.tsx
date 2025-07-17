@@ -55,7 +55,7 @@ import { formatDate } from "@/lib/utils";
 // Mock components for demonstration purposes if they are not provided elsewhere
 // In a real application, you would import these components from their actual files.
 const FactsDialog: React.FC = () => {
-  return <Button variant="outline">Facts Dialog (Mock)</Button>;
+  return <Button variant="outline">Facts Dialog </Button>;
 };
 
 interface PaymentFormDialogProps {
@@ -65,7 +65,7 @@ interface PaymentFormDialogProps {
 }
 
 const PaymentFormDialog: React.FC<PaymentFormDialogProps> = () => {
-  return <Button>Add Payment (Mock)</Button>;
+  return <Button>Add Payment </Button>;
 };
 
 // Mock usePledgeByIdQuery for demonstration purposes

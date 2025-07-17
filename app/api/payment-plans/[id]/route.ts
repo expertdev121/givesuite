@@ -23,16 +23,15 @@ const QueryParamsSchema = z.object({
 
 type QueryParams = z.infer<typeof QueryParamsSchema>;
 
-// Your existing Zod schemas for PATCH (not directly relevant to GET error but included for context)
+// Zod schema for validating individual custom installments for PATCH
 const installmentSchema = z.object({
   date: z.string().min(1, "Installment date is required"),
-  amount: z.string().refine((val) => { // Changed to string based on Drizzle 'numeric'
-      const num = parseFloat(val);
-      return !isNaN(num) && num > 0;
-  }, "Installment amount must be a positive number string"),
+  // Expect number from incoming JSON, transform to string for DB
+  amount: z.number().positive("Installment amount must be positive").transform((val) => val.toString()),
   notes: z.string().optional(),
 });
 
+// Updated schema for PATCH with conditional validation for custom installments
 const updatePaymentPlanSchema = z.object({
   planName: z.string().optional(),
   frequency: z
@@ -48,21 +47,17 @@ const updatePaymentPlanSchema = z.object({
     .optional(),
   distributionType: z.enum(["fixed", "custom"]).optional(),
   totalPlannedAmount: z
-    .string() // Changed to string based on Drizzle 'numeric'
-    .refine((val) => {
-        const num = parseFloat(val);
-        return !isNaN(num) && num > 0;
-    }, "Total planned amount must be a positive number string")
+    .number() // Expect number from incoming JSON
+    .positive("Total planned amount must be positive")
+    .transform((val) => val.toString()) // Transform to string for DB
     .optional(),
   currency: z
     .enum(["USD", "ILS", "EUR", "JPY", "GBP", "AUD", "CAD", "ZAR"])
     .optional(),
   installmentAmount: z
-    .string() // Changed to string based on Drizzle 'numeric'
-    .refine((val) => {
-        const num = parseFloat(val);
-        return !isNaN(num) && num > 0;
-    }, "Installment amount must be a positive number string")
+    .number() // Expect number from incoming JSON
+    .positive("Installment amount must be positive")
+    .transform((val) => val.toString()) // Transform to string for DB
     .optional(),
   numberOfInstallments: z
     .number()
@@ -77,7 +72,21 @@ const updatePaymentPlanSchema = z.object({
   notes: z.string().optional(),
   internalNotes: z.string().optional(),
   customInstallments: z.array(installmentSchema).optional(),
+}).refine((data) => {
+  // Validation for fixed distribution type
+  if (data.distributionType === "fixed") {
+    return data.installmentAmount !== undefined && data.numberOfInstallments !== undefined;
+  }
+  // Validation for custom distribution type
+  if (data.distributionType === "custom") {
+    return data.customInstallments && data.customInstallments.length > 0;
+  }
+  return true;
+}, {
+  message: "For 'fixed' distribution type, installmentAmount and numberOfInstallments are required. For 'custom' distribution type, customInstallments array is required.",
+  path: ["distributionType"]
 });
+
 
 type UpdatePaymentPlanRequest = z.infer<typeof updatePaymentPlanSchema>;
 
@@ -265,6 +274,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
+    // Validate and transform incoming data using the updated schema
     const validatedData: UpdatePaymentPlanRequest = updatePaymentPlanSchema.parse(body);
 
     const [existingPlan] = await db
@@ -280,12 +290,73 @@ export async function PATCH(
       );
     }
 
+    // --- Enhanced Validation for 'custom' distribution type ---
+    if (validatedData.distributionType === "custom" && validatedData.customInstallments) {
+      if (validatedData.customInstallments.length === 0) {
+        return NextResponse.json(
+          { error: "Validation failed", details: [{ field: "customInstallments", message: "Custom installments must be provided for 'custom' distribution type." }] },
+          { status: 400 }
+        );
+      }
+
+      // Validate that sum of custom installments equals total planned amount
+      // Note: validatedData.totalPlannedAmount is already a string here due to transform
+      const totalCustomAmount = validatedData.customInstallments.reduce((sum, installment) => sum + parseFloat(installment.amount), 0);
+      const expectedTotalPlannedAmount = parseFloat(validatedData.totalPlannedAmount || existingPlan.totalPlannedAmount); // Use existing if not provided
+      if (Math.abs(totalCustomAmount - expectedTotalPlannedAmount) > 0.01) { // Allow for small floating point differences
+        return NextResponse.json(
+          { error: "Validation failed", details: [{ field: "totalPlannedAmount", message: `Sum of custom installments (${totalCustomAmount}) must equal the total planned amount (${expectedTotalPlannedAmount}).` }] },
+          { status: 400 }
+        );
+      }
+
+      // Validate installment dates are unique
+      const installmentDates = validatedData.customInstallments.map(inst => inst.date);
+      const uniqueDates = new Set(installmentDates);
+      if (uniqueDates.size !== installmentDates.length) {
+        return NextResponse.json(
+          { error: "Validation failed", details: [{ field: "customInstallments", message: "Installment dates must be unique." }] },
+          { status: 400 }
+        );
+      }
+
+      // Validate that installment dates are in the future or today
+      const today = new Date().toISOString().split('T')[0];
+      const futureDates = validatedData.customInstallments.filter(inst => inst.date < today);
+      if (futureDates.length > 0) {
+        return NextResponse.json(
+          { error: "Validation failed", details: [{ field: "customInstallments", message: "Installment dates cannot be in the past." }] },
+          { status: 400 }
+        );
+      }
+    }
+
+    // --- Enhanced Validation for 'fixed' distribution type ---
+    if (validatedData.distributionType === "fixed") {
+      if (!validatedData.installmentAmount || !validatedData.numberOfInstallments) {
+        return NextResponse.json(
+          { error: "Validation failed", details: [{ field: "installmentAmount/numberOfInstallments", message: "Installment amount and number of installments are required for 'fixed' distribution type." }] },
+          { status: 400 }
+        );
+      }
+
+      // Validate that installmentAmount * numberOfInstallments equals totalPlannedAmount
+      const calculatedTotal = parseFloat(validatedData.installmentAmount) * validatedData.numberOfInstallments;
+      const expectedTotalPlannedAmount = parseFloat(validatedData.totalPlannedAmount || existingPlan.totalPlannedAmount); // Use existing if not provided
+      if (Math.abs(calculatedTotal - expectedTotalPlannedAmount) > 0.01) {
+        return NextResponse.json(
+          { error: "Validation failed", details: [{ field: "totalPlannedAmount", message: `Installment amount (${validatedData.installmentAmount}) × number of installments (${validatedData.numberOfInstallments}) = ${calculatedTotal} must equal total planned amount (${expectedTotalPlannedAmount}).` }] },
+          { status: 400 }
+        );
+      }
+    }
+
     const dataToUpdate: Partial<PaymentPlan> = {
       updatedAt: new Date(),
       ...(validatedData.planName !== undefined && { planName: validatedData.planName }),
       ...(validatedData.frequency !== undefined && { frequency: validatedData.frequency }),
       ...(validatedData.distributionType !== undefined && { distributionType: validatedData.distributionType }),
-      // Ensure these are passed as strings if they come from validatedData as strings
+      // These are now correctly transformed to string by Zod's .transform()
       ...(validatedData.totalPlannedAmount !== undefined && { totalPlannedAmount: validatedData.totalPlannedAmount }),
       ...(validatedData.currency !== undefined && { currency: validatedData.currency }),
       ...(validatedData.installmentAmount !== undefined && { installmentAmount: validatedData.installmentAmount }),
@@ -302,24 +373,24 @@ export async function PATCH(
     // Handle distribution type changes
     if (validatedData.distributionType !== undefined) {
       if (validatedData.distributionType === "custom") {
-        if (!validatedData.customInstallments) {
-          return NextResponse.json(
-            { error: "Custom installments required when changing to custom distribution" },
-            { status: 400 }
-          );
-        }
-        await db.delete(installmentSchedule).where(eq(installmentSchedule.paymentPlanId, planId));
+        // If customInstallments are provided, delete existing and insert new ones
+        if (validatedData.customInstallments) {
+          await db.delete(installmentSchedule).where(eq(installmentSchedule.paymentPlanId, planId));
 
-        await db.insert(installmentSchedule).values(
-          validatedData.customInstallments.map(inst => ({
-            paymentPlanId: planId,
-            installmentDate: inst.date,
-            installmentAmount: inst.amount, // Now inst.amount is already a string from Zod
-            currency: validatedData.currency || existingPlan.currency,
-            notes: inst.notes || null,
-          }))
-        );
+          await db.insert(installmentSchedule).values(
+            validatedData.customInstallments.map(inst => ({
+              paymentPlanId: planId,
+              installmentDate: inst.date,
+              installmentAmount: inst.amount, // inst.amount is already a string from Zod's transform
+              currency: validatedData.currency || existingPlan.currency, // Use provided currency or existing
+              notes: inst.notes || null,
+            }))
+          );
+          // Also update numberOfInstallments for custom plans
+          dataToUpdate.numberOfInstallments = validatedData.customInstallments.length;
+        }
       } else if (validatedData.distributionType === "fixed") {
+        // If changing to fixed, delete any existing custom installment schedules
         await db.delete(installmentSchedule).where(eq(installmentSchedule.paymentPlanId, planId));
       }
     }
@@ -352,3 +423,26 @@ export async function PATCH(
     return ErrorHandler.handle(error);
   }
 }
+
+// --- GET Endpoint (unchanged from your original, but included for completeness) ---
+const querySchema = z.object({
+  pledgeId: z.coerce.number().positive().optional(),
+  contactId: z.coerce.number().positive().optional(),
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(100).default(10),
+  planStatus: z
+    .enum(["active", "completed", "cancelled", "paused", "overdue"])
+    .optional(),
+  frequency: z
+    .enum([
+      "weekly",
+      "monthly",
+      "quarterly",
+      "biannual",
+      "annual",
+      "one_time",
+      "custom",
+    ])
+    .optional(),
+  distributionType: z.enum(["fixed", "custom"]).optional(),
+});
