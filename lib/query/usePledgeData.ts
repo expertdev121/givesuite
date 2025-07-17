@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery,UseQueryOptions  } from "@tanstack/react-query";
 import axios from "axios";
 
 interface PledgeResponse {
@@ -16,6 +16,12 @@ interface PledgeResponse {
   categoryName: string | null;
   categoryDescription: string | null;
   progressPercentage: number;
+  scheduledAmount: string;
+  unscheduledAmount: string;
+  activePlanCount: number;
+  hasActivePlan: boolean;
+  paymentPlanStatus: 'active' | 'none';
+  schedulePercentage: number;
 }
 
 interface ApiResponse {
@@ -52,16 +58,19 @@ const fetchPledges = async (params: QueryParams): Promise<ApiResponse> => {
     return response.data;
   } catch (error) {
     throw new Error(
-      `Failed to fetch pledges: ${
-        axios.isAxiosError(error) ? error.message : "Unknown error"
+      `Failed to fetch pledges: ${axios.isAxiosError(error) ? error.message : "Unknown error"
       }`
     );
   }
 };
 
-export const usePledgesQuery = (params: QueryParams) => {
+export const usePledgesQuery = (
+  params: QueryParams,
+ options?: Omit<UseQueryOptions<ApiResponse, Error>, 'queryKey' | 'queryFn'>
+) => {
   return useQuery<ApiResponse, Error>({
     queryKey: ["pledges", params],
     queryFn: () => fetchPledges(params),
+    ...options,
   });
 };

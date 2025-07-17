@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient,UseQueryOptions } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 export interface PaymentPlanFormData {
@@ -22,7 +22,30 @@ export interface PaymentPlanFormData {
   autoRenew: boolean;
   notes?: string;
   internalNotes?: string;
+   customInstallments?: Array<{
+    date: string;
+    amount: number;
+    notes?: string;
+    isPaid?: boolean;
+    paidDate?: string;
+    paidAmount?: number;
+  }>;
 }
+
+export interface InstallmentSchedule {
+  id: number;
+  paymentPlanId: number;
+  installmentDate: string; 
+  installmentAmount: string;
+  currency: string;
+  status: "pending" | "paid" | "overdue" | "cancelled";
+  paidDate?: string | null;
+  paymentId?: number | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 
 export interface PaymentPlanUpdateData
   extends Omit<Partial<PaymentPlanFormData>, "pledgeId"> {
@@ -34,6 +57,7 @@ export interface PaymentPlan {
   pledgeId: number;
   planName?: string;
   frequency: string;
+   distributionType: "fixed" | "custom";
   totalPlannedAmount: number;
   currency: string;
   installmentAmount: number;
@@ -52,8 +76,18 @@ export interface PaymentPlan {
   createdAt: string;
   updatedAt: string;
   pledgeDescription?: string;
+  pledgeContact?:string;
   pledgeOriginalAmount?: string;
   contactId?: number;
+  installmentSchedule?: InstallmentSchedule[];
+    customInstallments?: Array<{
+    date: string;
+    amount: number;
+    notes?: string;
+    isPaid?: boolean;
+    paidDate?: string;
+    paidAmount?: number;
+  }>;
 }
 
 export interface PledgeDetails {
@@ -98,6 +132,18 @@ export interface PledgeDetails {
   activePaymentPlans: PaymentPlan[];
 }
 
+export const useInstallmentScheduleQuery = (paymentPlanId: number) => {
+    return useQuery({
+        queryKey: ["installment_schedule", paymentPlanId],
+        queryFn: async (): Promise<InstallmentSchedule[]> => {
+            const res = await fetch(`/api/payment-plans/${paymentPlanId}/installments`);
+            if (!res.ok) throw new Error("Failed to fetch installment schedule");
+            return res.json();
+        },
+        enabled: !!paymentPlanId,
+        staleTime: 5 * 60 * 1000,
+    });
+};
 export const useCreatePaymentPlanMutation = () => {
   const queryClient = useQueryClient();
 
@@ -109,17 +155,26 @@ export const useCreatePaymentPlanMutation = () => {
         body: JSON.stringify(data),
       });
 
+      const responseData = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to create payment plan");
+        // Handle validation errors specifically
+        if (response.status === 400 && responseData.details) {
+          // Combine all validation messages into one
+          const combinedMessages = responseData.details
+            .map((d: { field: string; message: string }) => d.message)
+            .join(", ");
+          throw new Error(combinedMessages);
+        }
+        throw new Error(responseData.error || "Failed to create payment plan");
       }
 
-      return response.json();
+      return responseData;
     },
-    onSuccess: (variables) => {
-      queryClient.invalidateQueries();
-
-      toast.success("Payment plan created successfully Here!");
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payment-plans"] });
+      queryClient.invalidateQueries({ queryKey: ["pledges"] });
+      toast.success("Payment plan created successfully!");
     },
     onError: (error) => {
       console.error("Error creating payment plan:", error);
@@ -189,8 +244,12 @@ export const usePaymentPlanQuery = (planId: number) => {
   });
 };
 
-export const usePledgeDetailsQuery = (pledgeId: number) => {
-  return useQuery({
+export const usePledgeDetailsQuery = (
+  pledgeId: number,
+  // Add a second optional argument for useQuery options
+  options?: Omit<UseQueryOptions<PledgeDetails, Error>, 'queryKey' | 'queryFn'>
+) => {
+  return useQuery<PledgeDetails, Error>({ // Added generic types for better type inference
     queryKey: ["pledge-details", pledgeId],
     queryFn: async (): Promise<PledgeDetails> => {
       const response = await fetch(`/api/pledges/${pledgeId}`);
@@ -204,6 +263,7 @@ export const usePledgeDetailsQuery = (pledgeId: number) => {
     },
     enabled: !!pledgeId && pledgeId > 0,
     staleTime: 2 * 60 * 1000,
+    ...options,
   });
 };
 
@@ -224,14 +284,22 @@ export const useUpdatePaymentPlanMutation = () => {
         body: JSON.stringify(data),
       });
 
+      const responseData = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to update payment plan");
+        // Handle validation errors specifically
+        if (response.status === 400 && responseData.details) {
+          const combinedMessages = responseData.details
+            .map((d: { field: string; message: string }) => d.message)
+            .join(", ");
+          throw new Error(combinedMessages);
+        }
+        throw new Error(responseData.error || "Failed to update payment plan");
       }
 
-      return response.json();
+      return responseData;
     },
-    onSuccess: (data, variables) => {
+     onSuccess: (data, variables) => {
       queryClient.invalidateQueries();
       queryClient.invalidateQueries({
         queryKey: ["payment-plan", variables.id],

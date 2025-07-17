@@ -411,7 +411,7 @@ export default function PaymentDialog({
               name="paymentDate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Payment Date *</FormLabel>
+                  <FormLabel>Schedule Date *</FormLabel>
                   <FormControl>
                     <Input type="date" {...field} />
                   </FormControl>

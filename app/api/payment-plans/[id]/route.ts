@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { db } from "@/lib/db";
-import { paymentPlan, pledge } from "@/lib/db/schema";
+import { paymentPlan, pledge, installmentSchedule, type PaymentPlan } from "@/lib/db/schema"; // Added 'type PaymentPlan'
 import { ErrorHandler } from "@/lib/error-handler";
 import { eq, desc, or, ilike, and, SQL, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
@@ -15,7 +15,6 @@ const PlanStatusEnum = z.enum([
 ]);
 
 const QueryParamsSchema = z.object({
-  pledgeId: z.number().positive(),
   page: z.number().min(1).default(1),
   limit: z.number().min(1).max(100).default(10),
   search: z.string().optional(),
@@ -23,6 +22,16 @@ const QueryParamsSchema = z.object({
 });
 
 type QueryParams = z.infer<typeof QueryParamsSchema>;
+
+// Your existing Zod schemas for PATCH (not directly relevant to GET error but included for context)
+const installmentSchema = z.object({
+  date: z.string().min(1, "Installment date is required"),
+  amount: z.string().refine((val) => { // Changed to string based on Drizzle 'numeric'
+      const num = parseFloat(val);
+      return !isNaN(num) && num > 0;
+  }, "Installment amount must be a positive number string"),
+  notes: z.string().optional(),
+});
 
 const updatePaymentPlanSchema = z.object({
   planName: z.string().optional(),
@@ -37,16 +46,23 @@ const updatePaymentPlanSchema = z.object({
       "custom",
     ])
     .optional(),
+  distributionType: z.enum(["fixed", "custom"]).optional(),
   totalPlannedAmount: z
-    .number()
-    .positive("Total planned amount must be positive")
+    .string() // Changed to string based on Drizzle 'numeric'
+    .refine((val) => {
+        const num = parseFloat(val);
+        return !isNaN(num) && num > 0;
+    }, "Total planned amount must be a positive number string")
     .optional(),
   currency: z
     .enum(["USD", "ILS", "EUR", "JPY", "GBP", "AUD", "CAD", "ZAR"])
     .optional(),
   installmentAmount: z
-    .number()
-    .positive("Installment amount must be positive")
+    .string() // Changed to string based on Drizzle 'numeric'
+    .refine((val) => {
+        const num = parseFloat(val);
+        return !isNaN(num) && num > 0;
+    }, "Installment amount must be a positive number string")
     .optional(),
   numberOfInstallments: z
     .number()
@@ -57,48 +73,59 @@ const updatePaymentPlanSchema = z.object({
   endDate: z.string().optional(),
   nextPaymentDate: z.string().optional(),
   autoRenew: z.boolean().optional(),
-  planStatus: z
-    .enum(["active", "completed", "cancelled", "paused", "overdue"])
-    .optional(),
+  planStatus: PlanStatusEnum.optional(),
   notes: z.string().optional(),
   internalNotes: z.string().optional(),
+  customInstallments: z.array(installmentSchema).optional(),
 });
+
+type UpdatePaymentPlanRequest = z.infer<typeof updatePaymentPlanSchema>;
+
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    const { searchParams } = new URL(request.url);
+    // === AWAIT PARAMS TO GET THE ID ===
+    const { id: pledgeIdString } = await params; // Destructure the id from the awaited params
 
+    const pledgeId = parseInt(pledgeIdString, 10); // Parse the string ID to a number
+    if (isNaN(pledgeId) || pledgeId <= 0) {
+      return NextResponse.json(
+        { error: "Invalid Pledge ID provided in URL" },
+        { status: 400 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
     const queryParams: QueryParams = QueryParamsSchema.parse({
-      pledgeId: parseInt(id, 10),
       page: parseInt(searchParams.get("page") || "1", 10),
       limit: parseInt(searchParams.get("limit") || "10", 10),
       search: searchParams.get("search") || undefined,
       planStatus: searchParams.get("planStatus") || undefined,
     });
 
-    const { pledgeId, page, limit, search, planStatus } = queryParams;
+    const { page, limit, search, planStatus } = queryParams;
 
-    let query = db
+    let baseQuery = db
       .select({
         id: paymentPlan.id,
         planName: paymentPlan.planName,
         pledgeId: paymentPlan.pledgeId,
         frequency: paymentPlan.frequency,
-        totalPlannedAmount: paymentPlan.totalPlannedAmount,
+        distributionType: paymentPlan.distributionType,
+        totalPlannedAmount: paymentPlan.totalPlannedAmount, // Will be string from DB
         currency: paymentPlan.currency,
-        installmentAmount: paymentPlan.installmentAmount,
+        installmentAmount: paymentPlan.installmentAmount, // Will be string from DB
         numberOfInstallments: paymentPlan.numberOfInstallments,
         startDate: paymentPlan.startDate,
         endDate: paymentPlan.endDate,
         nextPaymentDate: paymentPlan.nextPaymentDate,
         installmentsPaid: paymentPlan.installmentsPaid,
-        totalPaid: paymentPlan.totalPaid,
-        totalPaidUsd: paymentPlan.totalPaidUsd,
-        remainingAmount: paymentPlan.remainingAmount,
+        totalPaid: paymentPlan.totalPaid, // Will be string from DB
+        totalPaidUsd: paymentPlan.totalPaidUsd, // Will be string from DB
+        remainingAmount: paymentPlan.remainingAmount, // Will be string from DB
         planStatus: paymentPlan.planStatus,
         autoRenew: paymentPlan.autoRenew,
         remindersSent: paymentPlan.remindersSent,
@@ -108,20 +135,13 @@ export async function GET(
         internalNotes: paymentPlan.internalNotes,
         createdAt: paymentPlan.createdAt,
         updatedAt: paymentPlan.updatedAt,
-        exchangeRate: paymentPlan.exchangeRate,
-        // Add exchange rate from pledge table
-        pledgeExchangeRate: sql<string>`(
-          SELECT exchange_rate FROM ${pledge} WHERE id = ${paymentPlan.pledgeId}
-        )`.as("pledgeExchangeRate"),
-        pledgeCurrency: sql<string>`(
-              SELECT currency FROM ${pledge} WHERE id = ${paymentPlan.pledgeId}
-            )`.as("pledgeCurrency"),
-        originalAmountUsd: sql<string>`(
-                  SELECT original_amount_usd FROM ${pledge} WHERE id = ${paymentPlan.pledgeId}
-                )`.as("originalAmountUsd"),
-        originalAmount: sql<string>`(
-                        SELECT original_amount FROM ${pledge} WHERE id = ${paymentPlan.pledgeId}
-                      )`.as("originalAmount"),
+        exchangeRate: paymentPlan.exchangeRate, // Will be string from DB
+        pledgeExchangeRate: sql<string>`(SELECT ${pledge.exchangeRate} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("pledgeExchangeRate"),
+        pledgeCurrency: sql<string>`(SELECT ${pledge.currency} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("pledgeCurrency"),
+        originalAmountUsd: sql<string>`(SELECT ${pledge.originalAmountUsd} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("originalAmountUsd"),
+        originalAmount: sql<string>`(SELECT ${pledge.originalAmount} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("originalAmount"),
+        pledgeContact: sql<string>`(SELECT CONCAT(c.first_name, ' ', c.last_name) FROM ${pledge} p JOIN contact c ON p.contact_id = c.id WHERE p.id = ${paymentPlan.pledgeId})`.as("pledgeContact"),
+        pledgeDescription: sql<string>`(SELECT ${pledge.description} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("pledgeDescription"),
       })
       .from(paymentPlan)
       .where(eq(paymentPlan.pledgeId, pledgeId))
@@ -148,82 +168,95 @@ export async function GET(
     }
 
     if (conditions.length > 0) {
-      query = query.where(and(...conditions));
+      baseQuery = baseQuery.where(and(...conditions));
     }
 
     const offset = (page - 1) * limit;
-    query = query
+    const paymentPlans = await baseQuery
       .limit(limit)
       .offset(offset)
       .orderBy(desc(paymentPlan.createdAt));
 
-    const paymentPlans = await query;
+    const paymentPlansWithInstallments = await Promise.all(
+      paymentPlans.map(async (plan) => {
+        if (plan.distributionType !== "custom") return plan;
+
+        const installmentSchedules = await db
+          .select()
+          .from(installmentSchedule)
+          .where(eq(installmentSchedule.paymentPlanId, plan.id))
+          .orderBy(installmentSchedule.installmentDate);
+
+        const customInstallments = installmentSchedules.map(schedule => ({
+          date: schedule.installmentDate,
+          amount: schedule.installmentAmount, // No parseFloat here, it's already a string from DB (numeric type)
+          notes: schedule.notes || "",
+          // Removed isPaid and paidAmount as they are not in the schema.
+          // Use schedule.status === 'paid' if you need to check if it's paid.
+          // Use schedule.paidDate if you need the date it was paid.
+        }));
+
+        return {
+          ...plan,
+          installmentSchedules,
+          customInstallments,
+        };
+      })
+    );
+
+    const countQuery = db
+      .select({ count: sql<number>`count(*)` })
+      .from(paymentPlan)
+      .where(and(eq(paymentPlan.pledgeId, pledgeId), ...conditions));
+
+    const totalCountResult = await countQuery;
+    const totalCount = Number(totalCountResult[0]?.count || 0);
+    const totalPages = Math.ceil(totalCount / limit);
 
     return NextResponse.json(
-      { paymentPlans },
+      {
+        paymentPlans: paymentPlansWithInstallments,
+        pagination: {
+          page,
+          limit,
+          totalCount,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      },
       {
         headers: {
           "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+          "X-Total-Count": totalCount.toString(),
         },
       }
     );
   } catch (error) {
-    console.error(error);
-    return NextResponse.json(
-      { error: "Failed to fetch payment plans" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    const planId = parseInt(id);
-    if (isNaN(planId) || planId <= 0) {
+    console.error("Error fetching payment plans:", error);
+    if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid payment plan ID" },
+        {
+          error: "Invalid query parameters",
+          details: error.issues.map((issue) => ({
+            field: issue.path.join("."),
+            message: issue.message,
+          })),
+        },
         { status: 400 }
       );
     }
-
-    // Check if payment plan exists
-    const existingPlan = await db
-      .select()
-      .from(paymentPlan)
-      .where(eq(paymentPlan.id, planId))
-      .limit(1);
-
-    if (existingPlan.length === 0) {
-      return NextResponse.json(
-        { error: "Payment plan not found" },
-        { status: 404 }
-      );
-    }
-
-    // Delete the payment plan
-    await db.delete(paymentPlan).where(eq(paymentPlan.id, planId));
-
-    return NextResponse.json({
-      message: "Payment plan deleted successfully",
-    });
-  } catch (error) {
-    console.error("Error deleting payment plan:", error);
     return ErrorHandler.handle(error);
   }
 }
 
 export async function PATCH(
-  request: NextRequest,
+    request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    const planId = parseInt(id);
-
+    const { id: planIdString } = await params; // Await params for PATCH as well
+    const planId = parseInt(planIdString, 10);
     if (isNaN(planId) || planId <= 0) {
       return NextResponse.json(
         { error: "Invalid payment plan ID" },
@@ -232,96 +265,78 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const validatedData = updatePaymentPlanSchema.parse(body);
+    const validatedData: UpdatePaymentPlanRequest = updatePaymentPlanSchema.parse(body);
 
-    // Check if payment plan exists
-    const existingPlan = await db
+    const [existingPlan] = await db
       .select()
       .from(paymentPlan)
       .where(eq(paymentPlan.id, planId))
       .limit(1);
 
-    if (existingPlan.length === 0) {
+    if (!existingPlan) {
       return NextResponse.json(
         { error: "Payment plan not found" },
         { status: 404 }
       );
     }
 
-    // Prepare update data
-    const updateData: any = {
-      updatedAt: new Date().toISOString(),
+    const dataToUpdate: Partial<PaymentPlan> = {
+      updatedAt: new Date(),
+      ...(validatedData.planName !== undefined && { planName: validatedData.planName }),
+      ...(validatedData.frequency !== undefined && { frequency: validatedData.frequency }),
+      ...(validatedData.distributionType !== undefined && { distributionType: validatedData.distributionType }),
+      // Ensure these are passed as strings if they come from validatedData as strings
+      ...(validatedData.totalPlannedAmount !== undefined && { totalPlannedAmount: validatedData.totalPlannedAmount }),
+      ...(validatedData.currency !== undefined && { currency: validatedData.currency }),
+      ...(validatedData.installmentAmount !== undefined && { installmentAmount: validatedData.installmentAmount }),
+      ...(validatedData.numberOfInstallments !== undefined && { numberOfInstallments: validatedData.numberOfInstallments }),
+      ...(validatedData.startDate !== undefined && { startDate: validatedData.startDate }),
+      ...(validatedData.endDate !== undefined && { endDate: validatedData.endDate }),
+      ...(validatedData.nextPaymentDate !== undefined && { nextPaymentDate: validatedData.nextPaymentDate }),
+      ...(validatedData.autoRenew !== undefined && { autoRenew: validatedData.autoRenew }),
+      ...(validatedData.planStatus !== undefined && { planStatus: validatedData.planStatus }),
+      ...(validatedData.notes !== undefined && { notes: validatedData.notes }),
+      ...(validatedData.internalNotes !== undefined && { internalNotes: validatedData.internalNotes }),
     };
 
-    // Only include fields that were provided in the request
-    if (validatedData.planName !== undefined) {
-      updateData.planName = validatedData.planName || null;
-    }
-    if (validatedData.frequency !== undefined) {
-      updateData.frequency = validatedData.frequency;
-    }
-    if (validatedData.totalPlannedAmount !== undefined) {
-      updateData.totalPlannedAmount =
-        validatedData.totalPlannedAmount.toString();
-      // Recalculate remaining amount if total planned amount changes
-      const currentPlan = existingPlan[0];
-      const totalPaid = parseFloat(currentPlan.totalPaid || "0");
-      updateData.remainingAmount = (
-        validatedData.totalPlannedAmount - totalPaid
-      ).toString();
-    }
-    if (validatedData.currency !== undefined) {
-      updateData.currency = validatedData.currency;
-    }
-    if (validatedData.installmentAmount !== undefined) {
-      updateData.installmentAmount = validatedData.installmentAmount.toString();
-    }
-    if (validatedData.numberOfInstallments !== undefined) {
-      updateData.numberOfInstallments = validatedData.numberOfInstallments;
-    }
-    if (validatedData.startDate !== undefined) {
-      updateData.startDate = validatedData.startDate;
-    }
-    if (validatedData.endDate !== undefined) {
-      updateData.endDate = validatedData.endDate || null;
-    }
-    if (validatedData.nextPaymentDate !== undefined) {
-      updateData.nextPaymentDate = validatedData.nextPaymentDate || null;
-    }
-    if (validatedData.autoRenew !== undefined) {
-      updateData.autoRenew = validatedData.autoRenew;
-    }
-    if (validatedData.planStatus !== undefined) {
-      updateData.planStatus = validatedData.planStatus;
-      // Update isActive based on plan status
-      updateData.isActive = validatedData.planStatus === "active";
-    }
-    if (validatedData.notes !== undefined) {
-      updateData.notes = validatedData.notes || null;
-    }
-    if (validatedData.internalNotes !== undefined) {
-      updateData.internalNotes = validatedData.internalNotes || null;
+    // Handle distribution type changes
+    if (validatedData.distributionType !== undefined) {
+      if (validatedData.distributionType === "custom") {
+        if (!validatedData.customInstallments) {
+          return NextResponse.json(
+            { error: "Custom installments required when changing to custom distribution" },
+            { status: 400 }
+          );
+        }
+        await db.delete(installmentSchedule).where(eq(installmentSchedule.paymentPlanId, planId));
+
+        await db.insert(installmentSchedule).values(
+          validatedData.customInstallments.map(inst => ({
+            paymentPlanId: planId,
+            installmentDate: inst.date,
+            installmentAmount: inst.amount, // Now inst.amount is already a string from Zod
+            currency: validatedData.currency || existingPlan.currency,
+            notes: inst.notes || null,
+          }))
+        );
+      } else if (validatedData.distributionType === "fixed") {
+        await db.delete(installmentSchedule).where(eq(installmentSchedule.paymentPlanId, planId));
+      }
     }
 
-    // Update the payment plan
-    const updatedPlan = await db
+    const [updatedPlan] = await db
       .update(paymentPlan)
-      .set(updateData)
+      .set(dataToUpdate) // Use dataToUpdate here
       .where(eq(paymentPlan.id, planId))
       .returning();
 
-    if (updatedPlan.length === 0) {
-      return NextResponse.json(
-        { error: "Failed to update payment plan" },
-        { status: 500 }
-      );
-    }
-
     return NextResponse.json({
       message: "Payment plan updated successfully",
-      paymentPlan: updatedPlan[0],
+      paymentPlan: updatedPlan,
     });
+
   } catch (error) {
+    console.error("Error updating payment plan:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         {
@@ -334,8 +349,6 @@ export async function PATCH(
         { status: 400 }
       );
     }
-
-    console.error("Error updating payment plan:", error);
     return ErrorHandler.handle(error);
   }
 }

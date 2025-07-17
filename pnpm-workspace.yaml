@@ -1,0 +1,7 @@
+onlyBuiltDependencies:
+  - '@tailwindcss/oxide'
+  - esbuild
+  - inotify
+  - msw
+  - sharp
+  - unrs-resolver

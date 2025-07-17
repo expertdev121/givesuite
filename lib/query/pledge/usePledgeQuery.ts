@@ -143,6 +143,21 @@ const createPayment = async (
 
   return response.json();
 };
+const fetchPledgeById = async (id: number): Promise<Pledge> => {
+  const response = await fetch(`/api/pledges/${id}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch pledge: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+export const usePledgeByIdQuery = (id: number) =>
+  useQuery({
+    queryKey: pledgeKeys.detail(id),
+    queryFn: () => fetchPledgeById(id),
+    enabled: !!id,
+    staleTime: 1000 * 60 * 5,
+  }); 
 
 const fetchPledges = async (
   params: PledgeQueryParams
