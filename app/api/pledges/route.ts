@@ -17,7 +17,8 @@ const pledgeSchema = z.object({
   originalAmountUsd: z
     .number()
     .positive("Pledge amount in USD must be positive"),
-  exchangeRate: z.number().positive("Exchange rate must be positive"), // Added exchange rate validation
+  exchangeRate: z.number().positive("Exchange rate must be positive"),
+  campaignCode: z.string().optional(), // Added campaign code field
   notes: z.string().optional(),
 });
 
@@ -36,7 +37,8 @@ export async function POST(request: NextRequest) {
       originalAmount: validatedData.originalAmount.toString(),
       currency: validatedData.currency,
       originalAmountUsd: validatedData.originalAmountUsd.toString(),
-      exchangeRate: validatedData.exchangeRate.toString(), // Added exchange rate field
+      exchangeRate: validatedData.exchangeRate.toString(),
+      campaignCode: validatedData.campaignCode || null, // Added campaign code field
       totalPaid: "0",
       totalPaidUsd: "0",
       balance: balance.toString(),
@@ -82,6 +84,7 @@ const querySchema = z.object({
   status: z.enum(["fullyPaid", "partiallyPaid", "unpaid"]).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+  campaignCode: z.string().optional(), // Added campaign code filter
 });
 
 export async function GET(request: NextRequest) {
@@ -100,6 +103,7 @@ export async function GET(request: NextRequest) {
       status: searchParams.get("status") ?? undefined,
       startDate: searchParams.get("startDate") ?? undefined,
       endDate: searchParams.get("endDate") ?? undefined,
+      campaignCode: searchParams.get("campaignCode") ?? undefined, // Added campaign code filter
     });
 
     if (!parsedParams.success) {
@@ -124,6 +128,7 @@ export async function GET(request: NextRequest) {
       status,
       startDate,
       endDate,
+      campaignCode, // Added campaign code filter
     } = parsedParams.data;
     const offset = (page - 1) * limit;
 
@@ -142,8 +147,14 @@ export async function GET(request: NextRequest) {
       conditions.push(
         sql`${pledge.description} ILIKE ${"%" + search + "%"} OR ${
           pledge.notes
+        } ILIKE ${"%" + search + "%"} OR ${
+          pledge.campaignCode
         } ILIKE ${"%" + search + "%"}`
       );
+    }
+
+    if (campaignCode) {
+      conditions.push(eq(pledge.campaignCode, campaignCode));
     }
 
     if (status) {
@@ -183,7 +194,8 @@ export async function GET(request: NextRequest) {
         originalAmount: pledge.originalAmount,
         currency: pledge.currency,
         originalAmountUsd: pledge.originalAmountUsd,
-        exchangeRate: pledge.exchangeRate, // Added exchange rate to the GET response
+        exchangeRate: pledge.exchangeRate,
+        campaignCode: pledge.campaignCode, // Added campaign code to response
         totalPaid: pledge.totalPaid,
         totalPaidUsd: pledge.totalPaidUsd,
         balance: pledge.balance,
@@ -245,6 +257,7 @@ export async function GET(request: NextRequest) {
         status,
         startDate,
         endDate,
+        campaignCode, // Added campaign code to filters response
       },
     };
 
@@ -259,7 +272,6 @@ export async function GET(request: NextRequest) {
       {
         error: "Failed to fetch pledges",
         message: error instanceof Error ? error.message : "Unknown error",
-        timestamp: new Date().toISOString(),
       },
       { status: 500 }
     );

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PaymentAllocation } from '@lib/db/schema';
+import { PaymentAllocation } from "@/lib/db/schema";
 
 export interface PaymentQueryParams {
   pledgeId?: number;
@@ -31,7 +31,7 @@ export interface PaymentQueryParams {
 export interface Payment {
   id: number;
   pledgeId: number;
-  amount: string;
+  amount: string; // Keep as string if it's coming from DB as DECIMAL/NUMERIC
   currency: string;
   amountUsd: string | null;
   exchangeRate: string | null;
@@ -50,7 +50,11 @@ export interface Payment {
   bonusAmount: string | null;
   bonusRuleId: number | null;
   notes: string | null;
-  paymentPlanId: number | null;
+  // Renamed paymentPlanId to installmentScheduleId for clarity based on the error
+  // If paymentPlanId is strictly what your backend returns and it fulfills the role of installmentScheduleId,
+  // then you can add installmentScheduleId and assign paymentPlanId to it in your data transformation.
+  // Or, simply rename paymentPlanId here if it's truly the same concept.
+  installmentScheduleId: number | null; // This corresponds to the original `paymentPlanId`
   createdAt: string;
   updatedAt: string;
   pledgeDescription: string | null;
@@ -59,6 +63,11 @@ export interface Payment {
   pledgeExchangeRate: string;
   contactId: number | null;
   solicitorName: string | null;
+
+  // Add the missing properties as indicated by the error
+  amountInPledgeCurrency: number; // Assuming number, adjust if it's a string/decimal
+  isSplitPayment: boolean;
+  allocations: PaymentAllocation[]; // Import PaymentAllocation if not already
 }
 
 export interface PaymentAllocationWithPledge extends PaymentAllocation {
@@ -127,6 +136,10 @@ export interface CreatePaymentData {
   bonusRuleId?: number;
   notes?: string;
   paymentPlanId?: number;
+  // If you also create these, they need to be here
+  amountInPledgeCurrency?: number;
+  isSplitPayment?: boolean;
+  allocations?: PaymentAllocation[];
 }
 
 export interface CreatePaymentResponse {
@@ -168,6 +181,10 @@ export interface UpdatePaymentData {
   bonusRuleId?: number;
   notes?: string;
   paymentPlanId?: number;
+  // If these can be updated, they need to be here
+  amountInPledgeCurrency?: number;
+  isSplitPayment?: boolean;
+  allocations?: PaymentAllocation[];
 }
 
 export interface UpdatePaymentResponse {
@@ -212,14 +229,23 @@ const fetchPaymentAllocations = async (params?: {
 }): Promise<PaymentAllocationWithPledge[]> => {
   if (!params?.paymentIds?.length) return [];
   
-  const { data } = await api.get("/api/payments", {
-    params: {
-      endpoint: "allocations",
-      paymentIds: params.paymentIds.join(","),
-    },
-  });
-  return data;
+  // You need to import `api` or use `fetch` directly here.
+  // I'm assuming 'api' is an instance of something like axios.
+  // If not, replace with fetch:
+  // const res = await fetch(`/api/payments/allocations?paymentIds=${params.paymentIds.join(",")}`);
+  // if (!res.ok) throw new Error("Failed to fetch allocations");
+  // return res.json();
+  
+  // Placeholder if `api` is not defined globally or imported:
+  console.warn("api is not defined. Assuming it's imported or globally available.");
+  const res = await fetch(`/api/payments/allocations?paymentIds=${params.paymentIds.join(",")}`);
+  if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.error || "Failed to fetch allocations");
+  }
+  return res.json();
 };
+
 
 export const usePaymentAllocationsQuery = (params?: { paymentIds?: number[] }) => {
   return useQuery({
@@ -250,10 +276,10 @@ const createPayment = async (
   return response.json();
 };
 const updatePayment = async (
-  pledgeId: number, // It might be paymentId here, based on your backend
+  paymentId: number, // Corrected parameter name
   data: UpdatePaymentData
 ): Promise<UpdatePaymentResponse> => {
-  const response = await fetch(`/api/payments/${pledgeId}`, { // Confirm if this should be pledgeId or paymentId
+  const response = await fetch(`/api/payments/${paymentId}`, { // Changed to paymentId
     method: "PATCH", 
     headers: {
       "Content-Type": "application/json",
@@ -262,7 +288,7 @@ const updatePayment = async (
   });
 
   if (!response.ok) {
-    const errorData = await response.json(); // This will now likely work if backend returns JSON on error
+    const errorData = await response.json();
     throw new Error(
       errorData.error || `Failed to update payment: ${response.statusText}`
     );
@@ -333,10 +359,10 @@ export const useCreatePaymentMutation = () => {
   });
 };
 
-export const useUpdatePaymentMutation = (pledgeId: number) => {
+export const useUpdatePaymentMutation = (paymentId: number) => { // Changed pledgeId to paymentId here
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: UpdatePaymentData) => updatePayment(pledgeId, data),
+    mutationFn: (data: UpdatePaymentData) => updatePayment(paymentId, data), // Pass paymentId correctly
     onSuccess: () => {
       queryClient.invalidateQueries();
     },

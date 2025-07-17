@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient,UseQueryOptions } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 export interface PaymentPlanFormData {
@@ -22,6 +22,14 @@ export interface PaymentPlanFormData {
   autoRenew: boolean;
   notes?: string;
   internalNotes?: string;
+   customInstallments?: Array<{
+    date: string;
+    amount: number;
+    notes?: string;
+    isPaid?: boolean;
+    paidDate?: string;
+    paidAmount?: number;
+  }>;
 }
 
 export interface InstallmentSchedule {
@@ -68,9 +76,18 @@ export interface PaymentPlan {
   createdAt: string;
   updatedAt: string;
   pledgeDescription?: string;
+  pledgeContact?:string;
   pledgeOriginalAmount?: string;
   contactId?: number;
   installmentSchedule?: InstallmentSchedule[];
+    customInstallments?: Array<{
+    date: string;
+    amount: number;
+    notes?: string;
+    isPaid?: boolean;
+    paidDate?: string;
+    paidAmount?: number;
+  }>;
 }
 
 export interface PledgeDetails {
@@ -227,8 +244,12 @@ export const usePaymentPlanQuery = (planId: number) => {
   });
 };
 
-export const usePledgeDetailsQuery = (pledgeId: number) => {
-  return useQuery({
+export const usePledgeDetailsQuery = (
+  pledgeId: number,
+  // Add a second optional argument for useQuery options
+  options?: Omit<UseQueryOptions<PledgeDetails, Error>, 'queryKey' | 'queryFn'>
+) => {
+  return useQuery<PledgeDetails, Error>({ // Added generic types for better type inference
     queryKey: ["pledge-details", pledgeId],
     queryFn: async (): Promise<PledgeDetails> => {
       const response = await fetch(`/api/pledges/${pledgeId}`);
@@ -242,6 +263,7 @@ export const usePledgeDetailsQuery = (pledgeId: number) => {
     },
     enabled: !!pledgeId && pledgeId > 0,
     staleTime: 2 * 60 * 1000,
+    ...options,
   });
 };
 

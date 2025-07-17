@@ -161,18 +161,19 @@ export const paymentPlanSchema = z.object({
   notes: z.string().optional(),
   internalNotes: z.string().optional(),
 
-  // --- Add these two fields ---
   distributionType: z.enum(["fixed", "custom"]).default("fixed"),
-  customInstallments: z
-    .array(
-      z.object({
-        date: z.string().min(1, "Installment date is required"),
-        amount: z.number().positive("Installment amount must be positive"),
-        notes: z.string().optional(),
-      })
-    )
-    .optional(), // Make optional as it's only needed for 'custom' distribution
-  // -------------------------
+ customInstallments: z
+  .array(
+    z.object({
+      date: z.string().min(1, "Installment date is required"),
+      amount: z.number().positive("Installment amount must be positive"),
+      notes: z.string().optional(),
+      isPaid: z.boolean().optional(),
+      paidDate: z.string().optional(),
+      paidAmount: z.number().optional(),
+    })
+  )
+  .optional(),
 });
 
 interface PaymentPlanDialogProps {
@@ -292,14 +293,25 @@ const calculateNextPaymentDate = (
 
   return next.toISOString().split("T")[0];
 };
+
+interface PreviewInstallment {
+  installmentNumber: number;
+  date: string;
+  amount: number;
+  currency: string;
+  formattedDate: string;
+  isPaid: boolean;
+  notes?: string | null;
+}
+
 const generatePreviewInstallments = (
   startDate: string,
   frequency: string,
   numberOfInstallments: number,
   installmentAmount: number,
   currency: string
-) => {
-  const installments = [];
+): PreviewInstallment[] => { // Explicitly define return type
+  const installments: PreviewInstallment[] = [];
   const start = new Date(startDate);
   for (let i = 0; i < numberOfInstallments; i++) {
     const installmentDate = new Date(start);
@@ -332,6 +344,7 @@ const generatePreviewInstallments = (
       currency: currency,
       formattedDate: installmentDate.toLocaleDateString(),
       isPaid: false,
+      notes: null, // Initialize notes as null for fixed installments
     });
     if (frequency === "one_time") break;
   }
@@ -369,190 +382,190 @@ const calculateEndDate = (
   return end.toISOString().split("T")[0];
 };
 // Preview Component
-  const PaymentPlanPreview = ({
-    formData,
-    onConfirm,
-    onEdit,
-    isLoading = false
-  }: {
-    formData: PaymentPlanFormData;
-    onConfirm: () => void;
-    onEdit: () => void;
-    isLoading?: boolean;
-  }) => {
-    const previewInstallments = useMemo(() => {
-      if (formData.distributionType === "custom") {
-        return formData.customInstallments?.map((inst, index) => ({
-          installmentNumber: index + 1,
-          date: inst.date,
-          amount: inst.amount,
-          currency: formData.currency,
-          formattedDate: new Date(inst.date).toLocaleDateString(),
-          notes: inst.notes,
-          isPaid: false,
-        })) || [];
-      } else {
-        return generatePreviewInstallments(
-          formData.startDate,
-          formData.frequency,
-          formData.numberOfInstallments,
-          formData.installmentAmount,
-          formData.currency
-        );
-      }
-    }, [formData]);
-    const totalPreviewAmount = previewInstallments.reduce((sum, inst) => sum + inst.amount, 0);
-    return (
-      <div className="space-y-6">
-        <div className="text-center">
-          <h3 className="text-lg font-semibold">Payment Plan Preview</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Review the payment schedule before confirming
-          </p>
-        </div>
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="font-medium text-blue-900 mb-3">Plan Summary</h4>
-          <div className="grid grid-cols-2 gap-3 text-sm">
+const PaymentPlanPreview = ({
+  formData,
+  onConfirm,
+  onEdit,
+  isLoading = false
+}: {
+  formData: PaymentPlanFormData;
+  onConfirm: () => void;
+  onEdit: () => void;
+  isLoading?: boolean;
+}) => {
+  const previewInstallments = useMemo(() => {
+    if (formData.distributionType === "custom") {
+      return formData.customInstallments?.map((inst, index) => ({
+        installmentNumber: index + 1,
+        date: inst.date,
+        amount: inst.amount,
+        currency: formData.currency,
+        formattedDate: new Date(inst.date).toLocaleDateString(),
+        notes: inst.notes,
+        isPaid: false,
+      })) || [];
+    } else {
+      return generatePreviewInstallments(
+        formData.startDate,
+        formData.frequency,
+        formData.numberOfInstallments,
+        formData.installmentAmount,
+        formData.currency
+      );
+    }
+  }, [formData]);
+  const totalPreviewAmount = previewInstallments.reduce((sum, inst) => sum + inst.amount, 0);
+  return (
+    <div className="space-y-6">
+      <div className="text-center">
+        <h3 className="text-lg font-semibold">Payment Plan Preview</h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          Review the payment schedule before confirming
+        </p>
+      </div>
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <h4 className="font-medium text-blue-900 mb-3">Plan Summary</h4>
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <span className="text-blue-700">Total Amount:</span>
+            <span className="font-medium ml-2">
+              {formData.currency} {formData.totalPlannedAmount.toLocaleString()}
+            </span>
+          </div>
+          <div>
+            <span className="text-blue-700">Frequency:</span>
+            <span className="font-medium ml-2 capitalize">
+              {formData.frequency.replace('_', ' ')}
+            </span>
+          </div>
+          <div>
+            <span className="text-blue-700">Distribution:</span>
+            <span className="font-medium ml-2">
+              {formData.distributionType === 'custom' ? 'Custom Schedule' : 'Fixed Amount'}
+            </span>
+          </div>
+          <div>
+            <span className="text-blue-700">Total Installments:</span>
+            <span className="font-medium ml-2">{previewInstallments.length}</span>
+          </div>
+          {formData.distributionType !== 'custom' && (
             <div>
-              <span className="text-blue-700">Total Amount:</span>
+              <span className="text-blue-700">Per Installment:</span>
               <span className="font-medium ml-2">
-                {formData.currency} {formData.totalPlannedAmount.toLocaleString()}
+                {formData.currency} {formData.installmentAmount.toLocaleString()}
               </span>
             </div>
-            <div>
-              <span className="text-blue-700">Frequency:</span>
-              <span className="font-medium ml-2 capitalize">
-                {formData.frequency.replace('_', ' ')}
-              </span>
-            </div>
-            <div>
-              <span className="text-blue-700">Distribution:</span>
-              <span className="font-medium ml-2">
-                {formData.distributionType === 'custom' ? 'Custom Schedule' : 'Fixed Amount'}
-              </span>
-            </div>
-            <div>
-              <span className="text-blue-700">Total Installments:</span>
-              <span className="font-medium ml-2">{previewInstallments.length}</span>
-            </div>
-            {formData.distributionType !== 'custom' && (
-              <div>
-                <span className="text-blue-700">Per Installment:</span>
-                <span className="font-medium ml-2">
-                  {formData.currency} {formData.installmentAmount.toLocaleString()}
-                </span>
-              </div>
-            )}
-            <div>
-              <span className="text-blue-700">Start Date:</span>
-              <span className="font-medium ml-2">
-                {new Date(formData.startDate).toLocaleDateString()}
-              </span>
-            </div>
+          )}
+          <div>
+            <span className="text-blue-700">Start Date:</span>
+            <span className="font-medium ml-2">
+              {new Date(formData.startDate).toLocaleDateString()}
+            </span>
           </div>
-        </div>
-        <div className="border rounded-lg">
-          <div className="bg-gray-50 px-4 py-3 border-b">
-            <h4 className="font-medium">Payment Schedule</h4>
-          </div>
-          <div className="max-h-96 overflow-y-auto">
-            {previewInstallments.map((installment, index) => (
-              <div
-                key={index}
-                className={`px-4 py-3 border-b last:border-b-0 flex items-center justify-between ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                  }`}
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">
-                    {installment.installmentNumber}
-                  </div>
-                  <div>
-                    <div className="font-medium">{installment.formattedDate}</div>
-                    <div className="text-sm text-gray-500">{installment.date}</div>
-                    {installment.notes && (
-                      <div className="text-xs text-gray-400 mt-1">{installment.notes}</div>
-                    )}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="font-medium">
-                    {installment.currency} {installment.amount.toLocaleString()}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {formData.distributionType === 'custom' ? 'Custom' : 'Fixed'}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        {Math.abs(totalPreviewAmount - formData.totalPlannedAmount) > 0.01 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-            <div className="flex items-center">
-              <AlertTriangle className="w-4 h-4 text-amber-600 mr-2" />
-              <span className="text-sm text-amber-700">
-                Warning: Total installments ({formData.currency} {totalPreviewAmount.toLocaleString()})
-                differ from planned amount ({formData.currency} {formData.totalPlannedAmount.toLocaleString()})
-                by {formData.currency} {Math.abs(totalPreviewAmount - formData.totalPlannedAmount).toLocaleString()}
-              </span>
-            </div>
-          </div>
-        )}
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <div className="font-medium text-green-900">
-                Total: {formData.currency} {totalPreviewAmount.toLocaleString()}
-              </div>
-              <div className="text-sm text-green-700">
-                {previewInstallments.length} payments over {
-                  formData.distributionType === 'custom'
-                    ? 'custom schedule'
-                    : `${formData.numberOfInstallments} ${formData.frequency} periods`
-                }
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-sm text-green-700">
-                {formData.endDate && (
-                  <>End Date: {new Date(formData.endDate).toLocaleDateString()}</>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="flex justify-end space-x-3 pt-4 border-t">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onEdit}
-            disabled={isLoading}
-          >
-            <Edit className="w-4 h-4 mr-2" />
-            Edit Plan
-          </Button>
-          <Button
-            type="button"
-            onClick={onConfirm}
-            disabled={isLoading}
-            className="text-white"
-          >
-            {isLoading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                Confirming...
-              </>
-            ) : (
-              <>
-                <Check className="w-4 h-4 mr-2" />
-                Confirm & Create Plan
-              </>
-            )}
-          </Button>
         </div>
       </div>
-    );
-  };
+      <div className="border rounded-lg">
+        <div className="bg-gray-50 px-4 py-3 border-b">
+          <h4 className="font-medium">Payment Schedule</h4>
+        </div>
+        <div className="max-h-96 overflow-y-auto">
+          {previewInstallments.map((installment, index) => (
+            <div
+              key={index}
+              className={`px-4 py-3 border-b last:border-b-0 flex items-center justify-between ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                }`}
+            >
+              <div className="flex items-center space-x-4">
+                <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">
+                  {installment.installmentNumber}
+                </div>
+                <div>
+                  <div className="font-medium">{installment.formattedDate}</div>
+                  <div className="text-sm text-gray-500">{installment.date}</div>
+                  {installment.notes && (
+                    <div className="text-xs text-gray-400 mt-1">{installment.notes}</div>
+                  )}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="font-medium">
+                  {installment.currency} {installment.amount.toLocaleString()}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {formData.distributionType === 'custom' ? 'Custom' : 'Fixed'}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {Math.abs(totalPreviewAmount - formData.totalPlannedAmount) > 0.01 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <div className="flex items-center">
+            <AlertTriangle className="w-4 h-4 text-amber-600 mr-2" />
+            <span className="text-sm text-amber-700">
+              Warning: Total installments ({formData.currency} {totalPreviewAmount.toLocaleString()})
+              differ from planned amount ({formData.currency} {formData.totalPlannedAmount.toLocaleString()})
+              by {formData.currency} {Math.abs(totalPreviewAmount - formData.totalPlannedAmount).toLocaleString()}
+            </span>
+          </div>
+        </div>
+      )}
+      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+        <div className="flex justify-between items-center">
+          <div>
+            <div className="font-medium text-green-900">
+              Total: {formData.currency} {totalPreviewAmount.toLocaleString()}
+            </div>
+            <div className="text-sm text-green-700">
+              {previewInstallments.length} payments over {
+                formData.distributionType === 'custom'
+                  ? 'custom schedule'
+                  : `${formData.numberOfInstallments} ${formData.frequency} periods`
+              }
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-sm text-green-700">
+              {formData.endDate && (
+                <>End Date: {new Date(formData.endDate).toLocaleDateString()}</>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="flex justify-end space-x-3 pt-4 border-t">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onEdit}
+          disabled={isLoading}
+        >
+          <Edit className="w-4 h-4 mr-2" />
+          Edit Plan
+        </Button>
+        <Button
+          type="button"
+          onClick={onConfirm}
+          disabled={isLoading}
+          className="text-white"
+        >
+          {isLoading ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+              Confirming...
+            </>
+          ) : (
+            <>
+              <Check className="w-4 h-4 mr-2" />
+              Confirm & Create Plan
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+};
 
 export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
   const {
@@ -649,7 +662,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
       frequency: "monthly" as const,
       distributionType: "fixed" as const,
       totalPlannedAmount: defaultAmount,
-      currency: effectivePledgeCurrency as any,
+      currency: (effectivePledgeCurrency || "USD") as "USD" | "ILS" | "EUR" | "JPY" | "GBP" | "AUD" | "CAD" | "ZAR", // Ensure currency is never undefined
       installmentAmount: 0,
       numberOfInstallments: 12,
       startDate: new Date().toISOString().split("T")[0],
@@ -927,8 +940,15 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
   };
   const handlePreviewConfirm = () => {
     const formData = form.getValues();
+
+    // Ensure currency is set (should always be true due to form validation)
+    if (!formData.currency) {
+      form.setError('currency', { message: 'Currency is required' });
+      return;
+    }
+
     setShowPreview(false);
-    onSubmit(formData);
+    onSubmit(formData as PaymentPlanFormData); // Type assertion
   };
   const handlePreviewEdit = () => {
     setShowPreview(false);
@@ -1066,7 +1086,18 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
 
         {showPreview ? (
           <PaymentPlanPreview
-            formData={form.getValues()}
+            formData={{
+              ...form.getValues(),
+              currency: form.getValues().currency || "USD",
+              distributionType: form.getValues().distributionType || "fixed",
+              autoRenew: form.getValues().autoRenew || false, 
+              pledgeId: form.getValues().pledgeId || 0, 
+              totalPlannedAmount: form.getValues().totalPlannedAmount || 0, 
+              installmentAmount: form.getValues().installmentAmount || 0,
+              numberOfInstallments: form.getValues().numberOfInstallments || 1, 
+              startDate: form.getValues().startDate || new Date().toISOString().split('T')[0], 
+              planStatus: form.getValues().planStatus || 'active', 
+            }}
             onConfirm={handlePreviewConfirm}
             onEdit={handlePreviewEdit}
             isLoading={createPaymentPlanMutation.isPending}
@@ -1233,7 +1264,10 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Currency *</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value || "USD"} // Default to USD if undefined
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select currency" />
@@ -1249,7 +1283,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                       </Select>
                       <div className="mt-2">
                         <ExchangeRateDisplay
-                          currency={field.value}
+                          currency={field.value || "USD"} // Default to USD if undefined
                           exchangeRates={exchangeRates}
                           isLoading={isLoadingRates}
                         />
@@ -1397,7 +1431,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                         )}
                       </div>
                     ))}
-                    {form.watch("customInstallments")?.length > 0 && (
+                    {(form.watch("customInstallments") || []).length > 0 && ( 
                       <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                         <h5 className="text-sm font-medium text-blue-900 mb-2">Custom Schedule Summary</h5>
                         <div className="text-sm text-blue-800">
@@ -1780,7 +1814,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                   </div>
                 </div>
 
-               {isEditing && (
+                {isEditing && (
                   <div className="flex justify-end space-x-2 pt-4 border-t">
                     <Button
                       type="button"

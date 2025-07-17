@@ -67,8 +67,8 @@ interface Solicitor {
 
 interface Pledge {
   id: number;
-  description: string;
-  currency: typeof supportedCurrencies[number];
+  description: string | null;
+  currency: string;
   balance: string;
   originalAmount: string;
   remainingBalance?: number;
@@ -203,7 +203,7 @@ const allocationSchema = z.object({
 
 const paymentSchema = z.object({
   amount: z.number().optional(),
-  currency: z.string().optional(),
+  currency: z.enum(supportedCurrencies).optional(),
   amountUsd: z.number().optional(),
   exchangeRate: z.number().optional(),
 
@@ -237,6 +237,9 @@ type PaymentFormData = z.infer<typeof paymentSchema>;
 interface PaymentDialogProps {
   pledgeId?: number;
   contactId?: number;
+  amount: number;
+  currency:string;
+  description:string;
   showPledgeSelector?: boolean;
 }
 
@@ -308,6 +311,16 @@ export default function PaymentFormDialog({
     name: "allocations",
   });
 
+  const setCurrencyWithFallback = (currency: string) => {
+    if (supportedCurrencies.includes(currency as typeof supportedCurrencies[number])) {
+      form.setValue("currency", currency as typeof supportedCurrencies[number]);
+    } else {
+      // Fallback to USD if currency is not supported
+      form.setValue("currency", "USD");
+      console.warn(`Unsupported currency: ${currency}, defaulting to USD`);
+    }
+  };
+
   const watchedCurrency = form.watch("currency");
   const watchedAmount = form.watch("amount");
   const watchedPaymentDate = form.watch("paymentDate");
@@ -318,9 +331,11 @@ export default function PaymentFormDialog({
   const watchedIsSplitPayment = form.watch("isSplitPayment");
   const watchedMainPledgeId = form.watch("pledgeId");
 
-  const totalAllocatedAmount = watchedAllocations.reduce((sum, alloc) => sum + (alloc.allocatedAmount || 0), 0);
-  const remainingToAllocate = watchedAmount - totalAllocatedAmount;
-
+  const totalAllocatedAmount = (watchedAllocations || []).reduce(
+    (sum, alloc) => sum + (alloc.allocatedAmount || 0),
+    0
+  );
+  const remainingToAllocate = (watchedAmount || 0) - totalAllocatedAmount;
   const { data: pledgeData, isLoading: isLoadingPledge } = usePledgeDetailsQuery(
     watchedMainPledgeId!,
     { enabled: !watchedIsSplitPayment && !!watchedMainPledgeId && watchedMainPledgeId !== 0 }
@@ -339,7 +354,10 @@ export default function PaymentFormDialog({
           const balance = parseFloat(initialPledge.balance);
           form.setValue("amount", balance);
           form.setValue("allocations.0.allocatedAmount", balance);
-          form.setValue("currency", initialPledge.currency as typeof supportedCurrencies[number]);
+          const currency = initialPledge.currency as typeof supportedCurrencies[number];
+          if (supportedCurrencies.includes(currency)) {
+            form.setValue("currency", currency);
+          }
         }
       }
     }
@@ -350,7 +368,10 @@ export default function PaymentFormDialog({
       const currency = form.getValues("currency");
       const amount = form.getValues("amount");
 
-      const currentExchangeRate = form.getValues("exchangeRate");
+      let currentExchangeRate = form.getValues("exchangeRate");
+      // Ensure exchange rate is a positive number
+      currentExchangeRate = (currentExchangeRate && currentExchangeRate > 0) ? currentExchangeRate : 1;
+
       if (currency && amount) {
         const rate = (currency === "USD") ? 1 : currentExchangeRate;
         const usdAmount = amount / rate;
@@ -410,22 +431,30 @@ export default function PaymentFormDialog({
     return 1;
   };
 
+  const isValidCurrency = (currency: string): currency is typeof supportedCurrencies[number] => {
+    return supportedCurrencies.includes(currency as typeof supportedCurrencies[number]);
+  };
+
   const convertAmountBetweenCurrencies = (
     amount: number,
-    fromCurrency: typeof supportedCurrencies[number],
-    toCurrency: typeof supportedCurrencies[number],
+    fromCurrency: string,
+    toCurrency: string,
     exchangeRates: Record<string, string> | undefined
   ): number => {
-    if (fromCurrency === toCurrency || !exchangeRates) {
+    // Ensure currencies are valid, default to USD if not
+    const validFromCurrency = isValidCurrency(fromCurrency) ? fromCurrency : "USD";
+    const validToCurrency = isValidCurrency(toCurrency) ? toCurrency : "USD";
+
+    if (validFromCurrency === validToCurrency || !exchangeRates) {
       return Math.round(amount * 100) / 100;
     }
 
-    const fromRate = parseFloat(exchangeRates[fromCurrency] || "1");
-    const toRate = parseFloat(exchangeRates[toCurrency] || "1");
+    const fromRate = parseFloat(exchangeRates[validFromCurrency] || "1");
+    const toRate = parseFloat(exchangeRates[validToCurrency] || "1");
 
     if (isNaN(fromRate) || isNaN(toRate) || fromRate === 0 || toRate === 0) {
       console.warn(
-        `Invalid exchange rates for ${fromCurrency} or ${toCurrency}, defaulting to direct conversion`
+        `Invalid exchange rates for ${validFromCurrency} or ${validToCurrency}, defaulting to direct conversion`
       );
       return Math.round(amount * 100) / 100;
     }
@@ -444,93 +473,87 @@ export default function PaymentFormDialog({
       const commonPaymentFields = {
         amount: data.amount,
         currency: data.currency,
-        amountUsd: data.amountUsd, // Assuming this is calculated or sent from frontend
+        amountUsd: data.amountUsd,
         exchangeRate: data.exchangeRate,
         paymentDate: data.paymentDate,
         receivedDate: data.receivedDate,
         paymentMethod: data.paymentMethod,
-        methodDetail: data.methodDetail, // Ensure this matches backend enum (add 'schwab_charitable' in route.ts)
+        methodDetail: data.methodDetail,
         paymentStatus: data.paymentStatus,
         referenceNumber: data.referenceNumber,
         receiptNumber: data.receiptNumber,
         receiptType: data.receiptType,
         receiptIssued: data.receiptIssued,
-        solicitorId: data.solicitorId ? String(data.solicitorId) : null, // Ensure solicitorId is string or null
+        solicitorId: data.solicitorId ? String(data.solicitorId) : null,
         bonusPercentage: data.bonusPercentage,
         bonusAmount: data.bonusAmount,
         bonusRuleId: data.bonusRuleId,
         notes: data.notes,
-        // paymentPlanId: null, // Only include if it's in your backend schema as a common field
       };
 
       let paymentPayload;
 
       if (isSplit) {
         if (!data.allocations || data.allocations.length === 0) {
-          // This case should ideally be caught by your frontend form validation
           throw new Error("Split payment requires at least one allocation.");
         }
 
+        // For split payments, create the payload with allocations
         paymentPayload = {
           ...commonPaymentFields,
-          isSplitPayment: true,
-          // The pledgeId and installmentScheduleId at the top level are NOT part of
-          // the split payment schema, remove them if they only apply to single payments.
-          // If they are common fields, include them in commonPaymentFields.
-          // For now, removing them here based on the backend schema for split payments.
-          pledgeId: undefined, // Explicitly set to undefined for split payments if not needed
-          installmentScheduleId: undefined, // Explicitly set to undefined for split payments if not needed
+          // Remove pledgeId for split payments - don't include installmentScheduleId
+          pledgeId: null,
           allocations: await Promise.all((data.allocations || []).map(async (allocation) => {
             const targetPledge = pledgesData?.pledges?.find(p => p.id === allocation.pledgeId);
             if (!targetPledge) {
               throw new Error(`Pledge with ID ${allocation.pledgeId} not found for allocation.`);
             }
 
+            // Type assertion to ensure we have a valid supported currency
+            const paymentCurrency = data.currency || "USD";
+            const validPaymentCurrency = isValidCurrency(paymentCurrency) ? paymentCurrency : "USD";
+
             const allocatedAmountInPledgeCurrency = convertAmountBetweenCurrencies(
               allocation.allocatedAmount || 0,
-              data.currency || "USD",
+              validPaymentCurrency,
               targetPledge.currency,
               exchangeRatesData?.data?.rates
             );
 
             return {
-              pledgeId: String(allocation.pledgeId), // FIX: Convert number to string
-              installmentScheduleId: allocation.installmentScheduleId ? String(allocation.installmentScheduleId) : null, // FIX: Convert number to string, or null
-              amount: allocation.allocatedAmount, // FIX: Renamed from allocatedAmount to amount
-              notes: allocation.notes, // Only include if it's in the backend allocation schema
-              // You had these in your frontend allocation map, but they are not in the backend's Zod allocation schema.
-              // Remove them if the backend does not expect them.
-              // currency: data.currency, // Not in backend allocation schema
-              // allocatedAmountUsd: (allocation.allocatedAmount || 0) * (data.exchangeRate || 1), // Not in backend allocation schema
-              // amountInPledgeCurrency: allocatedAmountInPledgeCurrency, // Not in backend allocation schema
+              pledgeId: String(allocation.pledgeId),
+              installmentScheduleId: allocation.installmentScheduleId ? String(allocation.installmentScheduleId) : null,
+              amount: allocation.allocatedAmount,
+              notes: allocation.notes,
             };
           })),
         };
       } else {
         // Single payment
         if (!data.pledgeId) {
-          throw new Error("Single payment requires a pledge ID."); // Frontend validation
+          throw new Error("Single payment requires a pledge ID.");
         }
 
-        paymentPayload = {
+        // For single payments, build the payload conditionally
+        const singlePaymentPayload: any = {
           ...commonPaymentFields,
-          isSplitPayment: false,
-          pledgeId: String(data.pledgeId), // FIX: Convert number to string
-          // If your frontend form has installmentScheduleId at the top level for single payments
-          // and your backend schema for single payments includes it, then add it here.
-          installmentScheduleId: data.allocations?.length === 1 && data.allocations[0].installmentScheduleId
-            ? String(data.allocations[0].installmentScheduleId)
-            : null,
-          allocations: undefined, // Explicitly set allocations to undefined for single payments
+          pledgeId: String(data.pledgeId),
         };
+
+        // Only include installmentScheduleId if it exists and is valid
+        if (data.allocations?.length === 1 && data.allocations[0].installmentScheduleId) {
+          singlePaymentPayload.installmentScheduleId = String(data.allocations[0].installmentScheduleId);
+        }
+
+        paymentPayload = singlePaymentPayload;
       }
 
-      console.log("Submitting Payload (final):", paymentPayload); // Log the final payload
+      console.log("Submitting Payload (final):", paymentPayload);
 
       await createPaymentMutation.mutateAsync(paymentPayload, {
         onSuccess: () => {
           toast.success("Payment and allocations created successfully!");
-          // resetForm(); // Make sure this works with your form setup
+          resetForm();
           setOpen(false);
         },
         onError: (error) => {
@@ -556,12 +579,11 @@ export default function PaymentFormDialog({
 
   const pledgeOptions =
     pledgesData?.pledges?.map((pledge: Pledge) => ({
-      label: `#${pledge.id} - ${pledge.description || "No description"} (${pledge.currency
-        } ${parseFloat(pledge.balance).toLocaleString()})`,
+      label: `#${pledge.id} - ${pledge.description || "No description"} (${pledge.currency} ${parseFloat(pledge.balance).toLocaleString()})`,
       value: pledge.id,
       balance: parseFloat(pledge.balance),
       currency: pledge.currency,
-      description: pledge.description,
+      description: pledge.description || "No description",
       originalAmount: parseFloat(pledge.originalAmount),
     })) || [];
 
@@ -707,7 +729,10 @@ export default function PaymentFormDialog({
                                     form.setValue("allocations.0.pledgeId", pledge.value);
                                     form.setValue("allocations.0.allocatedAmount", parseFloat(pledge.balance));
                                     form.setValue("amount", parseFloat(pledge.balance));
-                                    form.setValue("currency", pledge.currency as typeof supportedCurrencies[number]);
+                                    const currency = pledge.currency as typeof supportedCurrencies[number];
+                                    if (supportedCurrencies.includes(currency)) {
+                                      form.setValue("currency", currency);
+                                    }
                                   }}
                                 >
                                   {pledge.label}
@@ -1228,7 +1253,7 @@ export default function PaymentFormDialog({
 
                 <div className="mb-4">
                   <p className="text-sm text-gray-700">
-                    Total Payment Amount: <span className="font-semibold">{watchedCurrency} {watchedAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    Total Payment Amount: <span className="font-semibold">{watchedCurrency} {(watchedAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </p>
                   <p className="text-sm text-gray-700">
                     Total Allocated: <span className="font-semibold">{watchedCurrency} {totalAllocatedAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>

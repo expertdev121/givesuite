@@ -78,6 +78,7 @@ const pledgeSchema = z.object({
     .positive("Pledge amount in USD must be positive"),
   exchangeRate: z.number().positive("Exchange rate must be positive"),
   exchangeRateDate: z.string().optional(),
+  campaignCode: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -115,6 +116,7 @@ export default function PledgeDialog({
       description: "",
       pledgeDate: new Date().toISOString().split("T")[0],
       exchangeRateDate: new Date().toISOString().split("T")[0],
+      campaignCode: "",
       notes: "",
     },
   });
@@ -164,6 +166,11 @@ export default function PledgeDialog({
     form.setValue("description", item);
   };
 
+  // Check if selected category is "Donation" (assuming it has name "Donation")
+  const isDonationCategory = selectedCategoryId 
+    ? STATIC_CATEGORIES.find(cat => cat.id === selectedCategoryId)?.name?.toLowerCase() === "donation"
+    : false;
+
   const onSubmit = async (data: PledgeFormData, shouldOpenPayment = false) => {
     try {
       // Debug logging to check exchange rate values
@@ -171,7 +178,7 @@ export default function PledgeDialog({
       console.log("Exchange rate value:", data.exchangeRate);
       console.log("Exchange rate type:", typeof data.exchangeRate);
 
-      // Include exchangeRate in the submission data
+      // Include exchangeRate and campaignCode in the submission data
       const pledgeData = {
         contactId: data.contactId,
         categoryId: data.categoryId,
@@ -180,7 +187,8 @@ export default function PledgeDialog({
         originalAmount: data.originalAmount,
         currency: data.currency,
         originalAmountUsd: data.originalAmountUsd,
-        exchangeRate: data.exchangeRate, // Now included in submission
+        exchangeRate: data.exchangeRate,
+        campaignCode: data.campaignCode || undefined, // Only include if not empty
         notes: data.notes,
         // exchangeRateDate is excluded - it's only used for fetching rates
       };
@@ -205,6 +213,7 @@ export default function PledgeDialog({
           description: "",
           pledgeDate: new Date().toISOString().split("T")[0],
           exchangeRateDate: new Date().toISOString().split("T")[0],
+          campaignCode: "",
           notes: "",
         });
         setSelectedCategoryId(null);
@@ -228,6 +237,7 @@ export default function PledgeDialog({
           description: "",
           pledgeDate: new Date().toISOString().split("T")[0],
           exchangeRateDate: new Date().toISOString().split("T")[0],
+          campaignCode: "",
           notes: "",
         });
         setSelectedCategoryId(null);
@@ -258,6 +268,7 @@ export default function PledgeDialog({
         description: "",
         pledgeDate: new Date().toISOString().split("T")[0],
         exchangeRateDate: new Date().toISOString().split("T")[0],
+        campaignCode: "",
         notes: "",
       });
       setSelectedCategoryId(null);
@@ -363,6 +374,29 @@ export default function PledgeDialog({
                   </FormItem>
                 )}
               />
+
+              {/* Campaign Code Field - Only show for Donation category */}
+              {isDonationCategory && (
+                <FormField
+                  control={form.control}
+                  name="campaignCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Campaign Code</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="Enter campaign code (optional)"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Optional campaign code for donation tracking.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               {/* Description with item selection */}
               <FormField

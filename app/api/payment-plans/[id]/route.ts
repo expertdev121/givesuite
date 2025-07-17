@@ -191,9 +191,9 @@ export async function GET(
           date: schedule.installmentDate,
           amount: schedule.installmentAmount, // No parseFloat here, it's already a string from DB (numeric type)
           notes: schedule.notes || "",
-          isPaid: schedule.isPaid, // Assuming these fields exist on installmentSchedule
-          paidDate: schedule.paidDate, // Assuming these fields exist on installmentSchedule
-          paidAmount: schedule.paidAmount, // Assuming these fields exist on installmentSchedule
+          // Removed isPaid and paidAmount as they are not in the schema.
+          // Use schedule.status === 'paid' if you need to check if it's paid.
+          // Use schedule.paidDate if you need the date it was paid.
         }));
 
         return {

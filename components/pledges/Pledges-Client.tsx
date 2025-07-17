@@ -39,7 +39,7 @@ import {
 import { usePledgesQuery } from "@/lib/query/usePledgeData";
 import { LinkButton } from "../ui/next-link";
 import PledgeDialog from "../forms/pledge-form";
-import PaymentDialogClientt from "../forms/payment-dialog";
+import PaymentDialogClient from "../forms/payment-dialog";
 import PaymentPlanDialog from "../forms/payment-plan-dialog";
 import Link from "next/link";
 import useContactId from "@/hooks/use-contact-id";
@@ -53,7 +53,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useDeletePledge } from "@/lib/query/pledge/usePledgeQuery";
+import { useDeletePledge, PledgeQueryParams } from "@/lib/query/pledge/usePledgeQuery";
 import { formatDate } from "@/lib/utils";
 
 const QueryParamsSchema = z.object({
@@ -119,19 +119,19 @@ export default function PledgesTable() {
   const contactId = useContactId();
 
   const queryParams = QueryParamsSchema.parse({
-    contactId: contactId,
-    categoryId: categoryId !== null ? categoryId : undefined,
+    contactId,
+    categoryId: categoryId ?? undefined,
     page: currentPage,
     limit: currentLimit,
-    search: search || undefined,
-    status: status || undefined,
-    startDate: startDate || undefined,
-    endDate: endDate || undefined,
+    search: search ?? undefined,
+    status: status ?? undefined,
+    startDate: startDate ?? undefined,
+    endDate: endDate ?? undefined,
   });
 
   const pledgeQueryParams: PledgeQueryParams = {
     contactId: queryParams.contactId,
-    categoryId: queryParams.categoryId,
+    categoryId: queryParams.categoryId ?? undefined, // Convert null to undefined
     page: queryParams.page,
     limit: queryParams.limit,
     search: queryParams.search,
@@ -282,16 +282,16 @@ export default function PledgesTable() {
                   <TableHead className="font-semibold text-gray-900 text-right">
                     Paid
                   </TableHead>
-                  <TableHead className="font-semibold text-red-400 text-right">
+                  <TableHead className="font-semibold  text-right">
                     Balance (USD)
                   </TableHead>
-                  <TableHead className="font-semibold text-red-400 text-right">
+                  <TableHead className="font-semibold  text-right">
                     Balance
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900 text-right">
+                  <TableHead className="font-semibold  text-right">
                     Scheduled
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900 text-right">
+                  <TableHead className="font-semibold  text-right">
                     Unscheduled
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900">
@@ -331,13 +331,6 @@ export default function PledgesTable() {
                   </TableRow>
                 ) : (
                   data?.pledges.map((pledge) => {
-                    // Calculate scheduled amount (assuming this comes from payment plans)
-                    const scheduledAmount = pledge.scheduledAmount || "0";
-                    // Calculate unscheduled amount (balance - scheduled)
-                    const unscheduledAmount = (
-                      Number.parseFloat(pledge.balance) - Number.parseFloat(scheduledAmount)
-                    ).toString();
-
                     return (
                       <React.Fragment key={pledge.id}>
                         <TableRow className="hover:bg-gray-50">
@@ -404,36 +397,20 @@ export default function PledgesTable() {
                           <TableCell className="text-right">
                             <div className="flex justify-end items-center gap-1">
                               <span>
-                                {
-                                  formatCurrency(pledge.balance, pledge.currency)
-                                    .symbol
-                                }
+                                {formatCurrency(pledge.scheduledAmount || "0", pledge.currency).symbol}
                               </span>
-                              <span>
-                                {
-                                  formatCurrency(pledge.balance, pledge.currency)
-                                    .amount
-                                }
+                              <span className="font-medium">
+                                {formatCurrency(pledge.scheduledAmount || "0", pledge.currency).amount}
                               </span>
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end items-center gap-1">
                               <span>
-                                {
-                                  formatCurrency(
-                                    pledge.originalAmount,
-                                    pledge.currency
-                                  ).symbol
-                                }
+                                {formatCurrency(pledge.unscheduledAmount || "0", pledge.currency).symbol}
                               </span>
-                              <span>
-                                {
-                                  formatCurrency(
-                                    pledge.originalAmount,
-                                    pledge.currency
-                                  ).amount
-                                }
+                              <span className=" font-medium">
+                                {formatCurrency(pledge.unscheduledAmount || "0", pledge.currency).amount}
                               </span>
                             </div>
                           </TableCell>
@@ -483,7 +460,7 @@ export default function PledgesTable() {
                         {expandedRows.has(pledge.id) && (
                           <TableRow>
                             <TableCell colSpan={13} className="bg-gray-50 p-6">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 {/* USD Amounts */}
                                 <div className="space-y-3">
                                   <h4 className="font-semibold text-gray-900">
@@ -529,6 +506,44 @@ export default function PledgesTable() {
                                   </div>
                                 </div>
 
+                                {/* Payment Plan Status */}
+                                <div className="space-y-3">
+                                  <h4 className="font-semibold text-gray-900">
+                                    Payment Plan Status
+                                  </h4>
+                                  <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Scheduled Amount:
+                                      </span>
+                                      <span className="font-medium text-blue-600">
+                                        {formatCurrency(pledge.scheduledAmount || "0", pledge.currency).symbol}
+                                        {formatCurrency(pledge.scheduledAmount || "0", pledge.currency).amount}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Unscheduled Amount:
+                                      </span>
+                                      <span className="font-medium text-orange-600">
+                                        {formatCurrency(pledge.unscheduledAmount || "0", pledge.currency).symbol}
+                                        {formatCurrency(pledge.unscheduledAmount || "0", pledge.currency).amount}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Has Payment Plan:
+                                      </span>
+                                      <span className={`font-medium ${Number.parseFloat(pledge.scheduledAmount || "0") > 0
+                                        ? "text-green-600"
+                                        : "text-gray-500"
+                                        }`}>
+                                        {Number.parseFloat(pledge.scheduledAmount || "0") > 0 ? "Yes" : "No"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
                                 {/* Additional Details */}
                                 <div className="space-y-3">
                                   <h4 className="font-semibold text-gray-900">
@@ -559,13 +574,11 @@ export default function PledgesTable() {
                               {/* Action Button */}
                               <div className="mt-6 pt-4 flex gap-2 border-t justify-between">
                                 <div className="flex gap-2">
-                                  <PaymentDialogClientt
+                                  <PaymentDialogClient
                                     pledgeId={pledge.id}
-                                    pledgeAmount={Number.parseFloat(
-                                      pledge.balance
-                                    )}
-                                    pledgeCurrency={pledge.currency}
-                                    pledgeDescription={pledge.description ?? ""}
+                                    amount={Number.parseFloat(pledge.balance)}
+                                    currency={pledge.currency}
+                                    description={pledge.description ?? ""}
                                   />
                                   <LinkButton
                                     href={`/contacts/${contactId}/payments?pledgeId=${pledge.id}`}
