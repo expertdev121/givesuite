@@ -228,7 +228,7 @@ const paymentSchema = z.object({
   paymentPlanId: z.number().optional().nullable(),
   installmentScheduleId: z.number().optional().nullable(),
 
-  isSplitPayment: z.boolean().default(false), 
+  isSplitPayment: z.boolean().optional(),
   allocations: z.array(allocationSchema).optional(),
 });
 
