@@ -7,21 +7,21 @@ export interface PaymentQueryParams {
   page?: number;
   limit?: number;
   search?: string;
-paymentMethod?:
-    | "credit_card"
-    | "cash"
-    | "check"
-    | "bank_transfer"
-    | "paypal"
-    | "wire_transfer"
-    | "other";
+  paymentMethod?:
+  | "credit_card"
+  | "cash"
+  | "check"
+  | "bank_transfer"
+  | "paypal"
+  | "wire_transfer"
+  | "other";
   paymentStatus?:
-    | "pending"
-    | "completed"
-    | "failed"
-    | "cancelled"
-    | "refunded"
-    | "processing";
+  | "pending"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "refunded"
+  | "processing";
   startDate?: string;
   endDate?: string;
   hasSolicitor?: boolean;
@@ -33,7 +33,7 @@ export interface Payment {
   paymentPlanId: number | null;
   installmentScheduleId: number | null;
   amount: string;
- currency: string;
+  currency: string;
   amountUsd: string | null;
   amountInPledgeCurrency: string | null;
   exchangeRate: string | null;
@@ -115,20 +115,20 @@ export interface CreatePaymentData {
   paymentDate: string;
   receivedDate?: string;
   paymentMethod:
-    | "credit_card"
-    | "cash"
-    | "check"
-    | "bank_transfer"
-    | "paypal"
-    | "wire_transfer"
-    | "other";
+  | "credit_card"
+  | "cash"
+  | "check"
+  | "bank_transfer"
+  | "paypal"
+  | "wire_transfer"
+  | "other";
   paymentStatus?:
-    | "pending"
-    | "completed"
-    | "failed"
-    | "cancelled"
-    | "refunded"
-    | "processing";
+  | "pending"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "refunded"
+  | "processing";
   referenceNumber?: string;
   checkNumber?: string;
   receiptNumber?: string;
@@ -140,7 +140,7 @@ export interface CreatePaymentData {
   bonusRuleId?: number;
   notes?: string;
   paymentPlanId?: number;
-  amountInPledgeCurrency?: string |null;
+  amountInPledgeCurrency?: string | null;
   isSplitPayment?: boolean;
   allocations?: PaymentAllocation[];
 }
@@ -159,20 +159,20 @@ export interface UpdatePaymentData {
   paymentDate?: string;
   receivedDate?: string;
   paymentMethod?:
-    | "credit_card"
-    | "cash"
-    | "check"
-    | "bank_transfer"
-    | "paypal"
-    | "wire_transfer"
-    | "other";
+  | "credit_card"
+  | "cash"
+  | "check"
+  | "bank_transfer"
+  | "paypal"
+  | "wire_transfer"
+  | "other";
   paymentStatus?:
-    | "pending"
-    | "completed"
-    | "failed"
-    | "cancelled"
-    | "refunded"
-    | "processing";
+  | "pending"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "refunded"
+  | "processing";
   referenceNumber?: string;
   checkNumber?: string;
   receiptNumber?: string;
@@ -184,7 +184,7 @@ export interface UpdatePaymentData {
   bonusRuleId?: number;
   notes?: string;
   paymentPlanId?: number;
-  amountInPledgeCurrency?: string |null;
+  amountInPledgeCurrency?: string | null;
   isSplitPayment?: boolean;
   allocations?: PaymentAllocation[];
 }
@@ -246,11 +246,11 @@ const createPayment = async (
   return response.json();
 };
 const updatePayment = async (
-  paymentId: number, // Corrected parameter name
+  pledgeId: number,
   data: UpdatePaymentData
 ): Promise<UpdatePaymentResponse> => {
-  const response = await fetch(`/api/payments/${paymentId}`, { // Changed to paymentId
-    method: "PATCH", 
+  const response = await fetch(`/api/payments/${pledgeId}`, {
+    method: "PATCH",
     headers: {
       "Content-Type": "application/json",
     },
@@ -266,7 +266,7 @@ const updatePayment = async (
   return response.json();
 };
 
-// Updated deletePayment function - now uses paymentId directly
+
 const deletePayment = async (
   data: DeletePaymentData
 ): Promise<DeletePaymentResponse> => {
@@ -329,10 +329,10 @@ export const useCreatePaymentMutation = () => {
   });
 };
 
-export const useUpdatePaymentMutation = (paymentId: number) => { // Changed pledgeId to paymentId here
+export const useUpdatePaymentMutation = (pledgeId: number) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: UpdatePaymentData) => updatePayment(paymentId, data), // Pass paymentId correctly
+    mutationFn: (data: UpdatePaymentData) => updatePayment(pledgeId, data),
     onSuccess: () => {
       queryClient.invalidateQueries();
     },
@@ -341,6 +341,7 @@ export const useUpdatePaymentMutation = (paymentId: number) => { // Changed pled
     },
   });
 };
+
 
 export const useDeletePaymentMutation = () => {
   const queryClient = useQueryClient();

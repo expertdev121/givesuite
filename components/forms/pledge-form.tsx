@@ -521,7 +521,7 @@ export default function PledgeDialog({
               />
 
               {/* Exchange Rate Date */}
-              <FormField
+              {/* <FormField
                 control={form.control}
                 name="exchangeRateDate"
                 render={({ field }) => (
@@ -537,7 +537,7 @@ export default function PledgeDialog({
                     <FormMessage />
                   </FormItem>
                 )}
-              />
+              /> */}
 
               {/* Exchange Rate (Read-only) */}
               <FormField

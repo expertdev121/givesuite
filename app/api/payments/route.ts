@@ -15,86 +15,37 @@ const querySchema = z.object({
   paymentMethod: z.enum([
     "cash", "check", "credit_card", "paypal", "wire_transfer", "bank_transfer", "other"
   ]).optional(),
-  // FIXED: Match the database schema enum values exactly
   paymentStatus: z.enum([
     "pending", "completed", "failed", "cancelled", "refunded", "processing"
   ]).optional(),
-  // For dates, it's safer to use string and ensure they are in a valid date format if needed later
   startDate: z.string().optional(),
   endDate: z.string().optional(),
-  hasSolicitor: z.preprocess((val) => val === 'true', z.boolean()).optional(), // Correctly parse boolean from string
+  hasSolicitor: z.preprocess((val) => val === 'true', z.boolean()).optional(),
 });
 
-// ******************************************************************************
-// **** IMPORTANT FIX: Define missing constants for Zod enums ****
-// ******************************************************************************
+// Define missing constants for Zod enums
 const supportedCurrencies = ["USD", "ILS", "EUR", "JPY", "GBP", "AUD", "CAD", "ZAR"] as const;
 const paymentMethodValues = [
   "cash", "check", "credit_card", "paypal", "wire_transfer", "bank_transfer", "other"
 ] as const;
 
 const methodDetailValues = [
-  "achisomoch",
-  "authorize",
-  "bank_of_america_charitable",
-  "banquest",
-  "banquest_cm",
-  "benevity",
-  "chai_charitable",
-  "charityvest_inc",
-  "cjp",
-  "donors_fund",
-  "earthport",
-  "e_transfer",
-  "facts",
-  "fidelity",
-  "fjc",
-  "foundation",
-  "goldman_sachs",
-  "htc",
-  "jcf",
-  "jcf_san_diego",
-  "jgive",
-  "keshet",
-  "masa",
-  "masa_old",
-  "matach",
-  "matching_funds",
-  "mizrachi_canada",
-  "mizrachi_olami",
-  "montrose",
-  "morgan_stanley_gift",
-  "ms",
-  "mt",
-  "ojc",
-  "paypal",
-  "pelecard",
-  "schwab_charitable",
-  "stripe",
-  "tiaa",
-  "touro",
-  "uktoremet",
-  "vanguard_charitable",
-  "venmo",
-  "vmm",
-  "wise",
-  "worldline",
-  "yaadpay",
-  "yaadpay_cm",
-  "yourcause",
-  "yu",
-  "zelle"
+  "achisomoch", "authorize", "bank_of_america_charitable", "banquest", "banquest_cm",
+  "benevity", "chai_charitable", "charityvest_inc", "cjp", "donors_fund", "earthport",
+  "e_transfer", "facts", "fidelity", "fjc", "foundation", "goldman_sachs", "htc",
+  "jcf", "jcf_san_diego", "jgive", "keshet", "masa", "masa_old", "matach",
+  "matching_funds", "mizrachi_canada", "mizrachi_olami", "montrose", "morgan_stanley_gift",
+  "ms", "mt", "ojc", "paypal", "pelecard", "schwab_charitable", "stripe", "tiaa",
+  "touro", "uktoremet", "vanguard_charitable", "venmo", "vmm", "wise", "worldline",
+  "yaadpay", "yaadpay_cm", "yourcause", "yu", "zelle"
 ] as const;
 
-const receiptTypeValues = ["invoice", "receipt", "confirmation","other"] as const;
-
-// FIXED: Match the database schema enum values exactly
+const receiptTypeValues = ["invoice", "receipt", "confirmation", "other"] as const;
 const paymentStatusValues = [
   "pending", "completed", "failed", "cancelled", "refunded", "processing"
 ] as const;
-// ******************************************************************************
 
-// Define the main payment schema for the backend POST request
+// Simplified payment schema - just check if we have allocations or a single pledgeId
 const paymentSchema = z.object({
   amount: z.number().positive(),
   currency: z.enum(supportedCurrencies),
@@ -117,26 +68,15 @@ const paymentSchema = z.object({
   bonusPercentage: z.number().min(0).max(100).optional().nullable(),
   bonusAmount: z.number().min(0).optional().nullable(),
   bonusRuleId: z.number().optional().nullable(),
-
-  // New field for discrimination:
-  isSplitPayment: z.boolean(),
-
-  // Conditionally apply pledgeId or allocations based on isSplitPayment
-  pledgeId: z.preprocess((val) => val ? parseInt(String(val), 10) : undefined, z.number().positive()).optional(),
+  
+  // Either single payment or allocations
+  pledgeId: z.preprocess((val) => val ? parseInt(String(val), 10) : null, z.number().positive().nullable()).optional(),
   allocations: z.array(z.object({
     pledgeId: z.preprocess((val) => parseInt(String(val), 10), z.number().positive()),
     amount: z.number().positive(),
     installmentScheduleId: z.preprocess((val) => val ? parseInt(String(val), 10) : null, z.number().positive().nullable()).optional(),
     notes: z.string().optional().nullable(),
   })).optional(),
-}).refine((data) => {
-  if (data.isSplitPayment) {
-    return data.allocations && data.allocations.length > 0;
-  } else {
-    return typeof data.pledgeId === 'number' && data.pledgeId > 0;
-  }
-}, {
-  message: "Invalid payment request: missing pledgeId for single payment or allocations for split payment",
 });
 
 export async function POST(request: NextRequest) {
@@ -144,11 +84,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = paymentSchema.parse(body);
 
-    const isSplitPayment = validatedData.isSplitPayment;
     const paymentDate = validatedData.paymentDate;
     const receivedDate = validatedData.receivedDate || paymentDate;
 
-    // Common payment data that applies to all payments (single or split)
+    // Common payment data that applies to all payments
     const commonPaymentData = {
       currency: validatedData.currency,
       exchangeRate: Number(validatedData.exchangeRate.toFixed(4)).toString(),
@@ -171,8 +110,69 @@ export async function POST(request: NextRequest) {
       bonusRuleId: validatedData.bonusRuleId || null,
     };
 
-    // --- Handle Single Payment ---
-    if (!isSplitPayment && validatedData.pledgeId) {
+    // Check if we have allocations (split payment)
+    if (validatedData.allocations && validatedData.allocations.length > 0) {
+      // Handle split payment - create multiple payment entries
+      const createdPayments = [];
+
+      for (const allocation of validatedData.allocations) {
+        const currentPledge = await db
+          .select()
+          .from(pledge)
+          .where(eq(pledge.id, allocation.pledgeId))
+          .limit(1);
+
+        if (currentPledge.length === 0) {
+          console.warn(`Pledge with ID ${allocation.pledgeId} not found for allocation. Skipping.`);
+          continue;
+        }
+
+        const pledgeData = currentPledge[0];
+        const amountUsd = allocation.amount * validatedData.exchangeRate;
+        const amountInPledgeCurrency = validatedData.currency === pledgeData.currency
+          ? allocation.amount
+          : amountUsd / (parseFloat(pledgeData.exchangeRate || "1") || 1);
+
+        const newPaymentData = {
+          ...commonPaymentData,
+          pledgeId: allocation.pledgeId,
+          amount: Number(allocation.amount.toFixed(2)).toString(),
+          amountUsd: Number(amountUsd.toFixed(2)).toString(),
+          amountInPledgeCurrency: Number(amountInPledgeCurrency.toFixed(2)).toString(),
+          notes: allocation.notes || validatedData.notes || null,
+          installmentScheduleId: allocation.installmentScheduleId || null,
+        };
+
+        const paymentResult = await db
+          .insert(payment)
+          .values(newPaymentData)
+          .returning();
+
+        if (paymentResult.length > 0) {
+          createdPayments.push(paymentResult[0]);
+          // Update each pledge's totals
+          await updatePledgeTotals(allocation.pledgeId);
+        }
+      }
+
+      if (createdPayments.length === 0) {
+        return NextResponse.json(
+          { error: "No payments were successfully created." },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          message: "Split payments created successfully",
+          payments: createdPayments,
+          count: createdPayments.length
+        },
+        { status: 201 }
+      );
+    } 
+    // Handle single payment
+    else if (validatedData.pledgeId) {
       const currentPledge = await db
         .select()
         .from(pledge)
@@ -185,8 +185,8 @@ export async function POST(request: NextRequest) {
 
       const pledgeData = currentPledge[0];
       const amountUsd = validatedData.amount * validatedData.exchangeRate;
-      const amountInPledgeCurrency = validatedData.currency === pledgeData.currency 
-        ? validatedData.amount 
+      const amountInPledgeCurrency = validatedData.currency === pledgeData.currency
+        ? validatedData.amount
         : amountUsd / (parseFloat(pledgeData.exchangeRate || "1") || 1);
 
       const newPaymentData = {
@@ -220,70 +220,9 @@ export async function POST(request: NextRequest) {
         },
         { status: 201 }
       );
-    }
-    // --- Handle Split Payment ---
-    else if (isSplitPayment && validatedData.allocations && validatedData.allocations.length > 0) {
-      const createdPayments = [];
-
-      for (const allocation of validatedData.allocations) {
-        if (!allocation.pledgeId) continue;
-
-        const currentPledge = await db
-          .select()
-          .from(pledge)
-          .where(eq(pledge.id, allocation.pledgeId))
-          .limit(1);
-
-        if (currentPledge.length === 0) {
-          console.warn(`Pledge with ID ${allocation.pledgeId} not found for allocation. Skipping.`);
-          continue;
-        }
-
-        const pledgeData = currentPledge[0];
-        const amountUsd = allocation.amount * validatedData.exchangeRate;
-        const amountInPledgeCurrency = validatedData.currency === pledgeData.currency 
-          ? allocation.amount 
-          : amountUsd / (parseFloat(pledgeData.exchangeRate || "1") || 1);
-
-        const newPaymentData = {
-          ...commonPaymentData,
-          pledgeId: allocation.pledgeId,
-          amount: Number(allocation.amount.toFixed(2)).toString(),
-          amountUsd: Number(amountUsd.toFixed(2)).toString(),
-          amountInPledgeCurrency: Number(amountInPledgeCurrency.toFixed(2)).toString(),
-          notes: allocation.notes || null,
-          installmentScheduleId: allocation.installmentScheduleId || null,
-        };
-
-        const paymentResult = await db
-          .insert(payment)
-          .values(newPaymentData)
-          .returning();
-
-        if (paymentResult.length > 0) {
-          createdPayments.push(paymentResult[0]);
-          // Update each pledge's totals
-          await updatePledgeTotals(allocation.pledgeId);
-        }
-      }
-
-      if (createdPayments.length === 0) {
-        return NextResponse.json(
-          { error: "No payments were successfully created for split allocation." },
-          { status: 500 }
-        );
-      }
-
-      return NextResponse.json(
-        {
-          message: "Split payments created successfully",
-          payments: createdPayments,
-        },
-        { status: 201 }
-      );
     } else {
       return NextResponse.json(
-        { error: "Invalid payment request" },
+        { error: "Either pledgeId or allocations array is required" },
         { status: 400 }
       );
     }
@@ -395,7 +334,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (solicitorId) {
-      conditions.push(eq(payment.solicitorId, solicitorId)); 
+      conditions.push(eq(payment.solicitorId, solicitorId));
     }
 
     if (hasSolicitor !== undefined) {
@@ -408,11 +347,9 @@ export async function GET(request: NextRequest) {
 
     if (search) {
       conditions.push(
-        sql`${payment.referenceNumber} ILIKE ${"%" + search + "%"} OR ${
-          payment.checkNumber
-        } ILIKE ${"%" + search + "%"} OR ${payment.notes} ILIKE ${
-          "%" + search + "%"
-        } OR ${payment.receiptNumber} ILIKE ${"%" + search + "%"}`
+        sql`${payment.referenceNumber} ILIKE ${"%" + search + "%"} OR ${payment.checkNumber
+          } ILIKE ${"%" + search + "%"} OR ${payment.notes} ILIKE ${"%" + search + "%"
+          } OR ${payment.receiptNumber} ILIKE ${"%" + search + "%"}`
       );
     }
 

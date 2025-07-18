@@ -607,52 +607,52 @@ export type NewPayment = typeof payment.$inferInsert;
 // NEW TABLE: payment_allocations
 // This table links a payment to one or more pledges, specifying the allocated amount for each.
 // It also links a portion of a payment to a specific installment schedule.
-export const paymentAllocations = pgTable(
-  "payment_allocations",
-  {
-    id: serial("id").primaryKey(),
-    paymentId: integer("payment_id")
-      .references(() => payment.id, { onDelete: "cascade" })
-      .notNull(),
-    pledgeId: integer("pledge_id")
-      .references(() => pledge.id, { onDelete: "cascade" })
-      .notNull(),
-    // Link to installment schedule if this specific allocation fulfills one
-    installmentScheduleId: integer("installment_schedule_id").references(
-      () => installmentSchedule.id,
-      { onDelete: "set null" }
-    ),
-    allocatedAmount: numeric("allocated_amount", {
-      precision: 10,
-      scale: 2,
-    }).notNull(),
-    currency: currencyEnum("currency").notNull(), // Currency of the allocation (typically matches payment/pledge currency)
-    allocatedAmountUsd: numeric("allocated_amount_usd", {
-      precision: 10,
-      scale: 2,
-    }), // USD equivalent of allocated amount for this specific allocation
-    notes: text("notes"), // Specific notes for this allocation
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  },
-  (table) => ({
-    paymentIdIdx: index("payment_allocations_payment_id_idx").on(
-      table.paymentId
-    ),
-    pledgeIdIdx: index("payment_allocations_pledge_id_idx").on(
-      table.pledgeId
-    ),
-    installmentScheduleIdIdx: index("payment_allocations_installment_schedule_id_idx").on(table.installmentScheduleId),
-    uniqueAllocation: uniqueIndex("payment_allocations_unique").on(
-      table.paymentId,
-      table.pledgeId,
-      table.installmentScheduleId // Ensures a payment can only allocate to a specific pledge-installment once.
-    ),
-  })
-);
+  export const paymentAllocations = pgTable(
+    "payment_allocations",
+    {
+      id: serial("id").primaryKey(),
+      paymentId: integer("payment_id")
+        .references(() => payment.id, { onDelete: "cascade" })
+        .notNull(),
+      pledgeId: integer("pledge_id")
+        .references(() => pledge.id, { onDelete: "cascade" })
+        .notNull(),
+      // Link to installment schedule if this specific allocation fulfills one
+      installmentScheduleId: integer("installment_schedule_id").references(
+        () => installmentSchedule.id,
+        { onDelete: "set null" }
+      ),
+      allocatedAmount: numeric("allocated_amount", {
+        precision: 10,
+        scale: 2,
+      }).notNull(),
+      currency: currencyEnum("currency").notNull(), // Currency of the allocation (typically matches payment/pledge currency)
+      allocatedAmountUsd: numeric("allocated_amount_usd", {
+        precision: 10,
+        scale: 2,
+      }), // USD equivalent of allocated amount for this specific allocation
+      notes: text("notes"), // Specific notes for this allocation
+      createdAt: timestamp("created_at").defaultNow().notNull(),
+      updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    },
+    (table) => ({
+      paymentIdIdx: index("payment_allocations_payment_id_idx").on(
+        table.paymentId
+      ),
+      pledgeIdIdx: index("payment_allocations_pledge_id_idx").on(
+        table.pledgeId
+      ),
+      installmentScheduleIdIdx: index("payment_allocations_installment_schedule_id_idx").on(table.installmentScheduleId),
+      uniqueAllocation: uniqueIndex("payment_allocations_unique").on(
+        table.paymentId,
+        table.pledgeId,
+        table.installmentScheduleId // Ensures a payment can only allocate to a specific pledge-installment once.
+      ),
+    })
+  );
 
-export type PaymentAllocation = typeof paymentAllocations.$inferSelect;
-export type NewPaymentAllocation = typeof paymentAllocations.$inferInsert;
+  export type PaymentAllocation = typeof paymentAllocations.$inferSelect;
+  export type NewPaymentAllocation = typeof paymentAllocations.$inferInsert;
 
 
 // Bonus calculations for audit trail and reporting
