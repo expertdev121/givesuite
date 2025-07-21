@@ -91,9 +91,10 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
   };
 
   const formatUSDAmount = (amount: string | null) => {
-    if (!amount) return "$0";
-    return `$${Number.parseFloat(amount).toLocaleString()}`;
-  };
+  if (!amount) return "$0";
+  const rounded = Math.round(Number.parseFloat(amount));
+  return `$${rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
+};
 
   const [pledgeId] = useQueryState("pledgeId", {
     parse: (value) => {
@@ -482,7 +483,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                       {
                                         formatCurrency(
                                           payment.amount,
-                                          payment?.pledgeOriginalCurrency
+                                          payment?.currency
                                         ).symbol
                                       }{" "}
                                       {

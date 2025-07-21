@@ -40,13 +40,9 @@ const updatePaymentSchema = z.object({
   receivedDate: z.string().optional(),
   paymentMethod: z
     .enum([
-      "credit_card",
-      "cash",
-      "check",
-      "bank_transfer",
-      "paypal",
-      "wire_transfer",
-      "other",
+      "ach", "bill_pay", "cash", "check", "credit", "credit_card", "expected",
+    "goods_and_services", "matching_funds", "money_order", "p2p", "pending",
+    "refund", "scholarship", "stock", "student_portion", "unknown", "wire", "xfer",'other'
     ])
     .optional(),
   paymentStatus: PaymentStatusEnum.optional(),
@@ -299,4 +295,4 @@ export async function PATCH(
     console.error("Error updating payment:", error);
     return ErrorHandler.handle(error);
   }
-}
+} 

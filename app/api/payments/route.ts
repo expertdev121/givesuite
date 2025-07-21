@@ -4,30 +4,11 @@ import { payment, pledge } from "@/lib/db/schema";
 import { sql, eq, and } from "drizzle-orm";
 import { z } from "zod";
 
-// Define the Zod schema for GET request query parameters
-const querySchema = z.object({
-  pledgeId: z.preprocess((val) => parseInt(String(val), 10), z.number().positive()).optional(),
-  contactId: z.preprocess((val) => parseInt(String(val), 10), z.number().positive()).optional(),
-  solicitorId: z.preprocess((val) => parseInt(String(val), 10), z.number().positive()).optional(),
-  page: z.preprocess((val) => parseInt(String(val), 10), z.number().min(1).default(1)).optional(),
-  limit: z.preprocess((val) => parseInt(String(val), 10), z.number().min(1).default(10)).optional(),
-  search: z.string().optional(),
-  paymentMethod: z.enum([
-    "cash", "check", "credit_card", "paypal", "wire_transfer", "bank_transfer", "other"
-  ]).optional(),
-  paymentStatus: z.enum([
-    "pending", "completed", "failed", "cancelled", "refunded", "processing"
-  ]).optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  hasSolicitor: z.preprocess((val) => val === 'true', z.boolean()).optional(),
-});
 
-// Define missing constants for Zod enums
-const supportedCurrencies = ["USD", "ILS", "EUR", "JPY", "GBP", "AUD", "CAD", "ZAR"] as const;
 const paymentMethodValues = [
-  "cash", "check", "credit_card", "paypal", "wire_transfer", "bank_transfer", "other"
-] as const;
+ "ach", "bill_pay", "cash", "check", "credit", "credit_card", "expected",
+    "goods_and_services", "matching_funds", "money_order", "p2p", "pending",
+    "refund", "scholarship", "stock", "student_portion", "unknown", "wire", "xfer",'other'] as const;
 
 const methodDetailValues = [
   "achisomoch", "authorize", "bank_of_america_charitable", "banquest", "banquest_cm",
@@ -40,6 +21,25 @@ const methodDetailValues = [
   "yaadpay", "yaadpay_cm", "yourcause", "yu", "zelle"
 ] as const;
 
+// Define the Zod schema for GET request query parameters
+const querySchema = z.object({
+  pledgeId: z.preprocess((val) => parseInt(String(val), 10), z.number().positive()).optional(),
+  contactId: z.preprocess((val) => parseInt(String(val), 10), z.number().positive()).optional(),
+  solicitorId: z.preprocess((val) => parseInt(String(val), 10), z.number().positive()).optional(),
+  page: z.preprocess((val) => parseInt(String(val), 10), z.number().min(1).default(1)).optional(),
+  limit: z.preprocess((val) => parseInt(String(val), 10), z.number().min(1).default(10)).optional(),
+  search: z.string().optional(),
+  paymentMethod: z.enum(paymentMethodValues).optional(),
+  paymentStatus: z.enum([
+    "pending", "completed", "failed", "cancelled", "refunded", "processing"
+  ]).optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  hasSolicitor: z.preprocess((val) => val === 'true', z.boolean()).optional(),
+});
+
+// Define missing constants for Zod enums
+const supportedCurrencies = ["USD", "ILS", "EUR", "JPY", "GBP", "AUD", "CAD", "ZAR"] as const;
 const receiptTypeValues = ["invoice", "receipt", "confirmation", "other"] as const;
 const paymentStatusValues = [
   "pending", "completed", "failed", "cancelled", "refunded", "processing"

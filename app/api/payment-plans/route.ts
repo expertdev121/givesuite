@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 // Import the specific types from your schema file
-import { paymentPlan, pledge, installmentSchedule, PaymentPlan, NewPaymentPlan } from "@/lib/db/schema";
+import { paymentPlan, pledge, installmentSchedule, payment, PaymentPlan, NewPaymentPlan, NewPayment } from "@/lib/db/schema";
 import { sql, eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { ErrorHandler } from "@/lib/error-handler";
@@ -43,6 +43,23 @@ const paymentPlanSchema = z.object({
   nextPaymentDate: z.string().optional(),
   autoRenew: z.boolean().default(false),
   planStatus: z.enum(["active", "completed", "cancelled", "paused", "overdue"]).optional(),
+  // UPDATED: paymentMethod enum values
+  paymentMethod: z.enum([
+    "ach", "bill_pay", "cash", "check", "credit", "credit_card", "expected",
+    "goods_and_services", "matching_funds", "money_order", "p2p", "pending",
+    "refund", "scholarship", "stock", "student_portion", "unknown", "wire", "xfer"
+  ]).optional(),
+  // UPDATED: methodDetail enum values
+  methodDetail: z.enum([
+    "achisomoch", "authorize", "bank_of_america_charitable", "banquest", "banquest_cm",
+    "benevity", "chai_charitable", "charityvest_inc", "cjp", "donors_fund", "earthport",
+    "e_transfer", "facts", "fidelity", "fjc", "foundation", "goldman_sachs", "htc", "jcf",
+    "jcf_san_diego", "jgive", "keshet", "masa", "masa_old", "matach", "matching_funds",
+    "mizrachi_canada", "mizrachi_olami", "montrose", "morgan_stanley_gift", "ms", "mt",
+    "ojc", "paypal", "pelecard", "schwab_charitable", "stripe", "tiaa", "touro", "uktoremet",
+    "vanguard_charitable", "venmo", "vmm", "wise", "worldline", "yaadpay", "yaadpay_cm",
+    "yourcause", "yu", "zelle"
+  ]).optional(),
   notes: z.string().optional(),
   internalNotes: z.string().optional(),
   customInstallments: z.array(installmentSchema).optional(),
@@ -62,17 +79,63 @@ const paymentPlanSchema = z.object({
 });
 
 /**
+ * Helper function to calculate installment dates based on frequency
+ */
+function calculateInstallmentDates(startDate: string, frequency: string, numberOfInstallments: number): string[] {
+  const dates: string[] = [];
+  const start = new Date(startDate);
+
+  for (let i = 0; i < numberOfInstallments; i++) {
+    const installmentDate = new Date(start);
+
+    switch (frequency) {
+      case "weekly":
+        installmentDate.setDate(start.getDate() + (i * 7));
+        break;
+      case "monthly":
+        installmentDate.setMonth(start.getMonth() + i);
+        break;
+      case "quarterly":
+        installmentDate.setMonth(start.getMonth() + (i * 3));
+        break;
+      case "biannual":
+        installmentDate.setMonth(start.getMonth() + (i * 6));
+        break;
+      case "annual":
+        installmentDate.setFullYear(start.getFullYear() + i);
+        break;
+      case "one_time":
+        installmentDate.setTime(start.getTime());
+        break;
+      default:
+        installmentDate.setTime(start.getTime());
+    }
+
+    dates.push(installmentDate.toISOString().split('T')[0]);
+  }
+
+  return dates;
+}
+
+/**
  * Handles POST requests to create a new payment plan.
  * If distributionType is 'custom', it also creates individual installment schedule entries.
  * The numberOfInstallments will be set to the length of customInstallments for custom distribution.
+ * Creates scheduled payment records for each installment.
  */
 export async function POST(request: NextRequest) {
   let createdPaymentPlan: PaymentPlan | null = null;
   let paymentPlanIdToDelete: number | null = null;
+  let createdInstallmentIds: number[] = [];
+  let createdPaymentIds: number[] = [];
 
   try {
     const body = await request.json();
     const validatedData = paymentPlanSchema.parse(body);
+
+    // Precision helper functions
+    const toCents = (amount: number): number => Math.round(amount * 100);
+    const fromCents = (cents: number): number => Math.round(cents) / 100;
 
     // --- Enhanced Validation for 'custom' distribution type ---
     if (validatedData.distributionType === "custom") {
@@ -83,13 +146,24 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Validate that sum of custom installments equals total planned amount
-      const totalCustomAmount = validatedData.customInstallments.reduce((sum, installment) => sum + installment.amount, 0);
-      if (Math.abs(totalCustomAmount - validatedData.totalPlannedAmount) > 0.01) { // Allow for small floating point differences
+      // Validate sum of custom installments with precision handling
+      const totalCustomCents = validatedData.customInstallments.reduce((sum, installment) => 
+        sum + toCents(installment.amount), 0
+      );
+      const expectedCents = toCents(validatedData.totalPlannedAmount);
+      
+      // Allow up to 2 cents difference and auto-adjust
+      const difference = expectedCents - totalCustomCents;
+      if (Math.abs(difference) > 2) {
         return NextResponse.json(
-          { error: "Validation failed", details: [{ field: "totalPlannedAmount", message: `Sum of custom installments (${totalCustomAmount}) must equal the total planned amount (${validatedData.totalPlannedAmount}).` }] },
+          { error: "Validation failed", details: [{ field: "totalPlannedAmount", message: `Sum of custom installments (${fromCents(totalCustomCents)}) must equal the total planned amount (${fromCents(expectedCents)}).` }] },
           { status: 400 }
         );
+      } else if (difference !== 0) {
+        // Auto-adjust the last installment
+        const lastIndex = validatedData.customInstallments.length - 1;
+        const lastCents = toCents(validatedData.customInstallments[lastIndex].amount);
+        validatedData.customInstallments[lastIndex].amount = fromCents(lastCents + difference);
       }
 
       // Validate installment dates are unique
@@ -102,18 +176,27 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Validate that installment dates are in the future or today
-      const today = new Date().toISOString().split('T')[0];
-      const futureDates = validatedData.customInstallments.filter(inst => inst.date < today);
-      if (futureDates.length > 0) {
+      // Validate that installment dates are not too far in the past
+      const currentDate = new Date();
+      currentDate.setHours(0, 0, 0, 0);
+      const thirtyDaysAgo = new Date(currentDate);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const invalidDates = validatedData.customInstallments.filter(inst => {
+        const instDate = new Date(inst.date);
+        instDate.setHours(0, 0, 0, 0);
+        return instDate < thirtyDaysAgo;
+      });
+      
+      if (invalidDates.length > 0) {
         return NextResponse.json(
-          { error: "Validation failed", details: [{ field: "customInstallments", message: "Installment dates cannot be in the past." }] },
+          { error: "Validation failed", details: [{ field: "customInstallments", message: "Installment dates cannot be more than 30 days in the past." }] },
           { status: 400 }
         );
       }
     }
 
-    // --- Enhanced Validation for 'fixed' distribution type ---
+    // --- Enhanced Validation for 'fixed' distribution type with Auto-Correction ---
     if (validatedData.distributionType === "fixed") {
       if (!validatedData.installmentAmount || !validatedData.numberOfInstallments) {
         return NextResponse.json(
@@ -122,13 +205,71 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Validate that installmentAmount * numberOfInstallments equals totalPlannedAmount
-      const calculatedTotal = validatedData.installmentAmount * validatedData.numberOfInstallments;
-      if (Math.abs(calculatedTotal - validatedData.totalPlannedAmount) > 0.01) {
-        return NextResponse.json(
-          { error: "Validation failed", details: [{ field: "totalPlannedAmount", message: `Installment amount (${validatedData.installmentAmount}) × number of installments (${validatedData.numberOfInstallments}) = ${calculatedTotal} must equal total planned amount (${validatedData.totalPlannedAmount}).` }] },
-          { status: 400 }
-        );
+      // Auto-correct precision issues for fixed distribution
+      const totalPlannedAmount = validatedData.totalPlannedAmount;
+      const numberOfInstallments = validatedData.numberOfInstallments;
+      
+      // Calculate correct installment amount using cent-based math
+      const totalCents = toCents(totalPlannedAmount);
+      const baseCentsPerInstallment = Math.floor(totalCents / numberOfInstallments);
+      const remainderCents = totalCents % numberOfInstallments;
+      
+      // Check if the provided installment amount would create precision issues
+      const providedInstallmentCents = toCents(validatedData.installmentAmount);
+      const calculatedTotalCents = providedInstallmentCents * numberOfInstallments;
+      const expectedTotalCents = toCents(totalPlannedAmount);
+      
+      // If there's a mismatch, auto-correct or convert to custom
+      if (Math.abs(calculatedTotalCents - expectedTotalCents) > 1) {
+        if (remainderCents === 0) {
+          // Perfect division - just update the installment amount
+          const baseInstallmentAmount = fromCents(baseCentsPerInstallment);
+          validatedData.installmentAmount = baseInstallmentAmount;
+        } else {
+          // Convert to custom distribution to handle remainder properly
+          const customInstallments = [];
+          const startDate = new Date(validatedData.startDate);
+          
+          for (let i = 0; i < numberOfInstallments; i++) {
+            const installmentDate = new Date(startDate);
+            
+            switch (validatedData.frequency) {
+              case "weekly":
+                installmentDate.setDate(startDate.getDate() + i * 7);
+                break;
+              case "monthly":
+                installmentDate.setMonth(startDate.getMonth() + i);
+                break;
+              case "quarterly":
+                installmentDate.setMonth(startDate.getMonth() + i * 3);
+                break;
+              case "biannual":
+                installmentDate.setMonth(startDate.getMonth() + i * 6);
+                break;
+              case "annual":
+                installmentDate.setFullYear(startDate.getFullYear() + i);
+                break;
+              default:
+                installmentDate.setMonth(startDate.getMonth() + i);
+            }
+            
+            // Distribute remainder cents among first installments
+            let installmentCents = baseCentsPerInstallment;
+            if (i < remainderCents) {
+              installmentCents += 1;
+            }
+            
+            customInstallments.push({
+              date: installmentDate.toISOString().split('T')[0],
+              amount: fromCents(installmentCents),
+              notes: `Installment ${i + 1}`,
+            });
+          }
+          
+          validatedData.distributionType = "custom";
+          validatedData.customInstallments = customInstallments;
+          validatedData.installmentAmount = fromCents(baseCentsPerInstallment);
+        }
       }
     }
 
@@ -151,16 +292,28 @@ export async function POST(request: NextRequest) {
     // Calculate values based on distribution type
     let finalInstallmentAmount: string;
     let finalNumberOfInstallments: number;
+    let finalTotalPlannedAmount: string;
 
     if (validatedData.distributionType === "custom") {
       // For custom distribution, set numberOfInstallments to the length of customInstallments
       finalNumberOfInstallments = validatedData.customInstallments!.length;
+      
+      // Calculate exact total from custom installments
+      const exactTotalCents = validatedData.customInstallments!.reduce((sum, inst) => 
+        sum + toCents(inst.amount), 0
+      );
+      finalTotalPlannedAmount = fromCents(exactTotalCents).toFixed(2);
+      
       // Calculate average installment amount for reference
-      finalInstallmentAmount = (validatedData.totalPlannedAmount / finalNumberOfInstallments).toString();
+      finalInstallmentAmount = fromCents(Math.floor(exactTotalCents / finalNumberOfInstallments)).toFixed(2);
     } else {
-      // For fixed distribution, use the provided values
-      finalInstallmentAmount = validatedData.installmentAmount!.toString();
+      // For fixed distribution, use the corrected values
+      finalInstallmentAmount = validatedData.installmentAmount!.toFixed(2);
       finalNumberOfInstallments = validatedData.numberOfInstallments!;
+      
+      // Ensure total matches installment amount × count exactly
+      const exactTotalCents = toCents(validatedData.installmentAmount!) * finalNumberOfInstallments;
+      finalTotalPlannedAmount = fromCents(exactTotalCents).toFixed(2);
     }
 
     // Prepare data for inserting into the paymentPlan table
@@ -169,14 +322,14 @@ export async function POST(request: NextRequest) {
       planName: validatedData.planName || null,
       frequency: validatedData.frequency,
       distributionType: validatedData.distributionType,
-      totalPlannedAmount: validatedData.totalPlannedAmount.toString(),
+      totalPlannedAmount: finalTotalPlannedAmount,
       currency: validatedData.currency,
       installmentAmount: finalInstallmentAmount,
       numberOfInstallments: finalNumberOfInstallments,
       startDate: validatedData.startDate,
       endDate: validatedData.endDate || null,
       nextPaymentDate: validatedData.nextPaymentDate || validatedData.startDate,
-      remainingAmount: validatedData.totalPlannedAmount.toString(),
+      remainingAmount: finalTotalPlannedAmount,
       planStatus: "active",
       autoRenew: validatedData.autoRenew,
       remindersSent: 0,
@@ -202,32 +355,136 @@ export async function POST(request: NextRequest) {
     createdPaymentPlan = paymentPlanResult[0];
     paymentPlanIdToDelete = createdPaymentPlan.id;
 
-    // 3. If custom distribution, insert installment schedules
+    // 3. Handle installment schedules and scheduled payments based on distribution type
     if (validatedData.distributionType === "custom" && validatedData.customInstallments) {
+      // Custom distribution - insert custom installment schedules and payments
       const installmentsToInsert = validatedData.customInstallments.map((inst) => ({
         paymentPlanId: createdPaymentPlan!.id,
         installmentDate: inst.date,
-        installmentAmount: inst.amount.toString(),
+        installmentAmount: inst.amount.toFixed(2),
         currency: createdPaymentPlan!.currency,
         notes: inst.notes || null,
       }));
 
-      await db.insert(installmentSchedule).values(installmentsToInsert);
+      const installmentResults = await db.insert(installmentSchedule).values(installmentsToInsert).returning();
+      createdInstallmentIds = installmentResults.map(inst => inst.id);
+
+      // Create scheduled payments for each custom installment
+      const scheduledPayments: NewPayment[] = installmentResults.map((installmentRecord, index) => ({
+        pledgeId: validatedData.pledgeId,
+        paymentPlanId: createdPaymentPlan!.id,
+        installmentScheduleId: installmentRecord.id,
+        amount: validatedData.customInstallments![index].amount.toFixed(2),
+        currency: validatedData.currency,
+        amountUsd: pledgeExchangeRate ? (validatedData.customInstallments![index].amount * parseFloat(pledgeExchangeRate.toString())).toFixed(2) : null,
+        amountInPledgeCurrency: validatedData.customInstallments![index].amount.toFixed(2),
+        exchangeRate: pledgeExchangeRate,
+        paymentDate: installmentRecord.installmentDate,
+        receivedDate: null, 
+        paymentMethod: (validatedData.paymentMethod || "other") as NewPayment['paymentMethod'],
+        methodDetail: validatedData.methodDetail || null,
+        paymentStatus: "pending",
+        referenceNumber: null,
+        checkNumber: null,
+        receiptNumber: null,
+        receiptType: null,
+        receiptIssued: false,
+        solicitorId: null,
+        bonusPercentage: null,
+        bonusAmount: null,
+        bonusRuleId: null,
+        notes: validatedData.customInstallments![index].notes || null,
+      }));
+
+      const paymentResults = await db.insert(payment).values(scheduledPayments).returning();
+      createdPaymentIds = paymentResults.map(p => p.id);
+
+    } else {
+      // Fixed distribution - calculate installment dates and create schedules and payments
+      const installmentDates = calculateInstallmentDates(
+        validatedData.startDate,
+        validatedData.frequency,
+        finalNumberOfInstallments
+      );
+
+      const installmentsToInsert = installmentDates.map((date) => ({
+        paymentPlanId: createdPaymentPlan!.id,
+        installmentDate: date,
+        installmentAmount: finalInstallmentAmount,
+        currency: createdPaymentPlan!.currency,
+        notes: null,
+      }));
+
+      const installmentResults = await db.insert(installmentSchedule).values(installmentsToInsert).returning();
+      createdInstallmentIds = installmentResults.map(inst => inst.id);
+
+      // Create scheduled payments for each fixed installment
+      const scheduledPayments: NewPayment[] = installmentResults.map((installmentRecord) => ({
+        pledgeId: validatedData.pledgeId,
+        paymentPlanId: createdPaymentPlan!.id,
+        installmentScheduleId: installmentRecord.id,
+        amount: finalInstallmentAmount,
+        currency: validatedData.currency,
+        amountUsd: pledgeExchangeRate ? (parseFloat(finalInstallmentAmount) * parseFloat(pledgeExchangeRate.toString())).toFixed(2) : null,
+        amountInPledgeCurrency: finalInstallmentAmount,
+        exchangeRate: pledgeExchangeRate,
+        paymentDate: installmentRecord.installmentDate,
+        receivedDate: null,
+        paymentMethod: (validatedData.paymentMethod || "other") as NewPayment['paymentMethod'],
+        methodDetail: validatedData.methodDetail || null,
+        paymentStatus: "pending",
+        referenceNumber: null,
+        checkNumber: null,
+        receiptNumber: null,
+        receiptType: null,
+        receiptIssued: false,
+        solicitorId: null,
+        bonusPercentage: null,
+        bonusAmount: null,
+        bonusRuleId: null,
+        notes: null,
+      }));
+
+      const paymentResults = await db.insert(payment).values(scheduledPayments).returning();
+      createdPaymentIds = paymentResults.map(p => p.id);
     }
 
     // All operations successful
     return NextResponse.json(
       {
-        message: "Payment plan created successfully",
+        message: "Payment plan created successfully with scheduled payments",
         paymentPlan: createdPaymentPlan,
+        scheduledPaymentsCount: createdPaymentIds.length,
       },
       { status: 201 }
     );
 
   } catch (error) {
-    // --- Manual Rollback Logic for Partial Failures ---
+    // --- Enhanced Manual Rollback Logic for Partial Failures ---
+    console.warn("Error occurred during payment plan creation. Attempting rollback...");
+
+    // Rollback payments first (due to foreign key constraints)
+    if (createdPaymentIds.length > 0) {
+      try {
+        await db.delete(payment).where(sql`id = ANY(${createdPaymentIds})`);
+        console.warn(`Successfully rolled back ${createdPaymentIds.length} scheduled payments.`);
+      } catch (rollbackError) {
+        console.error(`CRITICAL: Failed to rollback scheduled payments (IDs: ${createdPaymentIds.join(', ')}). Data inconsistency possible!`, rollbackError);
+      }
+    }
+
+    // Rollback installment schedules
+    if (createdInstallmentIds.length > 0) {
+      try {
+        await db.delete(installmentSchedule).where(sql`id = ANY(${createdInstallmentIds})`);
+        console.warn(`Successfully rolled back ${createdInstallmentIds.length} installment schedules.`);
+      } catch (rollbackError) {
+        console.error(`CRITICAL: Failed to rollback installment schedules (IDs: ${createdInstallmentIds.join(', ')}). Data inconsistency possible!`, rollbackError);
+      }
+    }
+
+    // Rollback payment plan
     if (paymentPlanIdToDelete) {
-      console.warn(`Attempting to rollback payment plan (ID: ${paymentPlanIdToDelete}) due to a subsequent error during creation.`);
       try {
         await db.delete(paymentPlan).where(eq(paymentPlan.id, paymentPlanIdToDelete));
         console.warn(`Successfully rolled back payment plan (ID: ${paymentPlanIdToDelete}).`);
@@ -294,6 +551,7 @@ export async function POST(request: NextRequest) {
     return ErrorHandler.handle(error);
   }
 }
+
 
 // --- GET Endpoint (unchanged) ---
 const querySchema = z.object({
@@ -454,7 +712,6 @@ export async function GET(request: NextRequest) {
         distributionType,
       },
     };
-
     return NextResponse.json(response, {
       headers: {
         "X-Total-Count": response.pagination.totalCount.toString(),

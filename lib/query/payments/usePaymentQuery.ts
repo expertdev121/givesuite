@@ -8,20 +8,32 @@ export interface PaymentQueryParams {
   limit?: number;
   search?: string;
   paymentMethod?:
-  | "credit_card"
-  | "cash"
-  | "check"
-  | "bank_transfer"
-  | "paypal"
-  | "wire_transfer"
-  | "other";
+    | "ach"
+    | "bill_pay"
+    | "cash"
+    | "check"
+    | "credit"
+    | "credit_card"
+    | "expected"
+    | "goods_and_services"
+    | "matching_funds"
+    | "money_order"
+    | "p2p"
+    | "pending"
+    | "refund"
+    | "scholarship"
+    | "stock"
+    | "student_portion"
+    | "unknown"
+    | "wire"
+    | "xfer";
   paymentStatus?:
-  | "pending"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "refunded"
-  | "processing";
+    | "pending"
+    | "completed"
+    | "failed"
+    | "cancelled"
+    | "refunded"
+    | "processing";
   startDate?: string;
   endDate?: string;
   hasSolicitor?: boolean;
@@ -115,20 +127,32 @@ export interface CreatePaymentData {
   paymentDate: string;
   receivedDate?: string;
   paymentMethod:
-  | "credit_card"
-  | "cash"
-  | "check"
-  | "bank_transfer"
-  | "paypal"
-  | "wire_transfer"
-  | "other";
+    | "ach"
+    | "bill_pay"
+    | "cash"
+    | "check"
+    | "credit"
+    | "credit_card"
+    | "expected"
+    | "goods_and_services"
+    | "matching_funds"
+    | "money_order"
+    | "p2p"
+    | "pending"
+    | "refund"
+    | "scholarship"
+    | "stock"
+    | "student_portion"
+    | "unknown"
+    | "wire"
+    | "xfer";
   paymentStatus?:
-  | "pending"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "refunded"
-  | "processing";
+    | "pending"
+    | "completed"
+    | "failed"
+    | "cancelled"
+    | "refunded"
+    | "processing";
   referenceNumber?: string;
   checkNumber?: string;
   receiptNumber?: string;
@@ -159,20 +183,32 @@ export interface UpdatePaymentData {
   paymentDate?: string;
   receivedDate?: string;
   paymentMethod?:
-  | "credit_card"
-  | "cash"
-  | "check"
-  | "bank_transfer"
-  | "paypal"
-  | "wire_transfer"
-  | "other";
+    | "ach"
+    | "bill_pay"
+    | "cash"
+    | "check"
+    | "credit"
+    | "credit_card"
+    | "expected"
+    | "goods_and_services"
+    | "matching_funds"
+    | "money_order"
+    | "p2p"
+    | "pending"
+    | "refund"
+    | "scholarship"
+    | "stock"
+    | "student_portion"
+    | "unknown"
+    | "wire"
+    | "xfer";
   paymentStatus?:
-  | "pending"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "refunded"
-  | "processing";
+    | "pending"
+    | "completed"
+    | "failed"
+    | "cancelled"
+    | "refunded"
+    | "processing";
   referenceNumber?: string;
   checkNumber?: string;
   receiptNumber?: string;
@@ -266,7 +302,6 @@ const updatePayment = async (
   return response.json();
 };
 
-
 const deletePayment = async (
   data: DeletePaymentData
 ): Promise<DeletePaymentResponse> => {
@@ -341,7 +376,6 @@ export const useUpdatePaymentMutation = (pledgeId: number) => {
     },
   });
 };
-
 
 export const useDeletePaymentMutation = () => {
   const queryClient = useQueryClient();

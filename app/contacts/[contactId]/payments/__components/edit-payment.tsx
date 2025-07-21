@@ -299,6 +299,9 @@ export default function EditPaymentDialog({
   const open = isControlled ? controlledOpen : internalOpen;
   const setOpen = isControlled ? (controlledOnOpenChange || (() => { })) : setInternalOpen;
 
+  // Check if payment belongs to a payment plan
+  const isPaymentPlanPayment = payment.paymentPlanId !== null;
+
   const { data: pledgesData, isLoading: isLoadingPledges } = usePledgesQuery(
     {
       contactId: payment.pledgeId,
@@ -461,13 +464,32 @@ export default function EditPaymentDialog({
 
   const onSubmit = async (data: EditPaymentFormData) => {
     try {
-      const updateData = Object.fromEntries(
-        Object.entries(data).filter(
-          ([, value]) => value !== undefined && value !== null && value !== ""
-        )
-      );
+      // If payment belongs to a payment plan, exclude amount and paymentDate from updates
+      if (isPaymentPlanPayment) {
+        const { amount, paymentDate, ...allowedUpdates } = data;
 
-      await updatePaymentMutation.mutateAsync(updateData as any);
+        if (amount !== parseFloat(payment.amount) || paymentDate !== payment.paymentDate) {
+          toast.error("Cannot modify amount or payment date for payment plan payments");
+          return;
+        }
+
+        const updateData = Object.fromEntries(
+          Object.entries(allowedUpdates).filter(
+            ([, value]) => value !== undefined && value !== null && value !== ""
+          )
+        );
+
+        await updatePaymentMutation.mutateAsync(updateData as any);
+      } else {
+        const updateData = Object.fromEntries(
+          Object.entries(data).filter(
+            ([, value]) => value !== undefined && value !== null && value !== ""
+          )
+        );
+
+        await updatePaymentMutation.mutateAsync(updateData as any);
+      }
+
       toast.success("Payment updated successfully!");
       setOpen(false);
     } catch (error) {
@@ -533,7 +555,7 @@ export default function EditPaymentDialog({
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Payment</DialogTitle>
-           <DialogDescription>
+          <DialogDescription>
             <div>
               Edit payment for pledge{" "}
               {payment.pledgeDescription
@@ -548,555 +570,599 @@ export default function EditPaymentDialog({
                   Solicitor: {payment.solicitorName}
                 </span>
               )}
+              {isPaymentPlanPayment && (
+                <span className="block mt-1 text-sm text-orange-600 font-medium">
+                  ⚠️ This payment belongs to a payment plan. Amount and payment date cannot be modified.
+                </span>
+              )}
             </div>
-          </DialogDescription>  
+          </DialogDescription>
         </DialogHeader>
-       <Form {...form}>
-  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {/* Payment ID (Read-only) */}
-      <FormField
-        control={form.control}
-        name="paymentId"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Payment ID</FormLabel>
-            <FormControl>
-              <Input {...field} type="number" readOnly className="opacity-70" />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      {/* Amount */}
-      <FormField
-        control={form.control}
-        name="amount"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Amount</FormLabel>
-            <FormControl>
-              <Input
-                {...field}
-                type="number"
-                step="0.01"
-                onChange={(e) => field.onChange(parseFloat(e.target.value))}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      {/* Currency */}
-      <FormField
-        control={form.control}
-        name="currency"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Currency</FormLabel>
-            <Select onValueChange={field.onChange} defaultValue={field.value}>
-              <FormControl>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a currency" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                {supportedCurrencies.map((currency) => (
-                  <SelectItem key={currency} value={currency}>
-                    {currency}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      {/* Exchange Rate */}
-      <FormField
-        control={form.control}
-        name="exchangeRate"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Exchange Rate (to USD)</FormLabel>
-            <FormControl>
-              <Input
-                {...field}
-                type="number"
-                step="0.0001"
-                onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                readOnly={isLoadingRates}
-                className={isLoadingRates ? "opacity-70" : ""}
-              />
-            </FormControl>
-            {isLoadingRates && <p className="text-sm text-gray-500">Fetching latest rates...</p>}
-            {ratesError && <p className="text-sm text-red-500">Error fetching rates.</p>}
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      {/* Amount in USD */}
-      <FormField
-        control={form.control}
-        name="amountUsd"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Amount (USD)</FormLabel>
-            <FormControl>
-              <Input {...field} type="number" step="0.01" readOnly className="opacity-70" />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      {/* Amount in Pledge Currency (if different from payment currency) */}
-      <FormField
-        control={form.control}
-        name="amountInPledgeCurrency"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Amount (Pledge Currency: {effectivePledgeCurrency})</FormLabel>
-            <FormControl>
-              <Input
-                {...field}
-                type="number"
-                step="0.01"
-                value={convertAmountBetweenCurrencies(
-                  watchedAmount || 0,
-                  watchedCurrency || "USD",
-                  effectivePledgeCurrency,
-                  exchangeRatesData?.data?.rates
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Payment ID (Read-only) */}
+              <FormField
+                control={form.control}
+                name="paymentId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Payment ID</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="number" readOnly className="opacity-70" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-                readOnly
-                className="opacity-70"
               />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
 
-      {/* Payment Date */}
-      <FormField
-        control={form.control}
-        name="paymentDate"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Payment Date</FormLabel>
-            <FormControl>
-              <Input {...field} type="date" />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      {/* Received Date */}
-      <FormField
-        control={form.control}
-        name="receivedDate"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Received Date</FormLabel>
-            <FormControl>
-              <Input
-                {...field}
-                type="date"
-                value={field.value || ""}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      {/* Payment Method */}
-      <FormField
-        control={form.control}
-        name="paymentMethod"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Payment Method</FormLabel>
-            <Popover>
-              <PopoverTrigger asChild>
-                <FormControl>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    className="w-full justify-between"
-                  >
-                    {field.value
-                      ? paymentMethods.find((method) => method.value === field.value)?.label
-                      : "Select a payment method"}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </FormControl>
-              </PopoverTrigger>
-              <PopoverContent className="w-full p-0">
-                <Command>
-                  <CommandInput placeholder="Search payment method..." />
-                  <CommandEmpty>No payment method found.</CommandEmpty>
-                  <CommandGroup>
-                    {paymentMethods.map((method) => (
-                      <CommandItem
-                        key={method.value}
-                        value={method.value}
-                        onSelect={() => {
-                          form.setValue("paymentMethod", method.value)
-                        }}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            field.value === method.value ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                        {method.label}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </Command>
-              </PopoverContent>
-            </Popover>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      {/* Method Detail */}
-      <FormField
-        control={form.control}
-        name="methodDetail"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Method Detail</FormLabel>
-            <Popover>
-              <PopoverTrigger asChild>
-                <FormControl>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    className="w-full justify-between"
-                    disabled={!form.watch("paymentMethod")}
-                  >
-                    {field.value
-                      ? methodDetails.find((detail) => detail.value === field.value)?.label
-                      : "Select a method detail"}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </FormControl>
-              </PopoverTrigger>
-              <PopoverContent className="w-full p-0">
-                <Command>
-                  <CommandInput placeholder="Search method detail..." />
-                  <CommandEmpty>No method detail found.</CommandEmpty>
-                  <CommandGroup>
-                    {methodDetails.map((detail) => (
-                      <CommandItem
-                        key={detail.value}
-                        value={detail.value}
-                        onSelect={() => {
-                          form.setValue("methodDetail", detail.value)
-                        }}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            field.value === detail.value ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                        {detail.label}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </Command>
-              </PopoverContent>
-            </Popover>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      {/* Payment Status */}
-      <FormField
-        control={form.control}
-        name="paymentStatus"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Payment Status</FormLabel>
-            <Select onValueChange={field.onChange} defaultValue={field.value}>
-              <FormControl>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a payment status" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                {paymentStatuses.map((status) => (
-                  <SelectItem key={status.value} value={status.value}>
-                    {status.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      {/* Reference Number */}
-      <FormField
-        control={form.control}
-        name="referenceNumber"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Reference Number</FormLabel>
-            <FormControl>
-              <Input {...field} value={field.value || ""} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      {/* Receipt Number */}
-      <FormField
-        control={form.control}
-        name="receiptNumber"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Receipt Number</FormLabel>
-            <FormControl>
-              <Input {...field} value={field.value || ""} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      {/* Receipt Type */}
-      <FormField
-        control={form.control}
-        name="receiptType"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Receipt Type</FormLabel>
-            <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
-              <FormControl>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a receipt type" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                {receiptTypes.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-    </div>
-
-    {/* Receipt Issued - Full Width */}
-    <FormField
-      control={form.control}
-      name="receiptIssued"
-      render={({ field }) => (
-        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
-          <div className="space-y-0.5">
-            <FormLabel className="text-base">Receipt Issued</FormLabel>
-            <DialogDescription>
-              Has a receipt been issued for this payment?
-            </DialogDescription>
-          </div>
-          <FormControl>
-            <Switch
-              checked={field.value}
-              onCheckedChange={field.onChange}
-            />
-          </FormControl>
-        </FormItem>
-      )}
-    />
-
-    {/* Solicitor Section Toggle */}
-    <div className="flex items-center space-x-2 mt-4">
-      <Switch
-        id="show-solicitor-section"
-        checked={showSolicitorSection}
-        onCheckedChange={(checked) => {
-          setShowSolicitorSection(checked);
-          if (!checked) {
-            form.setValue("solicitorId", null);
-            form.setValue("bonusPercentage", null);
-            form.setValue("bonusAmount", null);
-            form.setValue("bonusRuleId", null);
-          }
-        }}
-      />
-      <label htmlFor="show-solicitor-section" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-        Assign Solicitor
-      </label>
-    </div>
-
-    {showSolicitorSection && (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border p-4 rounded-lg mt-4">
-        <h3 className="col-span-full text-lg font-semibold mb-2">Solicitor Details</h3>
-        {/* Solicitor ID */}
-        <FormField
-          control={form.control}
-          name="solicitorId"
-          render={({ field }) => (
-            <FormItem className="flex flex-col">
-              <FormLabel>Solicitor</FormLabel>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <FormControl>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      className={cn(
-                        "w-full justify-between",
-                        !field.value && "text-muted-foreground"
+              {/* Amount - Disabled if payment belongs to payment plan */}
+              <FormField
+                control={form.control}
+                name="amount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Amount
+                      {isPaymentPlanPayment && (
+                        <span className="text-sm text-orange-600 ml-2">(Controlled by Payment Plan)</span>
                       )}
-                    >
-                      {field.value
-                        ? solicitorOptions.find(
-                          (solicitor) => solicitor.value === field.value
-                        )?.label
-                        : "Select solicitor"}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </FormControl>
-                </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                  <Command>
-                    <CommandInput placeholder="Search solicitor..." />
-                    <CommandList>
-                      <CommandEmpty>No solicitor found.</CommandEmpty>
-                      <CommandGroup>
-                        {solicitorOptions.map((solicitor) => (
-                          <CommandItem
-                            value={solicitor.label}
-                            key={solicitor.value}
-                            onSelect={() => {
-                              form.setValue("solicitorId", solicitor.value);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                solicitor.value === field.value
-                                  ? "opacity-100"
-                                  : "opacity-0"
-                              )}
-                            />
-                            {solicitor.label}
-                          </CommandItem>
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="number"
+                        step="0.01"
+                        disabled={isPaymentPlanPayment}
+                        className={isPaymentPlanPayment ? "opacity-60 cursor-not-allowed bg-muted" : ""}
+                        onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                      />
+                    </FormControl>
+                    {isPaymentPlanPayment && (
+                      <p className="text-xs text-orange-600">
+                        Amount is controlled by the payment plan and cannot be modified
+                      </p>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Currency */}
+              <FormField
+                control={form.control}
+                name="currency"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Currency</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a currency" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {supportedCurrencies.map((currency) => (
+                          <SelectItem key={currency} value={currency}>
+                            {currency}
+                          </SelectItem>
                         ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-        {/* Bonus Percentage */}
-        <FormField
-          control={form.control}
-          name="bonusPercentage"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Bonus Percentage (%)</FormLabel>
-              <FormControl>
-                <Input
-                  {...field}
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                  value={field.value ?? ""}
+              {/* Exchange Rate */}
+              <FormField
+                control={form.control}
+                name="exchangeRate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Exchange Rate (to USD)</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="number"
+                        step="0.0001"
+                        onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                        readOnly={isLoadingRates}
+                        className={isLoadingRates ? "opacity-70" : ""}
+                      />
+                    </FormControl>
+                    {isLoadingRates && <p className="text-sm text-gray-500">Fetching latest rates...</p>}
+                    {ratesError && <p className="text-sm text-red-500">Error fetching rates.</p>}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Amount in USD */}
+              <FormField
+                control={form.control}
+                name="amountUsd"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Amount (USD)</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="number" step="0.01" readOnly className="opacity-70" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Amount in Pledge Currency (if different from payment currency) */}
+              <FormField
+                control={form.control}
+                name="amountInPledgeCurrency"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Amount (Pledge Currency: {effectivePledgeCurrency})</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="number"
+                        step="0.01"
+                        value={convertAmountBetweenCurrencies(
+                          watchedAmount || 0,
+                          watchedCurrency || "USD",
+                          effectivePledgeCurrency,
+                          exchangeRatesData?.data?.rates
+                        )}
+                        readOnly
+                        className="opacity-70"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Payment Date - Disabled if payment belongs to payment plan */}
+              <FormField
+                control={form.control}
+                name="paymentDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Payment Date
+                      {isPaymentPlanPayment && (
+                        <span className="text-sm text-orange-600 ml-2">(Controlled by Payment Plan)</span>
+                      )}
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="date"
+                        disabled={isPaymentPlanPayment}
+                        className={isPaymentPlanPayment ? "opacity-60 cursor-not-allowed bg-muted" : ""}
+                      />
+                    </FormControl>
+                    {isPaymentPlanPayment && (
+                      <p className="text-xs text-orange-600">
+                        Payment date is controlled by the payment plan and cannot be modified
+                      </p>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Received Date */}
+              <FormField
+                control={form.control}
+                name="receivedDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Received Date</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="date"
+                        value={field.value || ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Payment Method */}
+              <FormField
+                control={form.control}
+                name="paymentMethod"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Payment Method</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className={cn(
+                              "w-full justify-between",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value
+                              ? paymentMethods.find((method) => method.value === field.value)?.label
+                              : "Select a payment method"}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0">
+                        <Command>
+                          <CommandInput placeholder="Search payment methods..." />
+                          <CommandEmpty>No payment method found.</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem
+                              value=""
+                              onSelect={() => {
+                                form.setValue("paymentMethod", "")
+                              }}
+                              className="text-muted-foreground"
+                            >
+                              <div className="mr-2 h-4 w-4" />
+                              Select a payment method
+                            </CommandItem>
+                            {paymentMethods.map((method) => (
+                              <CommandItem
+                                key={method.value}
+                                value={method.value}
+                                onSelect={() => {
+                                  form.setValue("paymentMethod", method.value)
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    field.value === method.value ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {method.label}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {/* Method Detail */}
+              <FormField
+                control={form.control}
+                name="methodDetail"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Method Detail</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className="w-full justify-between"
+                            disabled={!form.watch("paymentMethod")}
+                          >
+                            {field.value
+                              ? methodDetails.find((detail) => detail.value === field.value)?.label
+                              : "Select a method detail"}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0">
+                        <Command>
+                          <CommandInput placeholder="Search method detail..." />
+                          <CommandEmpty>No method detail found.</CommandEmpty>
+                          <CommandGroup>
+                            {methodDetails.map((detail) => (
+                              <CommandItem
+                                key={detail.value}
+                                value={detail.value}
+                                onSelect={() => {
+                                  form.setValue("methodDetail", detail.value)
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    field.value === detail.value ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {detail.label}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Payment Status */}
+              <FormField
+                control={form.control}
+                name="paymentStatus"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Payment Status</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a payment status" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {paymentStatuses.map((status) => (
+                          <SelectItem key={status.value} value={status.value}>
+                            {status.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Reference Number */}
+              <FormField
+                control={form.control}
+                name="referenceNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Reference Number</FormLabel>
+                    <FormControl>
+                      <Input {...field} value={field.value || ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Receipt Number */}
+              <FormField
+                control={form.control}
+                name="receiptNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Receipt Number</FormLabel>
+                    <FormControl>
+                      <Input {...field} value={field.value || ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Receipt Type */}
+              <FormField
+                control={form.control}
+                name="receiptType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Receipt Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a receipt type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {receiptTypes.map((type) => (
+                          <SelectItem key={type.value} value={type.value}>
+                            {type.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Receipt Issued - Full Width */}
+            <FormField
+              control={form.control}
+              name="receiptIssued"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">Receipt Issued</FormLabel>
+                    <DialogDescription>
+                      Has a receipt been issued for this payment?
+                    </DialogDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            {/* Solicitor Section Toggle */}
+            <div className="flex items-center space-x-2 mt-4">
+              <Switch
+                id="show-solicitor-section"
+                checked={showSolicitorSection}
+                onCheckedChange={(checked) => {
+                  setShowSolicitorSection(checked);
+                  if (!checked) {
+                    form.setValue("solicitorId", null);
+                    form.setValue("bonusPercentage", null);
+                    form.setValue("bonusAmount", null);
+                    form.setValue("bonusRuleId", null);
+                  }
+                }}
+              />
+              <label htmlFor="show-solicitor-section" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Assign Solicitor
+              </label>
+            </div>
+
+            {showSolicitorSection && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border p-4 rounded-lg mt-4">
+                <h3 className="col-span-full text-lg font-semibold mb-2">Solicitor Details</h3>
+                {/* Solicitor ID */}
+                <FormField
+                  control={form.control}
+                  name="solicitorId"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Solicitor</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className={cn(
+                                "w-full justify-between",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value
+                                ? solicitorOptions.find(
+                                  (solicitor) => solicitor.value === field.value
+                                )?.label
+                                : "Select solicitor"}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                          <Command>
+                            <CommandInput placeholder="Search solicitor..." />
+                            <CommandList>
+                              <CommandEmpty>No solicitor found.</CommandEmpty>
+                              <CommandGroup>
+                                {solicitorOptions.map((solicitor) => (
+                                  <CommandItem
+                                    value={solicitor.label}
+                                    key={solicitor.value}
+                                    onSelect={() => {
+                                      form.setValue("solicitorId", solicitor.value);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        solicitor.value === field.value
+                                          ? "opacity-100"
+                                          : "opacity-0"
+                                      )}
+                                    />
+                                    {solicitor.label}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
 
-        {/* Bonus Amount */}
-        <FormField
-          control={form.control}
-          name="bonusAmount"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Bonus Amount</FormLabel>
-              <FormControl>
-                <Input {...field} type="number" step="0.01" readOnly className="opacity-70" value={field.value ?? ""} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Bonus Rule ID */}
-        <FormField
-          control={form.control}
-          name="bonusRuleId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Bonus Rule ID</FormLabel>
-              <FormControl>
-                <Input
-                  {...field}
-                  type="number"
-                  onChange={(e) => field.onChange(parseInt(e.target.value))}
-                  value={field.value ?? ""}
+                {/* Bonus Percentage */}
+                <FormField
+                  control={form.control}
+                  name="bonusPercentage"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Bonus Percentage (%)</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="100"
+                          onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
-    )}
 
-    {/* General Notes */}
-    <FormField
-      control={form.control}
-      name="notes"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>Notes</FormLabel>
-          <FormControl>
-            <Textarea {...field} value={field.value || ""} />
-          </FormControl>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
+                {/* Bonus Amount */}
+                <FormField
+                  control={form.control}
+                  name="bonusAmount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Bonus Amount</FormLabel>
+                      <FormControl>
+                        <Input {...field} type="number" step="0.01" readOnly className="opacity-70" value={field.value ?? ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-    <div className="flex gap-4 justify-end">
-  <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
-    Cancel
-  </Button>
-  <Button type="submit" disabled={updatePaymentMutation.isPending}>
-    {updatePaymentMutation.isPending ? "Saving..." : "Save Changes"}
-  </Button>
-</div>
-  </form>
-</Form>
+                {/* Bonus Rule ID */}
+                <FormField
+                  control={form.control}
+                  name="bonusRuleId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Bonus Rule ID</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type="number"
+                          onChange={(e) => field.onChange(parseInt(e.target.value))}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
+
+            {/* General Notes */}
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notes</FormLabel>
+                  <FormControl>
+                    <Textarea {...field} value={field.value || ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="flex gap-4 justify-end">
+              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updatePaymentMutation.isPending}>
+                {updatePaymentMutation.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
