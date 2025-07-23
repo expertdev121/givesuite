@@ -96,45 +96,37 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // === AWAIT PARAMS TO GET THE ID ===
-    const { id: pledgeIdString } = await params; // Destructure the id from the awaited params
-
-    const pledgeId = parseInt(pledgeIdString, 10); // Parse the string ID to a number
-    if (isNaN(pledgeId) || pledgeId <= 0) {
+    // === AWAIT PARAMS TO GET THE PAYMENT PLAN ID ===
+    const { id: paymentPlanIdString } = await params;
+    const paymentPlanId = parseInt(paymentPlanIdString, 10);
+    
+    if (isNaN(paymentPlanId) || paymentPlanId <= 0) {
       return NextResponse.json(
-        { error: "Invalid Pledge ID provided in URL" },
+        { error: "Invalid Payment Plan ID provided in URL" },
         { status: 400 }
       );
     }
 
-    const { searchParams } = new URL(request.url);
-    const queryParams: QueryParams = QueryParamsSchema.parse({
-      page: parseInt(searchParams.get("page") || "1", 10),
-      limit: parseInt(searchParams.get("limit") || "10", 10),
-      search: searchParams.get("search") || undefined,
-      planStatus: searchParams.get("planStatus") || undefined,
-    });
-
-    const { page, limit, search, planStatus } = queryParams;
-
-    let baseQuery = db
+    // Fetch the specific payment plan with all related data
+    const paymentPlanResult = await db
       .select({
+        // Payment Plan fields
         id: paymentPlan.id,
         planName: paymentPlan.planName,
         pledgeId: paymentPlan.pledgeId,
         frequency: paymentPlan.frequency,
         distributionType: paymentPlan.distributionType,
-        totalPlannedAmount: paymentPlan.totalPlannedAmount, // Will be string from DB
+        totalPlannedAmount: paymentPlan.totalPlannedAmount,
         currency: paymentPlan.currency,
-        installmentAmount: paymentPlan.installmentAmount, // Will be string from DB
+        installmentAmount: paymentPlan.installmentAmount,
         numberOfInstallments: paymentPlan.numberOfInstallments,
         startDate: paymentPlan.startDate,
         endDate: paymentPlan.endDate,
         nextPaymentDate: paymentPlan.nextPaymentDate,
         installmentsPaid: paymentPlan.installmentsPaid,
-        totalPaid: paymentPlan.totalPaid, // Will be string from DB
-        totalPaidUsd: paymentPlan.totalPaidUsd, // Will be string from DB
-        remainingAmount: paymentPlan.remainingAmount, // Will be string from DB
+        totalPaid: paymentPlan.totalPaid,
+        totalPaidUsd: paymentPlan.totalPaidUsd,
+        remainingAmount: paymentPlan.remainingAmount,
         planStatus: paymentPlan.planStatus,
         autoRenew: paymentPlan.autoRenew,
         remindersSent: paymentPlan.remindersSent,
@@ -144,137 +136,87 @@ export async function GET(
         internalNotes: paymentPlan.internalNotes,
         createdAt: paymentPlan.createdAt,
         updatedAt: paymentPlan.updatedAt,
-        exchangeRate: paymentPlan.exchangeRate, // Will be string from DB
-        pledgeExchangeRate: sql<string>`(SELECT ${pledge.exchangeRate} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("pledgeExchangeRate"),
+        exchangeRate: paymentPlan.exchangeRate,
+        
+        // Pledge related fields
+        pledgeOriginalAmount: sql<string>`(SELECT ${pledge.originalAmount} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("pledgeOriginalAmount"),
+        pledgeOriginalAmountUsd: sql<string>`(SELECT ${pledge.originalAmountUsd} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("pledgeOriginalAmountUsd"),
         pledgeCurrency: sql<string>`(SELECT ${pledge.currency} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("pledgeCurrency"),
-        originalAmountUsd: sql<string>`(SELECT ${pledge.originalAmountUsd} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("originalAmountUsd"),
-        originalAmount: sql<string>`(SELECT ${pledge.originalAmount} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("originalAmount"),
-        pledgeContact: sql<string>`(SELECT CONCAT(c.first_name, ' ', c.last_name) FROM ${pledge} p JOIN contact c ON p.contact_id = c.id WHERE p.id = ${paymentPlan.pledgeId})`.as("pledgeContact"),
         pledgeDescription: sql<string>`(SELECT ${pledge.description} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("pledgeDescription"),
+        pledgeExchangeRate: sql<string>`(SELECT ${pledge.exchangeRate} FROM ${pledge} WHERE ${pledge.id} = ${paymentPlan.pledgeId})`.as("pledgeExchangeRate"),
+        pledgeContact: sql<string>`(SELECT CONCAT(c.first_name, ' ', c.last_name) FROM ${pledge} p JOIN contact c ON p.contact_id = c.id WHERE p.id = ${paymentPlan.pledgeId})`.as("pledgeContact"),
       })
       .from(paymentPlan)
-      .where(eq(paymentPlan.pledgeId, pledgeId))
-      .$dynamic();
+      .where(eq(paymentPlan.id, paymentPlanId))
+      .limit(1);
 
-    const conditions: SQL<unknown>[] = [];
-
-    if (planStatus) {
-      conditions.push(eq(paymentPlan.planStatus, planStatus));
+    if (!paymentPlanResult.length) {
+      return NextResponse.json(
+        { error: "Payment plan not found" },
+        { status: 404 }
+      );
     }
 
-    if (search) {
-      const searchConditions: SQL<unknown>[] = [];
-      searchConditions.push(
-        ilike(sql`COALESCE(${paymentPlan.planName}, '')`, `%${search}%`)
-      );
-      searchConditions.push(
-        ilike(sql`COALESCE(${paymentPlan.notes}, '')`, `%${search}%`)
-      );
-      searchConditions.push(
-        ilike(sql`COALESCE(${paymentPlan.internalNotes}, '')`, `%${search}%`)
-      );
-      conditions.push(or(...searchConditions)!);
+    const plan = paymentPlanResult[0];
+
+    // If it's a custom distribution type, fetch the installment schedules
+    let customInstallments = undefined;
+    if (plan.distributionType === "custom") {
+      const installmentSchedules = await db
+        .select({
+          id: installmentSchedule.id,
+          installmentDate: installmentSchedule.installmentDate,
+          installmentAmount: installmentSchedule.installmentAmount,
+          notes: installmentSchedule.notes,
+          status: installmentSchedule.status,
+          paidDate: installmentSchedule.paidDate,
+        })
+        .from(installmentSchedule)
+        .where(eq(installmentSchedule.paymentPlanId, plan.id))
+        .orderBy(installmentSchedule.installmentDate);
+
+      customInstallments = installmentSchedules.map(schedule => ({
+        date: schedule.installmentDate,
+        amount: Number.parseFloat(schedule.installmentAmount.toString()),
+        notes: schedule.notes || "",
+        isPaid: schedule.status === 'paid',
+        paidDate: schedule.paidDate,
+      }));
     }
 
-    if (conditions.length > 0) {
-      baseQuery = baseQuery.where(and(...conditions));
-    }
-
-    const offset = (page - 1) * limit;
-    const paymentPlans = await baseQuery
-      .limit(limit)
-      .offset(offset)
-      .orderBy(desc(paymentPlan.createdAt));
-
-    const paymentPlansWithInstallments = await Promise.all(
-      paymentPlans.map(async (plan) => {
-        if (plan.distributionType !== "custom") return plan;
-
-        const installmentSchedules = await db
-          .select()
-          .from(installmentSchedule)
-          .where(eq(installmentSchedule.paymentPlanId, plan.id))
-          .orderBy(installmentSchedule.installmentDate);
-
-        const customInstallments = installmentSchedules.map(schedule => ({
-          date: schedule.installmentDate,
-          amount: schedule.installmentAmount, // No parseFloat here, it's already a string from DB (numeric type)
-          notes: schedule.notes || "",
-          // Removed isPaid and paidAmount as they are not in the schema.
-          // Use schedule.status === 'paid' if you need to check if it's paid.
-          // Use schedule.paidDate if you need the date it was paid.
-        }));
-
-        return {
-          ...plan,
-          installmentSchedules,
-          customInstallments,
-        };
-      })
-    );
-
-    const countQuery = db
-      .select({ count: sql<number>`count(*)` })
-      .from(paymentPlan)
-      .where(and(eq(paymentPlan.pledgeId, pledgeId), ...conditions));
-
-    const totalCountResult = await countQuery;
-    const totalCount = Number(totalCountResult[0]?.count || 0);
-    const totalPages = Math.ceil(totalCount / limit);
+    const responsePaymentPlan = {
+      ...plan,
+      customInstallments,
+    };
 
     return NextResponse.json(
-      {
-        paymentPlans: paymentPlansWithInstallments,
-        pagination: {
-          page,
-          limit,
-          totalCount,
-          totalPages,
-          hasNextPage: page < totalPages,
-          hasPreviousPage: page > 1,
-        },
+      { 
+        paymentPlan: responsePaymentPlan 
       },
       {
         headers: {
           "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
-          "X-Total-Count": totalCount.toString(),
         },
       }
     );
   } catch (error) {
-    console.error("Error fetching payment plans:", error);
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          error: "Invalid query parameters",
-          details: error.issues.map((issue) => ({
-            field: issue.path.join("."),
-            message: issue.message,
-          })),
-        },
-        { status: 400 }
-      );
-    }
+    console.error("Error fetching payment plan:", error);
     return ErrorHandler.handle(error);
   }
 }
 
 export async function PATCH(
-    request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: planIdString } = await params; // Await params for PATCH as well
+    const { id: planIdString } = await params;
     const planId = parseInt(planIdString, 10);
     if (isNaN(planId) || planId <= 0) {
-      return NextResponse.json(
-        { error: "Invalid payment plan ID" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid payment plan ID" }, { status: 400 });
     }
 
     const body = await request.json();
-    // Validate and transform incoming data using the updated schema
     const validatedData: UpdatePaymentPlanRequest = updatePaymentPlanSchema.parse(body);
 
     const [existingPlan] = await db
@@ -284,70 +226,139 @@ export async function PATCH(
       .limit(1);
 
     if (!existingPlan) {
-      return NextResponse.json(
-        { error: "Payment plan not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Payment plan not found" }, { status: 404 });
     }
 
-    // --- Enhanced Validation for 'custom' distribution type ---
+    // Precision helper functions
+    const toCents = (amount: number): number => Math.round(amount * 100);
+    const fromCents = (cents: number): number => Math.round(cents) / 100;
+
+    // --- Custom Distribution Validation ---
     if (validatedData.distributionType === "custom" && validatedData.customInstallments) {
       if (validatedData.customInstallments.length === 0) {
-        return NextResponse.json(
-          { error: "Validation failed", details: [{ field: "customInstallments", message: "Custom installments must be provided for 'custom' distribution type." }] },
-          { status: 400 }
-        );
+        return NextResponse.json({
+          error: "Validation failed",
+          details: [{
+            field: "customInstallments",
+            message: "Custom installments must be provided for 'custom' distribution type."
+          }]
+        }, { status: 400 });
       }
 
-      // Validate that sum of custom installments equals total planned amount
-      // Note: validatedData.totalPlannedAmount is already a string here due to transform
-      const totalCustomAmount = validatedData.customInstallments.reduce((sum, installment) => sum + parseFloat(installment.amount), 0);
-      const expectedTotalPlannedAmount = parseFloat(validatedData.totalPlannedAmount || existingPlan.totalPlannedAmount); // Use existing if not provided
-      if (Math.abs(totalCustomAmount - expectedTotalPlannedAmount) > 0.01) { // Allow for small floating point differences
-        return NextResponse.json(
-          { error: "Validation failed", details: [{ field: "totalPlannedAmount", message: `Sum of custom installments (${totalCustomAmount}) must equal the total planned amount (${expectedTotalPlannedAmount}).` }] },
-          { status: 400 }
-        );
+      const totalCustomCents = validatedData.customInstallments.reduce((sum, inst) => 
+        sum + toCents(parseFloat(inst.amount)), 0
+      );
+      const expectedCents = toCents(parseFloat(validatedData.totalPlannedAmount || existingPlan.totalPlannedAmount));
+
+      // Allow up to 2 cents difference and auto-adjust
+      const difference = expectedCents - totalCustomCents;
+      if (Math.abs(difference) > 2) {
+        return NextResponse.json({
+          error: "Validation failed",
+          details: [{
+            field: "totalPlannedAmount",
+            message: `Sum of custom installments (${fromCents(totalCustomCents)}) must equal the total planned amount (${fromCents(expectedCents)}).`
+          }]
+        }, { status: 400 });
+      } else if (difference !== 0) {
+        // Auto-adjust the last installment
+        const lastIndex = validatedData.customInstallments.length - 1;
+        const lastCents = toCents(parseFloat(validatedData.customInstallments[lastIndex].amount));
+        validatedData.customInstallments[lastIndex].amount = fromCents(lastCents + difference).toFixed(2);
       }
 
-      // Validate installment dates are unique
-      const installmentDates = validatedData.customInstallments.map(inst => inst.date);
-      const uniqueDates = new Set(installmentDates);
-      if (uniqueDates.size !== installmentDates.length) {
-        return NextResponse.json(
-          { error: "Validation failed", details: [{ field: "customInstallments", message: "Installment dates must be unique." }] },
-          { status: 400 }
-        );
-      }
-
-      // Validate that installment dates are in the future or today
-      const today = new Date().toISOString().split('T')[0];
-      const futureDates = validatedData.customInstallments.filter(inst => inst.date < today);
-      if (futureDates.length > 0) {
-        return NextResponse.json(
-          { error: "Validation failed", details: [{ field: "customInstallments", message: "Installment dates cannot be in the past." }] },
-          { status: 400 }
-        );
+      // Validate unique dates
+      const dates = validatedData.customInstallments.map(inst => inst.date);
+      if (new Set(dates).size !== dates.length) {
+        return NextResponse.json({
+          error: "Validation failed",
+          details: [{
+            field: "customInstallments",
+            message: "Installment dates must be unique."
+          }]
+        }, { status: 400 });
       }
     }
 
-    // --- Enhanced Validation for 'fixed' distribution type ---
+    // --- Fixed Distribution Validation with Auto-Correction ---
     if (validatedData.distributionType === "fixed") {
       if (!validatedData.installmentAmount || !validatedData.numberOfInstallments) {
-        return NextResponse.json(
-          { error: "Validation failed", details: [{ field: "installmentAmount/numberOfInstallments", message: "Installment amount and number of installments are required for 'fixed' distribution type." }] },
-          { status: 400 }
-        );
+        return NextResponse.json({
+          error: "Validation failed",
+          details: [{
+            field: "installmentAmount/numberOfInstallments",
+            message: "Installment amount and number of installments are required for 'fixed' distribution type."
+          }]
+        }, { status: 400 });
       }
 
-      // Validate that installmentAmount * numberOfInstallments equals totalPlannedAmount
-      const calculatedTotal = parseFloat(validatedData.installmentAmount) * validatedData.numberOfInstallments;
-      const expectedTotalPlannedAmount = parseFloat(validatedData.totalPlannedAmount || existingPlan.totalPlannedAmount); // Use existing if not provided
-      if (Math.abs(calculatedTotal - expectedTotalPlannedAmount) > 0.01) {
-        return NextResponse.json(
-          { error: "Validation failed", details: [{ field: "totalPlannedAmount", message: `Installment amount (${validatedData.installmentAmount}) × number of installments (${validatedData.numberOfInstallments}) = ${calculatedTotal} must equal total planned amount (${expectedTotalPlannedAmount}).` }] },
-          { status: 400 }
-        );
+      const totalPlannedAmount = parseFloat(validatedData.totalPlannedAmount || existingPlan.totalPlannedAmount);
+      const numberOfInstallments = validatedData.numberOfInstallments;
+      
+      // Calculate correct installment amount using cent-based math
+      const totalCents = toCents(totalPlannedAmount);
+      const baseCentsPerInstallment = Math.floor(totalCents / numberOfInstallments);
+      const remainderCents = totalCents % numberOfInstallments;
+      
+      // The actual installment amount most installments will have
+      const baseInstallmentAmount = fromCents(baseCentsPerInstallment);
+      
+      // Check if the provided installment amount would create precision issues
+      const providedInstallmentCents = toCents(parseFloat(validatedData.installmentAmount));
+      const calculatedTotalCents = providedInstallmentCents * numberOfInstallments;
+      const expectedTotalCents = toCents(totalPlannedAmount);
+      
+      // If there's a mismatch, auto-correct or convert to custom
+      if (Math.abs(calculatedTotalCents - expectedTotalCents) > 1) {
+        if (remainderCents === 0) {
+          // Perfect division - just update the installment amount
+          validatedData.installmentAmount = baseInstallmentAmount.toFixed(2);
+        } else {
+          // Convert to custom distribution to handle remainder properly
+          const customInstallments = [];
+          const startDate = new Date(validatedData.startDate || existingPlan.startDate);
+          const frequency = validatedData.frequency || existingPlan.frequency;
+          
+          for (let i = 0; i < numberOfInstallments; i++) {
+            const installmentDate = new Date(startDate);
+            
+            switch (frequency) {
+              case "weekly":
+                installmentDate.setDate(startDate.getDate() + i * 7);
+                break;
+              case "monthly":
+                installmentDate.setMonth(startDate.getMonth() + i);
+                break;
+              case "quarterly":
+                installmentDate.setMonth(startDate.getMonth() + i * 3);
+                break;
+              case "biannual":
+                installmentDate.setMonth(startDate.getMonth() + i * 6);
+                break;
+              case "annual":
+                installmentDate.setFullYear(startDate.getFullYear() + i);
+                break;
+              default:
+                installmentDate.setMonth(startDate.getMonth() + i);
+            }
+            
+            // Distribute remainder cents among first installments
+            let installmentCents = baseCentsPerInstallment;
+            if (i < remainderCents) {
+              installmentCents += 1;
+            }
+            
+            customInstallments.push({
+              date: installmentDate.toISOString().split('T')[0],
+              amount: fromCents(installmentCents).toFixed(2),
+              notes: `Installment ${i + 1}`,
+            });
+          }
+          
+          validatedData.distributionType = "custom";
+          validatedData.customInstallments = customInstallments;
+          validatedData.installmentAmount = baseInstallmentAmount.toFixed(2);
+        }
       }
     }
 
@@ -356,7 +367,6 @@ export async function PATCH(
       ...(validatedData.planName !== undefined && { planName: validatedData.planName }),
       ...(validatedData.frequency !== undefined && { frequency: validatedData.frequency }),
       ...(validatedData.distributionType !== undefined && { distributionType: validatedData.distributionType }),
-      // These are now correctly transformed to string by Zod's .transform()
       ...(validatedData.totalPlannedAmount !== undefined && { totalPlannedAmount: validatedData.totalPlannedAmount }),
       ...(validatedData.currency !== undefined && { currency: validatedData.currency }),
       ...(validatedData.installmentAmount !== undefined && { installmentAmount: validatedData.installmentAmount }),
@@ -373,7 +383,6 @@ export async function PATCH(
     // Handle distribution type changes
     if (validatedData.distributionType !== undefined) {
       if (validatedData.distributionType === "custom") {
-        // If customInstallments are provided, delete existing and insert new ones
         if (validatedData.customInstallments) {
           await db.delete(installmentSchedule).where(eq(installmentSchedule.paymentPlanId, planId));
 
@@ -381,23 +390,38 @@ export async function PATCH(
             validatedData.customInstallments.map(inst => ({
               paymentPlanId: planId,
               installmentDate: inst.date,
-              installmentAmount: inst.amount, // inst.amount is already a string from Zod's transform
-              currency: validatedData.currency || existingPlan.currency, // Use provided currency or existing
+              installmentAmount: parseFloat(inst.amount).toFixed(2),
+              currency: validatedData.currency || existingPlan.currency,
               notes: inst.notes || null,
             }))
           );
-          // Also update numberOfInstallments for custom plans
+
           dataToUpdate.numberOfInstallments = validatedData.customInstallments.length;
+          
+          // Ensure total matches sum of custom installments exactly
+          const exactTotal = fromCents(
+            validatedData.customInstallments.reduce((sum, inst) => 
+              sum + toCents(parseFloat(inst.amount)), 0
+            )
+          );
+          dataToUpdate.totalPlannedAmount = exactTotal.toFixed(2);
         }
       } else if (validatedData.distributionType === "fixed") {
-        // If changing to fixed, delete any existing custom installment schedules
         await db.delete(installmentSchedule).where(eq(installmentSchedule.paymentPlanId, planId));
+        
+        // For fixed plans, ensure total is exactly installment × count
+        if (validatedData.installmentAmount && validatedData.numberOfInstallments) {
+          const exactTotal = fromCents(
+            toCents(parseFloat(validatedData.installmentAmount)) * validatedData.numberOfInstallments
+          );
+          dataToUpdate.totalPlannedAmount = exactTotal.toFixed(2);
+        }
       }
     }
 
     const [updatedPlan] = await db
       .update(paymentPlan)
-      .set(dataToUpdate) // Use dataToUpdate here
+      .set(dataToUpdate)
       .where(eq(paymentPlan.id, planId))
       .returning();
 
@@ -409,20 +433,19 @@ export async function PATCH(
   } catch (error) {
     console.error("Error updating payment plan:", error);
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          error: "Validation failed",
-          details: error.issues.map((issue) => ({
-            field: issue.path.join("."),
-            message: issue.message,
-          })),
-        },
-        { status: 400 }
-      );
+      return NextResponse.json({
+        error: "Validation failed",
+        details: error.issues.map((issue) => ({
+          field: issue.path.join("."),
+          message: issue.message,
+        })),
+      }, { status: 400 });
     }
     return ErrorHandler.handle(error);
   }
 }
+
+
 
 // --- GET Endpoint (unchanged from your original, but included for completeness) ---
 const querySchema = z.object({

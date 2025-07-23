@@ -1,32 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { payment, pledge } from "@/lib/db/schema";
+import { payment, pledge, paymentAllocations } from "@/lib/db/schema";
 import { sql, eq, and } from "drizzle-orm";
 import { z } from "zod";
 
-// Define the Zod schema for GET request query parameters
-const querySchema = z.object({
-  pledgeId: z.preprocess((val) => parseInt(String(val), 10), z.number().positive()).optional(),
-  contactId: z.preprocess((val) => parseInt(String(val), 10), z.number().positive()).optional(),
-  solicitorId: z.preprocess((val) => parseInt(String(val), 10), z.number().positive()).optional(),
-  page: z.preprocess((val) => parseInt(String(val), 10), z.number().min(1).default(1)).optional(),
-  limit: z.preprocess((val) => parseInt(String(val), 10), z.number().min(1).default(10)).optional(),
-  search: z.string().optional(),
-  paymentMethod: z.enum([
-    "cash", "check", "credit_card", "paypal", "wire_transfer", "bank_transfer", "other"
-  ]).optional(),
-  paymentStatus: z.enum([
-    "pending", "completed", "failed", "cancelled", "refunded", "processing"
-  ]).optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  hasSolicitor: z.preprocess((val) => val === 'true', z.boolean()).optional(),
-});
-
-// Define missing constants for Zod enums
-const supportedCurrencies = ["USD", "ILS", "EUR", "JPY", "GBP", "AUD", "CAD", "ZAR"] as const;
 const paymentMethodValues = [
-  "cash", "check", "credit_card", "paypal", "wire_transfer", "bank_transfer", "other"
+  "ach", "bill_pay", "cash", "check", "credit", "credit_card", "expected",
+  "goods_and_services", "matching_funds", "money_order", "p2p", "pending",
+  "refund", "scholarship", "stock", "student_portion", "unknown", "wire", "xfer", "other"
 ] as const;
 
 const methodDetailValues = [
@@ -40,16 +21,43 @@ const methodDetailValues = [
   "yaadpay", "yaadpay_cm", "yourcause", "yu", "zelle"
 ] as const;
 
+// Define the Zod schema for GET request query parameters
+const querySchema = z.object({
+  pledgeId: z.preprocess((val) => parseInt(String(val), 10), z.number().positive()).optional(),
+  contactId: z.preprocess((val) => parseInt(String(val), 10), z.number().positive()).optional(),
+  solicitorId: z.preprocess((val) => parseInt(String(val), 10), z.number().positive()).optional(),
+  page: z.preprocess((val) => parseInt(String(val), 10), z.number().min(1).default(1)).optional(),
+  limit: z.preprocess((val) => parseInt(String(val), 10), z.number().min(1).default(10)).optional(),
+  search: z.string().optional(),
+  paymentMethod: z.enum(paymentMethodValues).optional(),
+  paymentStatus: z.enum([
+    "pending", "completed", "failed", "cancelled", "refunded", "processing"
+  ]).optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  hasSolicitor: z.preprocess((val) => val === 'true', z.boolean()).optional(),
+});
+
+// Define missing constants for Zod enums
+const supportedCurrencies = ["USD", "ILS", "EUR", "JPY", "GBP", "AUD", "CAD", "ZAR"] as const;
 const receiptTypeValues = ["invoice", "receipt", "confirmation", "other"] as const;
 const paymentStatusValues = [
   "pending", "completed", "failed", "cancelled", "refunded", "processing"
 ] as const;
 
-// Simplified payment schema - just check if we have allocations or a single pledgeId
+// Enhanced allocation schema with validation
+const allocationSchema = z.object({
+  pledgeId: z.preprocess((val) => parseInt(String(val), 10), z.number().positive()),
+  amount: z.number().positive(),
+  installmentScheduleId: z.preprocess((val) => val ? parseInt(String(val), 10) : null, z.number().positive().nullable()).optional(),
+  notes: z.string().optional().nullable(),
+});
+
+// Updated payment schema with proper validation
 const paymentSchema = z.object({
   amount: z.number().positive(),
   currency: z.enum(supportedCurrencies),
-  exchangeRate: z.number().min(0),
+  exchangeRate: z.number().positive(),
   paymentDate: z.string().refine((date) => !isNaN(new Date(date).getTime()), {
     message: "Invalid date format",
   }),
@@ -71,18 +79,34 @@ const paymentSchema = z.object({
   
   // Either single payment or allocations
   pledgeId: z.preprocess((val) => val ? parseInt(String(val), 10) : null, z.number().positive().nullable()).optional(),
-  allocations: z.array(z.object({
-    pledgeId: z.preprocess((val) => parseInt(String(val), 10), z.number().positive()),
-    amount: z.number().positive(),
-    installmentScheduleId: z.preprocess((val) => val ? parseInt(String(val), 10) : null, z.number().positive().nullable()).optional(),
-    notes: z.string().optional().nullable(),
-  })).optional(),
+  allocations: z.array(allocationSchema).optional(),
+}).refine((data) => {
+  // Either pledgeId or allocations must be provided, but not both
+  const hasPledgeId = data.pledgeId !== null && data.pledgeId !== undefined;
+  const hasAllocations = data.allocations && data.allocations.length > 0;
+  
+  return hasPledgeId !== hasAllocations; // XOR: exactly one should be true
+}, {
+  message: "Either pledgeId (for single payment) or allocations (for split payment) must be provided, but not both",
+}).refine((data) => {
+  // If allocations are provided, validate that total allocation amount equals payment amount
+  if (data.allocations && data.allocations.length > 0) {
+    const totalAllocated = data.allocations.reduce((sum, alloc) => sum + alloc.amount, 0);
+    const difference = Math.abs(totalAllocated - data.amount);
+    return difference < 0.01; // Allow for small floating point differences
+  }
+  return true;
+}, {
+  message: "Total allocation amount must equal the payment amount",
 });
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    console.log('Received payload:', JSON.stringify(body, null, 2));
+    
     const validatedData = paymentSchema.parse(body);
+    console.log('Validated data:', JSON.stringify(validatedData, null, 2));
 
     const paymentDate = validatedData.paymentDate;
     const receivedDate = validatedData.receivedDate || paymentDate;
@@ -108,65 +132,95 @@ export async function POST(request: NextRequest) {
         ? Number(validatedData.bonusAmount.toFixed(2)).toString()
         : null,
       bonusRuleId: validatedData.bonusRuleId || null,
+      notes: validatedData.notes || null,
     };
 
     // Check if we have allocations (split payment)
     if (validatedData.allocations && validatedData.allocations.length > 0) {
-      // Handle split payment - create multiple payment entries
-      const createdPayments = [];
+      // Handle split payment - create one payment entry with multiple allocations
+      
+      // Verify all pledges exist before creating payment
+      const pledgeIds = validatedData.allocations.map(alloc => alloc.pledgeId);
+      const existingPledges = await db
+        .select()
+        .from(pledge)
+        .where(sql`${pledge.id} IN (${sql.join(pledgeIds.map(id => sql`${id}`), sql`, `)})`);
 
-      for (const allocation of validatedData.allocations) {
-        const currentPledge = await db
-          .select()
-          .from(pledge)
-          .where(eq(pledge.id, allocation.pledgeId))
-          .limit(1);
-
-        if (currentPledge.length === 0) {
-          console.warn(`Pledge with ID ${allocation.pledgeId} not found for allocation. Skipping.`);
-          continue;
-        }
-
-        const pledgeData = currentPledge[0];
-        const amountUsd = allocation.amount * validatedData.exchangeRate;
-        const amountInPledgeCurrency = validatedData.currency === pledgeData.currency
-          ? allocation.amount
-          : amountUsd / (parseFloat(pledgeData.exchangeRate || "1") || 1);
-
-        const newPaymentData = {
-          ...commonPaymentData,
-          pledgeId: allocation.pledgeId,
-          amount: Number(allocation.amount.toFixed(2)).toString(),
-          amountUsd: Number(amountUsd.toFixed(2)).toString(),
-          amountInPledgeCurrency: Number(amountInPledgeCurrency.toFixed(2)).toString(),
-          notes: allocation.notes || validatedData.notes || null,
-          installmentScheduleId: allocation.installmentScheduleId || null,
-        };
-
-        const paymentResult = await db
-          .insert(payment)
-          .values(newPaymentData)
-          .returning();
-
-        if (paymentResult.length > 0) {
-          createdPayments.push(paymentResult[0]);
-          // Update each pledge's totals
-          await updatePledgeTotals(allocation.pledgeId);
-        }
+      if (existingPledges.length !== pledgeIds.length) {
+        const foundIds = existingPledges.map(p => p.id);
+        const missingIds = pledgeIds.filter(id => !foundIds.includes(id));
+        return NextResponse.json(
+          { error: `Pledges not found: ${missingIds.join(', ')}` },
+          { status: 404 }
+        );
       }
 
-      if (createdPayments.length === 0) {
+      // Calculate USD amount: payment amount / payment exchange rate
+      const amountUsd = validatedData.amount / validatedData.exchangeRate;
+
+      // Create single payment entry (without pledgeId for split payments)
+      const splitPaymentData = {
+        ...commonPaymentData,
+        pledgeId: null, // No single pledge for split payments
+        amount: Number(validatedData.amount.toFixed(2)).toString(),
+        amountUsd: Number(amountUsd.toFixed(2)).toString(),
+        amountInPledgeCurrency: null, // Not applicable for split payments
+      };
+
+      console.log('Creating split payment:', splitPaymentData);
+
+      const paymentResult = await db
+        .insert(payment)
+        .values(splitPaymentData)
+        .returning();
+
+      if (paymentResult.length === 0) {
         return NextResponse.json(
-          { error: "No payments were successfully created." },
+          { error: "Failed to create payment" },
           { status: 500 }
         );
       }
 
+      const createdPayment = paymentResult[0];
+
+      // Create allocations
+      const allocationPromises = validatedData.allocations.map(async (allocation) => {
+        const targetPledge = existingPledges.find(p => p.id === allocation.pledgeId)!;
+        
+        // Calculate USD amount for this allocation
+        const allocationAmountUsd = allocation.amount / validatedData.exchangeRate;
+
+        const allocationData = {
+          paymentId: createdPayment.id,
+          pledgeId: allocation.pledgeId,
+          installmentScheduleId: allocation.installmentScheduleId || null,
+          allocatedAmount: Number(allocation.amount.toFixed(2)).toString(),
+          currency: validatedData.currency,
+          allocatedAmountUsd: Number(allocationAmountUsd.toFixed(2)).toString(),
+          notes: allocation.notes || null,
+        };
+
+        console.log(`Creating allocation for pledge ${allocation.pledgeId}:`, allocationData);
+
+        const allocationResult = await db
+          .insert(paymentAllocations)
+          .values(allocationData)
+          .returning();
+
+        // Update pledge totals
+        await updatePledgeTotals(allocation.pledgeId);
+
+        return allocationResult[0];
+      });
+
+      const createdAllocations = await Promise.all(allocationPromises);
+
       return NextResponse.json(
         {
-          message: "Split payments created successfully",
-          payments: createdPayments,
-          count: createdPayments.length
+          message: "Split payment created successfully",
+          payment: createdPayment,
+          allocations: createdAllocations,
+          count: createdAllocations.length
         },
         { status: 201 }
       );
@@ -184,10 +238,15 @@ export async function POST(request: NextRequest) {
       }
 
       const pledgeData = currentPledge[0];
-      const amountUsd = validatedData.amount * validatedData.exchangeRate;
+      
+      // Calculate USD amount: payment amount / payment exchange rate
+      const amountUsd = validatedData.amount / validatedData.exchangeRate;
+      
+      // Calculate amount in pledge currency
+      const pledgeExchangeRate = parseFloat(pledgeData.exchangeRate || "1");
       const amountInPledgeCurrency = validatedData.currency === pledgeData.currency
         ? validatedData.amount
-        : amountUsd / (parseFloat(pledgeData.exchangeRate || "1") || 1);
+        : amountUsd * pledgeExchangeRate;
 
       const newPaymentData = {
         ...commonPaymentData,
@@ -195,8 +254,9 @@ export async function POST(request: NextRequest) {
         amount: Number(validatedData.amount.toFixed(2)).toString(),
         amountUsd: Number(amountUsd.toFixed(2)).toString(),
         amountInPledgeCurrency: Number(amountInPledgeCurrency.toFixed(2)).toString(),
-        notes: validatedData.notes || null,
       };
+
+      console.log('Creating single payment:', newPaymentData);
 
       const paymentResult = await db
         .insert(payment)
@@ -246,16 +306,25 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Helper function to update pledge totals
+// Enhanced helper function to update pledge totals
 async function updatePledgeTotals(pledgeId: number) {
-  // Calculate new totals for the pledge
-  const currentPayments = await db
+  // Calculate totals from direct payments
+  const directPayments = await db
     .select({
       totalInPledgeCurrency: sql<number>`COALESCE(SUM(${payment.amountInPledgeCurrency}::numeric), 0)`,
       totalUsd: sql<number>`COALESCE(SUM(${payment.amountUsd}::numeric), 0)`,
     })
     .from(payment)
     .where(eq(payment.pledgeId, pledgeId));
+
+  // Calculate totals from allocated payments
+  const allocatedPayments = await db
+    .select({
+      totalAllocated: sql<number>`COALESCE(SUM(${paymentAllocations.allocatedAmount}::numeric), 0)`,
+      totalAllocatedUsd: sql<number>`COALESCE(SUM(${paymentAllocations.allocatedAmountUsd}::numeric), 0)`,
+    })
+    .from(paymentAllocations)
+    .where(eq(paymentAllocations.pledgeId, pledgeId));
 
   const currentPledge = await db
     .select()
@@ -269,8 +338,20 @@ async function updatePledgeTotals(pledgeId: number) {
   const originalAmount = parseFloat(pledgeData.originalAmount);
   const originalAmountUsd = parseFloat(pledgeData.originalAmountUsd || "0");
 
-  const newTotalPaid = Number(currentPayments[0].totalInPledgeCurrency);
-  const newTotalPaidUsd = Number(currentPayments[0].totalUsd);
+  // Combine direct payments and allocations
+  const directTotal = Number(directPayments[0].totalInPledgeCurrency || 0);
+  const directTotalUsd = Number(directPayments[0].totalUsd || 0);
+  const allocatedTotal = Number(allocatedPayments[0].totalAllocated || 0);
+  const allocatedTotalUsd = Number(allocatedPayments[0].totalAllocatedUsd || 0);
+
+  // For pledge currency totals, we need to convert allocated amounts to pledge currency
+  const pledgeExchangeRate = parseFloat(pledgeData.exchangeRate || "1");
+  const allocatedTotalInPledgeCurrency = pledgeData.currency === "USD" 
+    ? allocatedTotalUsd 
+    : allocatedTotalUsd * pledgeExchangeRate;
+
+  const newTotalPaid = directTotal + allocatedTotalInPledgeCurrency;
+  const newTotalPaidUsd = directTotalUsd + allocatedTotalUsd;
   const newBalance = Math.max(0, originalAmount - newTotalPaid);
   const newBalanceUsd = Math.max(0, originalAmountUsd - newTotalPaidUsd);
 
@@ -296,7 +377,7 @@ export async function GET(request: NextRequest) {
     if (!parsedParams.success) {
       return NextResponse.json(
         {
-          error: "Invalid query parameters",
+          error: "Invalid query parameters",                        
           details: parsedParams.error.issues.map((issue) => ({
             field: issue.path.join("."),
             message: issue.message,
@@ -324,12 +405,22 @@ export async function GET(request: NextRequest) {
     const conditions = [];
 
     if (pledgeId) {
-      conditions.push(eq(payment.pledgeId, pledgeId));
+      // Include both direct payments and allocated payments for this pledge
+      conditions.push(
+        sql`(${payment.pledgeId} = ${pledgeId} OR ${payment.id} IN (
+          SELECT payment_id FROM ${paymentAllocations} WHERE pledge_id = ${pledgeId}
+        ))`
+      );
     }
 
     if (contactId) {
       conditions.push(
-        sql`${payment.pledgeId} IN (SELECT id FROM ${pledge} WHERE contact_id = ${contactId})`
+        sql`(${payment.pledgeId} IN (SELECT id FROM ${pledge} WHERE contact_id = ${contactId}) OR 
+            ${payment.id} IN (
+              SELECT pa.payment_id FROM ${paymentAllocations} pa
+              JOIN ${pledge} p ON pa.pledge_id = p.id
+              WHERE p.contact_id = ${contactId}
+            ))`
       );
     }
 
@@ -396,6 +487,7 @@ export async function GET(request: NextRequest) {
         bonusRuleId: payment.bonusRuleId,
         notes: payment.notes,
         paymentPlanId: payment.paymentPlanId,
+        installmentScheduleId: payment.installmentScheduleId,
         createdAt: payment.createdAt,
         updatedAt: payment.updatedAt,
         pledgeDescription: sql<string>`(
@@ -419,6 +511,14 @@ export async function GET(request: NextRequest) {
           JOIN contact c ON s.contact_id = c.id
           WHERE s.id = ${payment.solicitorId}
         )`.as("solicitorName"),
+        // Check if this is a split payment (has allocations)
+        isSplitPayment: sql<boolean>`(
+          SELECT COUNT(*) > 0 FROM ${paymentAllocations} WHERE payment_id = ${payment.id}
+        )`.as("isSplitPayment"),
+        // Get allocation count
+        allocationCount: sql<number>`(
+          SELECT COUNT(*) FROM ${paymentAllocations} WHERE payment_id = ${payment.id}
+        )`.as("allocationCount"),
       })
       .from(payment)
       .leftJoin(pledge, eq(payment.pledgeId, pledge.id))
@@ -440,11 +540,41 @@ export async function GET(request: NextRequest) {
       countQuery.execute(),
     ]);
 
+    // For split payments, also fetch their allocations
+    const paymentsWithAllocations = await Promise.all(
+      payments.map(async (payment) => {
+        if (payment.isSplitPayment) {
+          const allocations = await db
+            .select({
+              id: paymentAllocations.id,
+              pledgeId: paymentAllocations.pledgeId,
+              installmentScheduleId: paymentAllocations.installmentScheduleId,
+              allocatedAmount: paymentAllocations.allocatedAmount,
+              currency: paymentAllocations.currency,
+              allocatedAmountUsd: paymentAllocations.allocatedAmountUsd,
+              notes: paymentAllocations.notes,
+              pledgeDescription: sql<string>`(
+                SELECT description FROM ${pledge} WHERE id = ${paymentAllocations.pledgeId}
+              )`.as("pledgeDescription"),
+            })
+            .from(paymentAllocations)
+            .leftJoin(pledge, eq(paymentAllocations.pledgeId, pledge.id))
+            .where(eq(paymentAllocations.paymentId, payment.id));
+
+          return {
+            ...payment,
+            allocations,
+          };
+        }
+        return payment;
+      })
+    );
+
     const totalCount = Number(totalCountResult[0]?.count || 0);
     const totalPages = Math.ceil(totalCount / limit);
 
     const response = {
-      payments,
+      payments: paymentsWithAllocations,
       pagination: {
         page,
         limit,

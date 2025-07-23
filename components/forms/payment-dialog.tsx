@@ -206,7 +206,6 @@ const paymentSchema = z.object({
   currency: z.enum(supportedCurrencies).optional(),
   amountUsd: z.number().optional(),
   exchangeRate: z.number().optional(),
-
   paymentDate: z.string().optional(),
   receivedDate: z.string().optional().nullable(),
   paymentMethod: z.string().optional(),
@@ -344,6 +343,25 @@ export default function PaymentFormDialog({
   const effectivePledgeDescription = pledgeData?.pledge?.description || "N/A";
   const effectivePledgeCurrency = pledgeData?.pledge?.currency || "USD";
 
+  const getExchangeRate = (currency: string): number => {
+    if (currency === "USD") return 1;
+    if (exchangeRatesData?.data?.rates) {
+      const rate = parseFloat(exchangeRatesData.data.rates[currency]);
+      return isNaN(rate) ? 1 : rate;
+    }
+    return 1;
+  };
+
+  // Auto-fill exchange rate when currency changes
+  useEffect(() => {
+    if (watchedCurrency && exchangeRatesData?.data?.rates) {
+      const autoRate = getExchangeRate(watchedCurrency);
+      if (autoRate) {
+        form.setValue('exchangeRate', autoRate);
+      }
+    }
+  }, [watchedCurrency, exchangeRatesData, form]);
+
   useEffect(() => {
     if (initialPledgeId && !form.formState.isDirty) {
       form.setValue("pledgeId", initialPledgeId);
@@ -421,15 +439,6 @@ export default function PaymentFormDialog({
     });
     setShowSolicitorSection(false);
   }, [form, initialPledgeId]);
-
-  const getExchangeRate = (currency: string): number => {
-    if (currency === "USD") return 1;
-    if (exchangeRatesData?.data?.rates) {
-      const rate = parseFloat(exchangeRatesData.data.rates[currency]);
-      return isNaN(rate) ? 1 : rate;
-    }
-    return 1;
-  };
 
   const isValidCurrency = (currency: string): currency is typeof supportedCurrencies[number] => {
     return supportedCurrencies.includes(currency as typeof supportedCurrencies[number]);

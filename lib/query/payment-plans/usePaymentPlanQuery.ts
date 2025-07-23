@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient,UseQueryOptions } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 export interface PaymentPlanFormData {
@@ -22,7 +22,7 @@ export interface PaymentPlanFormData {
   autoRenew: boolean;
   notes?: string;
   internalNotes?: string;
-   customInstallments?: Array<{
+  customInstallments?: Array<{
     date: string;
     amount: number;
     notes?: string;
@@ -46,7 +46,6 @@ export interface InstallmentSchedule {
   updatedAt: string;
 }
 
-
 export interface PaymentPlanUpdateData
   extends Omit<Partial<PaymentPlanFormData>, "pledgeId"> {
   planStatus?: "active" | "completed" | "cancelled" | "paused" | "overdue";
@@ -57,7 +56,7 @@ export interface PaymentPlan {
   pledgeId: number;
   planName?: string;
   frequency: string;
-   distributionType: "fixed" | "custom";
+  distributionType: "fixed" | "custom";
   totalPlannedAmount: number;
   currency: string;
   installmentAmount: number;
@@ -80,7 +79,7 @@ export interface PaymentPlan {
   pledgeOriginalAmount?: string;
   contactId?: number;
   installmentSchedule?: InstallmentSchedule[];
-    customInstallments?: Array<{
+  customInstallments?: Array<{
     date: string;
     amount: number;
     notes?: string;
@@ -88,6 +87,26 @@ export interface PaymentPlan {
     paidDate?: string;
     paidAmount?: number;
   }>;
+  paymentMethod: | "ach"
+    | "bill_pay"
+    | "cash"
+    | "check"
+    | "credit"
+    | "credit_card"
+    | "expected"
+    | "goods_and_services"
+    | "matching_funds"
+    | "money_order"
+    | "p2p"
+    | "pending"
+    | "refund"
+    | "scholarship"
+    | "stock"
+    | "student_portion"
+    | "unknown"
+    | "wire"
+    | "xfer";
+  methodDetail:string;
 }
 
 export interface PledgeDetails {
@@ -132,27 +151,111 @@ export interface PledgeDetails {
   activePaymentPlans: PaymentPlan[];
 }
 
-export const useInstallmentScheduleQuery = (paymentPlanId: number) => {
-    return useQuery({
-        queryKey: ["installment_schedule", paymentPlanId],
-        queryFn: async (): Promise<InstallmentSchedule[]> => {
-            const res = await fetch(`/api/payment-plans/${paymentPlanId}/installments`);
-            if (!res.ok) throw new Error("Failed to fetch installment schedule");
-            return res.json();
-        },
-        enabled: !!paymentPlanId,
-        staleTime: 5 * 60 * 1000,
-    });
+// Utility function to clean payment plan data
+const cleanPaymentPlanData = (data: PaymentPlanFormData): PaymentPlanFormData => {
+  const roundMoney = (amount: number) => Math.round(amount * 100) / 100;
+  
+  const cleanedData = {
+    ...data,
+    totalPlannedAmount: roundMoney(data.totalPlannedAmount)
+  };
+
+  if (data.customInstallments && data.customInstallments.length > 0) {
+    // For custom installments, clean each amount and recalculate total if needed
+    cleanedData.customInstallments = data.customInstallments.map(installment => ({
+      ...installment,
+      amount: roundMoney(installment.amount),
+      paidAmount: installment.paidAmount ? roundMoney(installment.paidAmount) : installment.paidAmount
+    }));
+    
+    // Optionally recalculate total from custom installments
+    const customTotal = cleanedData.customInstallments.reduce((sum, inst) => sum + inst.amount, 0);
+    cleanedData.totalPlannedAmount = roundMoney(customTotal);
+    
+  } else if (data.numberOfInstallments > 0) {
+    // For fixed installments, ensure the math works out
+    const exactInstallmentAmount = cleanedData.totalPlannedAmount / data.numberOfInstallments;
+    cleanedData.installmentAmount = roundMoney(exactInstallmentAmount);
+    
+    // Double-check that installments * amount = total (accounting for rounding)
+    const calculatedTotal = cleanedData.installmentAmount * data.numberOfInstallments;
+    const difference = Math.abs(cleanedData.totalPlannedAmount - calculatedTotal);
+    
+    // If difference is more than a penny, adjust
+    if (difference > 0.01) {
+      cleanedData.installmentAmount = roundMoney(cleanedData.totalPlannedAmount / data.numberOfInstallments);
+    }
+  } else {
+    // Single payment
+    cleanedData.installmentAmount = cleanedData.totalPlannedAmount;
+  }
+
+  return cleanedData;
 };
+
+// Utility function to clean update data
+const cleanPaymentPlanUpdateData = (data: PaymentPlanUpdateData): PaymentPlanUpdateData => {
+  const roundMoney = (amount: number) => Math.round(amount * 100) / 100;
+  
+  const cleanedData = { ...data };
+
+  // Clean monetary values if they exist
+  if (data.totalPlannedAmount) {
+    cleanedData.totalPlannedAmount = roundMoney(data.totalPlannedAmount);
+  }
+  
+  if (data.installmentAmount) {
+    cleanedData.installmentAmount = roundMoney(data.installmentAmount);
+  }
+
+  if (data.customInstallments && data.customInstallments.length > 0) {
+    cleanedData.customInstallments = data.customInstallments.map(installment => ({
+      ...installment,
+      amount: roundMoney(installment.amount),
+      paidAmount: installment.paidAmount ? roundMoney(installment.paidAmount) : installment.paidAmount
+    }));
+  }
+
+  // If we have both total and installment info, ensure consistency
+  if (cleanedData.totalPlannedAmount && cleanedData.numberOfInstallments && cleanedData.numberOfInstallments > 0) {
+    const exactInstallmentAmount = cleanedData.totalPlannedAmount / cleanedData.numberOfInstallments;
+    cleanedData.installmentAmount = roundMoney(exactInstallmentAmount);
+    
+    const calculatedTotal = cleanedData.installmentAmount * cleanedData.numberOfInstallments;
+    const difference = Math.abs(cleanedData.totalPlannedAmount - calculatedTotal);
+    
+    if (difference > 0.01) {
+      cleanedData.installmentAmount = roundMoney(cleanedData.totalPlannedAmount / cleanedData.numberOfInstallments);
+    }
+  }
+
+  return cleanedData;
+};
+
+export const useInstallmentScheduleQuery = (paymentPlanId: number) => {
+  return useQuery({
+    queryKey: ["installment_schedule", paymentPlanId],
+    queryFn: async (): Promise<InstallmentSchedule[]> => {
+      const res = await fetch(`/api/payment-plans/${paymentPlanId}/installments`);
+      if (!res.ok) throw new Error("Failed to fetch installment schedule");
+      return res.json();
+    },
+    enabled: !!paymentPlanId,
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
 export const useCreatePaymentPlanMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (data: PaymentPlanFormData) => {
+      const cleanedData = cleanPaymentPlanData(data);
+
       const response = await fetch("/api/payment-plans", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(cleanedData),
       });
 
       const responseData = await response.json();
@@ -278,10 +381,12 @@ export const useUpdatePaymentPlanMutation = () => {
       id: number;
       data: PaymentPlanUpdateData;
     }) => {
+      const cleanedData = cleanPaymentPlanUpdateData(data);
+
       const response = await fetch(`/api/payment-plans/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(cleanedData),
       });
 
       const responseData = await response.json();
@@ -299,7 +404,7 @@ export const useUpdatePaymentPlanMutation = () => {
 
       return responseData;
     },
-     onSuccess: (data, variables) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries();
       queryClient.invalidateQueries({
         queryKey: ["payment-plan", variables.id],
@@ -390,7 +495,7 @@ export const useDeletePaymentPlanMutation = () => {
   });
 };
 
-export const usePauseResumePaymentPlanMutation = () => {
+export const usePauseResumePaymentPlanMutation = () => {  
   const queryClient = useQueryClient();
 
   return useMutation({
