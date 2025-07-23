@@ -82,7 +82,10 @@ const paymentSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    console.log('Received payload:', JSON.stringify(body, null, 2));
+    
     const validatedData = paymentSchema.parse(body);
+    console.log('Validated data:', JSON.stringify(validatedData, null, 2));
 
     const paymentDate = validatedData.paymentDate;
     const receivedDate = validatedData.receivedDate || paymentDate;
@@ -128,10 +131,15 @@ export async function POST(request: NextRequest) {
         }
 
         const pledgeData = currentPledge[0];
-        const amountUsd = allocation.amount * validatedData.exchangeRate;
+        
+        // Calculate USD amount: allocation amount / payment exchange rate
+        const amountUsd = allocation.amount / validatedData.exchangeRate;
+        
+        // Calculate amount in pledge currency
+        const pledgeExchangeRate = parseFloat(pledgeData.exchangeRate || "1");
         const amountInPledgeCurrency = validatedData.currency === pledgeData.currency
           ? allocation.amount
-          : amountUsd / (parseFloat(pledgeData.exchangeRate || "1") || 1);
+          : amountUsd * pledgeExchangeRate;
 
         const newPaymentData = {
           ...commonPaymentData,
@@ -142,6 +150,8 @@ export async function POST(request: NextRequest) {
           notes: allocation.notes || validatedData.notes || null,
           installmentScheduleId: allocation.installmentScheduleId || null,
         };
+
+        console.log(`Creating payment for allocation ${allocation.pledgeId}:`, newPaymentData);
 
         const paymentResult = await db
           .insert(payment)
@@ -184,10 +194,15 @@ export async function POST(request: NextRequest) {
       }
 
       const pledgeData = currentPledge[0];
-      const amountUsd = validatedData.amount * validatedData.exchangeRate;
+      
+      // Calculate USD amount: payment amount / payment exchange rate
+      const amountUsd = validatedData.amount / validatedData.exchangeRate;
+      
+      // Calculate amount in pledge currency
+      const pledgeExchangeRate = parseFloat(pledgeData.exchangeRate || "1");
       const amountInPledgeCurrency = validatedData.currency === pledgeData.currency
         ? validatedData.amount
-        : amountUsd / (parseFloat(pledgeData.exchangeRate || "1") || 1);
+        : amountUsd * pledgeExchangeRate;
 
       const newPaymentData = {
         ...commonPaymentData,
@@ -197,6 +212,8 @@ export async function POST(request: NextRequest) {
         amountInPledgeCurrency: Number(amountInPledgeCurrency.toFixed(2)).toString(),
         notes: validatedData.notes || null,
       };
+
+      console.log('Creating single payment:', newPaymentData);
 
       const paymentResult = await db
         .insert(payment)
@@ -245,6 +262,7 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
 
 // Helper function to update pledge totals
 async function updatePledgeTotals(pledgeId: number) {
@@ -296,7 +314,7 @@ export async function GET(request: NextRequest) {
     if (!parsedParams.success) {
       return NextResponse.json(
         {
-          error: "Invalid query parameters",
+          error: "Invalid query parameters",                        
           details: parsedParams.error.issues.map((issue) => ({
             field: issue.path.join("."),
             message: issue.message,
