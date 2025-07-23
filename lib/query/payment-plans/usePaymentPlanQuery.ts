@@ -155,7 +155,7 @@ export interface PledgeDetails {
 const cleanPaymentPlanData = (data: PaymentPlanFormData): PaymentPlanFormData => {
   const roundMoney = (amount: number) => Math.round(amount * 100) / 100;
   
-  let cleanedData = {
+  const cleanedData = {
     ...data,
     totalPlannedAmount: roundMoney(data.totalPlannedAmount)
   };
@@ -197,7 +197,7 @@ const cleanPaymentPlanData = (data: PaymentPlanFormData): PaymentPlanFormData =>
 const cleanPaymentPlanUpdateData = (data: PaymentPlanUpdateData): PaymentPlanUpdateData => {
   const roundMoney = (amount: number) => Math.round(amount * 100) / 100;
   
-  let cleanedData = { ...data };
+  const cleanedData = { ...data };
 
   // Clean monetary values if they exist
   if (data.totalPlannedAmount) {

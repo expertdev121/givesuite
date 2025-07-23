@@ -41,6 +41,7 @@ export interface PaymentQueryParams {
 
 export interface Payment {
   id: number;
+  contactId?:number;
   pledgeId: number;
   paymentPlanId: number | null;
   installmentScheduleId: number | null;
@@ -70,10 +71,10 @@ export interface Payment {
   pledgeOriginalAmount?: string | null;
   pledgeOriginalCurrency?: string;
   pledgeExchangeRate?: string | null;
-  contactId?: number | null;
   solicitorName?: string | null;
   isSplitPayment: boolean;
   allocations: PaymentAllocation[];
+  allocationCount:number;
 }
 
 export interface PaymentAllocation {
@@ -83,7 +84,7 @@ export interface PaymentAllocation {
   installmentScheduleId: number | null;
   allocatedAmount: number;
   currency: string;
-  allocatedAmountUsd: string | null;
+  allocatedAmountUsd: string | undefined;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -93,6 +94,7 @@ export interface PaymentAllocation {
     campaignId?: number;
     currency: string;
   };
+  pledgeDescription?: string;
 }
 
 export interface PaymentsResponse {

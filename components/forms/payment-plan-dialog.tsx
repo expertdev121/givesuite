@@ -1144,7 +1144,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
       }
 
       // Auto-convert to custom if installments were modified in edit mode
-      let finalData = { ...data };
+      const finalData = { ...data };
       if (isEditMode && data.distributionType === "fixed" && installmentsModified) {
         finalData.distributionType = "custom";
         // Recalculate totals based on custom installments
