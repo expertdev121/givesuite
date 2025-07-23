@@ -84,7 +84,7 @@ interface EditAllocation {
   paymentId: number;
   pledgeId: number;
   installmentScheduleId: number | null;
-  allocatedAmount: string; // String type for EditPaymentDialog
+  allocatedAmount: string; // String for EditPaymentDialog
   currency: string;
   allocatedAmountUsd: string | undefined;
   notes: string | null;
@@ -114,11 +114,11 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
     return {
       ...apiPayment,
       contactId: contactId,
-      allocations: apiPayment.allocations.map(allocation => ({
+      allocations: apiPayment.allocations?.map(allocation => ({
         ...allocation,
         allocatedAmount: allocation.allocatedAmount.toString(), // Convert number to string
         notes: allocation.notes === undefined ? null : allocation.notes,
-      })),
+      })) || [], // Add fallback empty array
     };
   };
 
@@ -742,7 +742,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                               </div>
                             </div>
 
-                            {/* Split Payment Allocations */}
+                            {/* Split Payment Allocations - FIXED SECTION */}
                             {payment.isSplitPayment && payment.allocations && payment.allocations.length > 0 && (
                               <div className="mt-6 pt-4 border-t">
                                 <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -772,7 +772,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                         <div>
                                           <div className="space-y-1">
                                             <div className="flex justify-between">
-                                              <span className="text-sm text-gray-600">Amount :</span>
+                                              <span className="text-sm text-gray-600">Amount:</span>
                                               <span className="text-sm font-medium">
                                                 {formatCurrency(allocation.allocatedAmount.toString(), allocation.currency).symbol}
                                                 {formatCurrency(allocation.allocatedAmount.toString(), allocation.currency).amount}
