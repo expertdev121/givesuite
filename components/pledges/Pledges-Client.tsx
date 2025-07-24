@@ -432,13 +432,13 @@ export default function PledgesTable() {
                                     $ View Payments
                                   </Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
+                                {/* <DropdownMenuItem>
                                   <Link
                                     href={`/contacts/${contactId}/payment-plans?pledgeId=${pledge.id}`}
                                   >
                                     $ View Payment Plans
                                   </Link> 
-                                </DropdownMenuItem>
+                                </DropdownMenuItem> */}
                                 <DropdownMenuItem
                                   className="text-red-600 focus:text-red-600"
                                   onClick={() =>
@@ -592,14 +592,14 @@ export default function PledgesTable() {
 
                                 <div className="flex gap-2">
                                   <PaymentPlanDialog pledgeId={pledge.id} />
-                                  <LinkButton
+                                  {/* <LinkButton
                                     href={`/contacts/${contactId}/payment-plans?pledgeId=${pledge.id}`}
                                     variant="outline"
                                     className="flex items-center gap-2"
                                   >
                                     <BadgeDollarSign className="h-4 w-4" />
                                     View Plans
-                                  </LinkButton>
+                                  </LinkButton> */}
                                 </div>
                                 {/* or */}
                               </div>

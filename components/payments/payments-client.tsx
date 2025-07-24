@@ -906,7 +906,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                 </AlertDialogContent>
                               </AlertDialog>
 
-                              {payment.paymentPlanId && (
+                              {/* {payment.paymentPlanId && (
                                 <LinkButton
                                   variant="secondary"
                                   href={`/contacts/${contactId}/payment-plans/${payment.paymentPlanId}`}
@@ -915,12 +915,11 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                   <Calendar className="h-4 w-4" />
                                   View Payment Plan
                                 </LinkButton>
-                              )}
+                              )} */}
 
                               <LinkButton
                                 variant="secondary"
-                                href={`/contacts/${contactId}/payment-plans?pledgeId=${pledgeId || payment.pledgeId
-                                  }`}
+                                href={`/contacts/${contactId}/payment-plans`}
                                 className="flex items-center gap-2"
                               >
                                 <BadgeDollarSignIcon className="h-4 w-4" />
