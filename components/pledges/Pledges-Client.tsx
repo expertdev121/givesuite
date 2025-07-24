@@ -35,6 +35,7 @@ import {
   ChevronRight,
   MoreHorizontal,
   Search,
+  Edit,
 } from "lucide-react";
 import { usePledgesQuery } from "@/lib/query/usePledgeData";
 import { LinkButton } from "../ui/next-link";
@@ -69,6 +70,42 @@ const QueryParamsSchema = z.object({
 
 type StatusType = "fullyPaid" | "partiallyPaid" | "unpaid";
 
+// Define the form data shape that includes exchangeRate
+interface PledgeFormData {
+  id?: number;
+  contactId: number;
+  categoryId?: number;
+  description: string;
+  pledgeDate: string;
+  currency: string;
+  originalAmount: number;
+  originalAmountUsd: number;
+  exchangeRate: number;
+  campaignCode?: string;
+  notes?: string;
+}
+
+// Updated interface to match the actual API response (without contactId)
+interface PledgeApiResponse {
+  id: number;
+  categoryId?: number;
+  description?: string | null;
+  pledgeDate: string;
+  currency: string;
+  originalAmount: string;
+  originalAmountUsd?: string | null;
+  campaignCode?: string | null;
+  notes?: string | null;
+  categoryName?: string | null;
+  categoryDescription?: string | null;
+  totalPaidUsd?: string | null;
+  totalPaid: string;
+  balanceUsd?: string | null;
+  balance: string;
+  scheduledAmount?: string | null;
+  unscheduledAmount?: string | null;
+}
+
 export default function PledgesTable() {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -76,6 +113,10 @@ export default function PledgesTable() {
     id: number;
     description: string;
   } | null>(null);
+
+  // Add state for edit dialog
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingPledge, setEditingPledge] = useState<PledgeFormData | null>(null);
 
   const { mutate: deletePledge, isPending: isDeleting } = useDeletePledge();
 
@@ -131,7 +172,7 @@ export default function PledgesTable() {
 
   const pledgeQueryParams: PledgeQueryParams = {
     contactId: queryParams.contactId,
-    categoryId: queryParams.categoryId ?? undefined, // Convert null to undefined
+    categoryId: queryParams.categoryId ?? undefined,
     page: queryParams.page,
     limit: queryParams.limit,
     search: queryParams.search,
@@ -140,8 +181,7 @@ export default function PledgesTable() {
     endDate: queryParams.endDate,
   };
 
-  const { data, isLoading, error } = usePledgesQuery(pledgeQueryParams);
-  console.log("contactID in PAYMENT PLAN DIALOG", queryParams.contactId);
+  const { data, isLoading, error, refetch } = usePledgesQuery(pledgeQueryParams);
 
   const toggleRowExpansion = (pledgeId: number) => {
     const newExpanded = new Set(expandedRows);
@@ -161,7 +201,6 @@ export default function PledgesTable() {
       maximumFractionDigits: 0,
     }).format(Number.parseFloat(amount));
 
-    // Extract currency symbol and amount
     const currencySymbol = formatted.replace(/[\d,.\s]/g, "");
     const numericAmount = formatted.replace(/[^\d,.\s]/g, "").trim();
 
@@ -183,7 +222,6 @@ export default function PledgesTable() {
 
     deletePledge(pledgeToDelete.id, {
       onSuccess: () => {
-        // Remove from expanded rows if it was expanded
         const newExpanded = new Set(expandedRows);
         newExpanded.delete(pledgeToDelete.id);
         setExpandedRows(newExpanded);
@@ -192,7 +230,6 @@ export default function PledgesTable() {
       },
       onError: (error) => {
         console.error("Failed to delete pledge:", error);
-        // You could also show a toast notification here instead of alert
         alert("Failed to delete pledge. Please try again.");
       },
     });
@@ -201,6 +238,62 @@ export default function PledgesTable() {
   const cancelDeletePledge = () => {
     setDeleteDialogOpen(false);
     setPledgeToDelete(null);
+  };
+
+  // Handle edit dialog
+  const handleEditClick = (pledgeData: PledgeFormData) => {
+    setEditingPledge(pledgeData);
+    setEditDialogOpen(true);
+  };
+
+  const handleEditDialogChange = (open: boolean) => {
+    setEditDialogOpen(open);
+    if (!open) {
+      setEditingPledge(null);
+    }
+  };
+
+  // Handle pledge update callback
+  const handlePledgeUpdated = (pledgeId: number) => {
+    console.log("Pledge updated:", pledgeId);
+    refetch(); // Refetch the pledges data to show updated information
+    setEditDialogOpen(false);
+    setEditingPledge(null);
+  };
+
+  // Handle pledge creation callback
+  const handlePledgeCreated = (pledgeId: number) => {
+    console.log("Pledge created:", pledgeId);
+    refetch(); // Refetch the pledges data to show new pledge
+  };
+
+  // Helper function to calculate exchange rate from API data
+  const calculateExchangeRate = (originalAmount: string, originalAmountUsd: string | null | undefined): number => {
+    const amount = Number.parseFloat(originalAmount);
+    const amountUsd = Number.parseFloat(originalAmountUsd || "0");
+    
+    if (amount === 0 || !amountUsd) return 1;
+    
+    // Exchange rate = USD amount / original amount
+    return amountUsd / amount;
+  };
+
+  // Map API response to form data structure - now uses contactId from query params
+  const mapPledgeToFormData = (pledge: PledgeApiResponse, contactId: number): PledgeFormData => {
+    return {
+      id: pledge.id,
+      contactId: contactId, // Use contactId from query params instead of pledge response
+      categoryId: pledge.categoryId,
+      description: pledge.description || "",
+      pledgeDate: pledge.pledgeDate,
+      currency: pledge.currency,
+      originalAmount: Number.parseFloat(pledge.originalAmount),
+      originalAmountUsd: Number.parseFloat(pledge.originalAmountUsd || "0"),
+      // Calculate exchange rate from the available data
+      exchangeRate: calculateExchangeRate(pledge.originalAmount, pledge.originalAmountUsd),
+      campaignCode: pledge.campaignCode || undefined,
+      notes: pledge.notes || undefined,
+    };
   };
 
   if (error) {
@@ -255,7 +348,10 @@ export default function PledgesTable() {
                 <SelectItem value="unpaid">$ Unpaid</SelectItem>
               </SelectContent>
             </Select>
-            <PledgeDialog contactId={contactId as number} />
+            <PledgeDialog 
+              contactId={contactId as number} 
+              onPledgeCreated={handlePledgeCreated}
+            />
           </div>
 
           {/* Table */}
@@ -302,7 +398,6 @@ export default function PledgesTable() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  // Loading skeleton with safe limit value
                   Array.from({ length: currentLimit }).map((_, index) => (
                     <TableRow key={index}>
                       <TableCell><Skeleton className="h-4 w-4" /></TableCell>
@@ -331,6 +426,9 @@ export default function PledgesTable() {
                   </TableRow>
                 ) : (
                   data?.pledges.map((pledge) => {
+                    // Map API response to form data structure - pass contactId from query params
+                    const pledgeData = mapPledgeToFormData(pledge, contactId as number);
+
                     return (
                       <React.Fragment key={pledge.id}>
                         <TableRow className="hover:bg-gray-50">
@@ -425,20 +523,24 @@ export default function PledgesTable() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem>
+                                {/* <DropdownMenuItem
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    handleEditClick(pledgeData);
+                                  }}
+                                >
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit Pledge
+                                </DropdownMenuItem> */}
+                                <DropdownMenuItem asChild>
                                   <Link
                                     href={`/contacts/${contactId}/payments?pledgeId=${pledge.id}`}
+                                    className="flex items-center"
                                   >
-                                    $ View Payments
+                                    <BadgeDollarSign className="mr-2 h-4 w-4" />
+                                    View Payments
                                   </Link>
                                 </DropdownMenuItem>
-                                {/* <DropdownMenuItem>
-                                  <Link
-                                    href={`/contacts/${contactId}/payment-plans?pledgeId=${pledge.id}`}
-                                  >
-                                    $ View Payment Plans
-                                  </Link> 
-                                </DropdownMenuItem> */}
                                 <DropdownMenuItem
                                   className="text-red-600 focus:text-red-600"
                                   onClick={() =>
@@ -449,7 +551,7 @@ export default function PledgesTable() {
                                   }
                                   disabled={isDeleting}
                                 >
-                                  {isDeleting ? "Deleting..." : "$ Delete Pledge"}
+                                  {isDeleting ? "Deleting..." : "Delete Pledge"}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -501,6 +603,14 @@ export default function PledgesTable() {
                                             pledge.balanceUsd
                                           ).toLocaleString()}`
                                           : "N/A"}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">
+                                        Exchange Rate:
+                                      </span>
+                                      <span className="font-medium">
+                                        {pledgeData.exchangeRate.toFixed(4)}
                                       </span>
                                     </div>
                                   </div>
@@ -571,7 +681,7 @@ export default function PledgesTable() {
                                 </div>
                               </div>
 
-                              {/* Action Button */}
+                              {/* Action Buttons */}
                               <div className="mt-6 pt-4 flex gap-2 border-t justify-between">
                                 <div className="flex gap-2">
                                   <PaymentDialogClient
@@ -592,16 +702,15 @@ export default function PledgesTable() {
 
                                 <div className="flex gap-2">
                                   <PaymentPlanDialog pledgeId={pledge.id} />
-                                  {/* <LinkButton
-                                    href={`/contacts/${contactId}/payment-plans?pledgeId=${pledge.id}`}
-                                    variant="outline"
-                                    className="flex items-center gap-2"
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => handleEditClick(pledgeData)}
                                   >
-                                    <BadgeDollarSign className="h-4 w-4" />
-                                    View Plans
-                                  </LinkButton> */}
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    Edit Pledge
+                                  </Button>
                                 </div>
-                                {/* or */}
                               </div>
                             </TableCell>
                           </TableRow>
@@ -614,7 +723,7 @@ export default function PledgesTable() {
             </Table>
           </div>
 
-          {/* Pagination with safe values */}
+          {/* Pagination */}
           {data && data.pledges.length > 0 && (
             <div className="flex items-center justify-between mt-6">
               <div className="text-sm text-gray-600">
@@ -649,6 +758,19 @@ export default function PledgesTable() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Dialog - Use controlled PledgeDialog directly */}
+      {editingPledge && (
+        <PledgeDialog
+          mode="edit"
+          contactId={contactId as number}
+          pledgeData={editingPledge}
+          onPledgeUpdated={handlePledgeUpdated}
+          open={editDialogOpen}
+          onOpenChange={handleEditDialogChange}
+        />
+      )}
+
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
