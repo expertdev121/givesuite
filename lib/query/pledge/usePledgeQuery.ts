@@ -161,7 +161,7 @@ export const usePledgeByIdQuery = (id: number) =>
 
 const fetchPledges = async (
   params: PledgeQueryParams
-): Promise<PledgesResponse> => {
+): Promise<PledgesResponse> => { 
   const searchParams = new URLSearchParams();
 
   Object.entries(params).forEach(([key, value]) => {

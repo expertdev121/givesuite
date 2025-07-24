@@ -116,9 +116,9 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
       contactId: contactId,
       allocations: apiPayment.allocations?.map(allocation => ({
         ...allocation,
-        allocatedAmount: allocation.allocatedAmount.toString(), // Convert number to string
+        allocatedAmount: allocation.allocatedAmount.toString(),
         notes: allocation.notes === undefined ? null : allocation.notes,
-      })) || [], // Add fallback empty array
+      })) || [],
     };
   };
 
@@ -746,7 +746,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                             {payment.isSplitPayment && payment.allocations && payment.allocations.length > 0 && (
                               <div className="mt-6 pt-4 border-t">
                                 <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                                  <Users className="h-4 w-4" />
+                                  <Users className="h-4 w-4" />  
                                   Payment Allocations ({payment.allocations.length})
                                 </h4>
                                 <div className="space-y-3">
