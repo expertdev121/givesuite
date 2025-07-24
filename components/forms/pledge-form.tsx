@@ -292,7 +292,6 @@ export default function PledgeDialog({
           .map(([field, error]: [string, any]) => `${field}: ${error?.message || 'Invalid'}`)
           .join(', ');
         
-        toast.error(`Please fix the following errors: ${errorMessages}`);
         return;
       }
 
@@ -444,7 +443,7 @@ export default function PledgeDialog({
           <Form {...form}>
             <form onSubmit={form.handleSubmit((data) => onSubmit(data, false))} className="space-y-4">
               {/* Global form errors */}
-              {Object.keys(form.formState.errors).length > 0 && (
+              {/* {Object.keys(form.formState.errors).length > 0 && (
                 <div className="bg-red-50 border border-red-200 rounded-md p-3">
                   <h4 className="text-sm font-medium text-red-800 mb-2">Please fix the following errors:</h4>
                   <ul className="text-sm text-red-700 space-y-1">
@@ -455,7 +454,7 @@ export default function PledgeDialog({
                     ))}
                   </ul>
                 </div>
-              )}
+              )} */}
 
               <FormField
                 control={form.control}

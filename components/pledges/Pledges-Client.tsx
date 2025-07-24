@@ -85,6 +85,27 @@ interface PledgeFormData {
   notes?: string;
 }
 
+// Updated interface to match the actual API response (without contactId)
+interface PledgeApiResponse {
+  id: number;
+  categoryId?: number;
+  description?: string | null;
+  pledgeDate: string;
+  currency: string;
+  originalAmount: string;
+  originalAmountUsd?: string | null;
+  campaignCode?: string | null;
+  notes?: string | null;
+  categoryName?: string | null;
+  categoryDescription?: string | null;
+  totalPaidUsd?: string | null;
+  totalPaid: string;
+  balanceUsd?: string | null;
+  balance: string;
+  scheduledAmount?: string | null;
+  unscheduledAmount?: string | null;
+}
+
 export default function PledgesTable() {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -247,9 +268,9 @@ export default function PledgesTable() {
   };
 
   // Helper function to calculate exchange rate from API data
-  const calculateExchangeRate = (originalAmount: string, originalAmountUsd: string): number => {
+  const calculateExchangeRate = (originalAmount: string, originalAmountUsd: string | null | undefined): number => {
     const amount = Number.parseFloat(originalAmount);
-    const amountUsd = Number.parseFloat(originalAmountUsd);
+    const amountUsd = Number.parseFloat(originalAmountUsd || "0");
     
     if (amount === 0 || !amountUsd) return 1;
     
@@ -257,11 +278,11 @@ export default function PledgesTable() {
     return amountUsd / amount;
   };
 
-  // Map API response to form data structure
-  const mapPledgeToFormData = (pledge: any): PledgeFormData => {
+  // Map API response to form data structure - now uses contactId from query params
+  const mapPledgeToFormData = (pledge: PledgeApiResponse, contactId: number): PledgeFormData => {
     return {
       id: pledge.id,
-      contactId: pledge.contactId,
+      contactId: contactId, // Use contactId from query params instead of pledge response
       categoryId: pledge.categoryId,
       description: pledge.description || "",
       pledgeDate: pledge.pledgeDate,
@@ -270,8 +291,8 @@ export default function PledgesTable() {
       originalAmountUsd: Number.parseFloat(pledge.originalAmountUsd || "0"),
       // Calculate exchange rate from the available data
       exchangeRate: calculateExchangeRate(pledge.originalAmount, pledge.originalAmountUsd),
-      campaignCode: pledge.campaignCode,
-      notes: pledge.notes,
+      campaignCode: pledge.campaignCode || undefined,
+      notes: pledge.notes || undefined,
     };
   };
 
@@ -405,8 +426,8 @@ export default function PledgesTable() {
                   </TableRow>
                 ) : (
                   data?.pledges.map((pledge) => {
-                    // Map API response to form data structure
-                    const pledgeData = mapPledgeToFormData(pledge);
+                    // Map API response to form data structure - pass contactId from query params
+                    const pledgeData = mapPledgeToFormData(pledge, contactId as number);
 
                     return (
                       <React.Fragment key={pledge.id}>
