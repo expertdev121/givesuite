@@ -771,7 +771,7 @@ export default function PaymentsTable({ contactId }: PaymentsTableProps) {
                                         </div>
                                         <div>
                                           <div className="space-y-1">
-                                            <div className="flex justify-between">
+                                            <div className="flex justify-between">     
                                               <span className="text-sm text-gray-600">Amount:</span>
                                               <span className="text-sm font-medium">
                                                 {formatCurrency(allocation.allocatedAmount.toString(), allocation.currency).symbol}

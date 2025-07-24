@@ -123,6 +123,50 @@ export interface CreatePledgeAndPayData extends CreatePledgeData {
   shouldRedirectToPay: boolean;
 }
 
+// Update interface for pledge data
+export interface UpdatePledgeData {
+  id: number;
+  contactId?: number;
+  categoryId?: number;
+  pledgeDate?: string;
+  description?: string;
+  originalAmount?: number;
+  currency?: string;
+  originalAmountUsd?: number;
+  exchangeRate?: number;
+  isActive?: boolean;
+  notes?: string;
+}
+
+export interface UpdatePledgeResponse {
+  message: string;
+  pledge: Pledge;
+}
+
+// Update function
+const updatePledge = async (
+  data: UpdatePledgeData
+): Promise<UpdatePledgeResponse> => {
+  const { id, ...updateData } = data;
+  
+  const response = await fetch(`/api/pledges/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(updateData),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(
+      errorData.error || `Failed to update pledge: ${response.statusText}`
+    );
+  }
+
+  return response.json();
+};
+
 const createPayment = async (
   data: CreatePaymentData
 ): Promise<CreatePaymentResponse> => {
@@ -143,6 +187,7 @@ const createPayment = async (
 
   return response.json();
 };
+
 const fetchPledgeById = async (id: number): Promise<Pledge> => {
   const response = await fetch(`/api/pledges/${id}`);
   if (!response.ok) {
@@ -150,14 +195,6 @@ const fetchPledgeById = async (id: number): Promise<Pledge> => {
   }
   return response.json();
 };
-
-export const usePledgeByIdQuery = (id: number) =>
-  useQuery({
-    queryKey: pledgeKeys.detail(id),
-    queryFn: () => fetchPledgeById(id),
-    enabled: !!id,
-    staleTime: 1000 * 60 * 5,
-  }); 
 
 const fetchPledges = async (
   params: PledgeQueryParams
@@ -200,6 +237,25 @@ const createPledge = async (
   return response.json();
 };
 
+const deletePledge = async (
+  pledgeId: number
+): Promise<DeletePledgeResponse> => {
+  const response = await fetch(`/api/pledges/${pledgeId}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || "Failed to delete pledge");
+  }
+
+  return response.json();
+};
+
+// Query Keys
 export const pledgeKeys = {
   all: ["pledges"] as const,
   lists: () => [...pledgeKeys.all, "list"] as const,
@@ -217,6 +273,15 @@ export const paymentKeys = {
     [...paymentKeys.lists(), "contact", contactId] as const,
 };
 
+// Query Hooks
+export const usePledgeByIdQuery = (id: number) =>
+  useQuery({
+    queryKey: pledgeKeys.detail(id),
+    queryFn: () => fetchPledgeById(id),
+    enabled: !!id,
+    staleTime: 1000 * 60 * 5,
+  }); 
+
 export const usePledgesQuery = (params: PledgeQueryParams) => {
   return useQuery({
     queryKey: pledgeKeys.list(params),
@@ -226,13 +291,13 @@ export const usePledgesQuery = (params: PledgeQueryParams) => {
   });
 };
 
+// Mutation Hooks
 export const useCreatePledgeMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: createPledge,
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries();
       queryClient.invalidateQueries({ queryKey: pledgeKeys.all });
       queryClient.invalidateQueries({
         queryKey: pledgeKeys.list({ contactId: variables.contactId }),
@@ -249,13 +314,62 @@ export const useCreatePledgeMutation = () => {
   });
 };
 
+export const useUpdatePledgeMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: updatePledge,
+    onSuccess: (data, variables) => {
+      // Invalidate all pledge queries
+      queryClient.invalidateQueries({ queryKey: pledgeKeys.all });
+      
+      // Update the specific pledge in cache if it exists
+      queryClient.setQueryData(
+        pledgeKeys.detail(variables.id),
+        data.pledge
+      );
+      
+      // Invalidate pledge list for the contact
+      if (variables.contactId || data.pledge.contactId) {
+        queryClient.invalidateQueries({
+          queryKey: pledgeKeys.list({ 
+            contactId: variables.contactId || data.pledge.contactId 
+          }),
+        });
+      }
+      
+      // Handle null to undefined conversion for categoryId
+      const categoryIdForQuery = variables.categoryId ?? 
+        (data.pledge.categoryId !== null ? data.pledge.categoryId : undefined);
+      
+      if (categoryIdForQuery !== undefined) {
+        queryClient.invalidateQueries({
+          queryKey: pledgeKeys.list({ 
+            categoryId: categoryIdForQuery
+          }),
+        });
+      }
+
+      // If amount or currency changed, invalidate payment queries too
+      if (variables.originalAmount || variables.currency || variables.originalAmountUsd) {
+        queryClient.invalidateQueries({ queryKey: paymentKeys.all });
+        queryClient.invalidateQueries({
+          queryKey: paymentKeys.byPledge(variables.id),
+        });
+      }
+    },
+    onError: (error) => {
+      console.error("Error updating pledge:", error);
+    },
+  });
+};
+
 export const useCreatePaymentMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: createPayment,
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries();
       queryClient.invalidateQueries({ queryKey: paymentKeys.all });
 
       // Invalidate payments for this specific pledge
@@ -287,7 +401,6 @@ export const useCreatePledgeAndPayMutation = () => {
       return { ...result, shouldRedirectToPay };
     },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries();
       queryClient.invalidateQueries({ queryKey: pledgeKeys.all });
       queryClient.invalidateQueries({
         queryKey: pledgeKeys.list({ contactId: variables.contactId }),
@@ -315,24 +428,6 @@ interface DeletePledgeResponse {
     paymentPlans: number;
   };
 }
-
-const deletePledge = async (
-  pledgeId: number
-): Promise<DeletePledgeResponse> => {
-  const response = await fetch(`/api/pledges/${pledgeId}`, {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || "Failed to delete pledge");
-  }
-
-  return response.json();
-};
 
 export const useDeletePledge = () => {
   const queryClient = useQueryClient();
