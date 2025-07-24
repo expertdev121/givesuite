@@ -18,7 +18,7 @@ const pledgeSchema = z.object({
     .number()
     .positive("Pledge amount in USD must be positive"),
   exchangeRate: z.number().positive("Exchange rate must be positive"),
-  campaignCode: z.string().optional(), // Added campaign code field
+  campaignCode: z.string().optional(),
   notes: z.string().optional(),
 });
 

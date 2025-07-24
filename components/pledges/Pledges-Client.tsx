@@ -437,7 +437,7 @@ export default function PledgesTable() {
                                     href={`/contacts/${contactId}/payment-plans?pledgeId=${pledge.id}`}
                                   >
                                     $ View Payment Plans
-                                  </Link>
+                                  </Link> 
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   className="text-red-600 focus:text-red-600"

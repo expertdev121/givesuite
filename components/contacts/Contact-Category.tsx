@@ -32,8 +32,9 @@ export default function ContactCategoriesCard({
     totalPledgedUsd: "0.00",
     totalPaidUsd: "0.00",
     currentBalanceUsd: "0.00",
+    scheduledUsd: "0.00", // Add this field to your Category type
     pledgeCount: 0,
-    pledges: [] // Changed from pledge to pledges array
+    pledges: []
   });
  
   const formatCurrency = (amount: string, currency: string = "USD") => {
@@ -50,6 +51,13 @@ export default function ContactCategoriesCard({
 
     return { symbol: currencySymbol, amount: numericAmount };
   };
+
+  const calculateUnscheduled = (balance: string | number, scheduled: string | number) => {
+    const balanceNum = Number.parseFloat(String(balance));
+    const scheduledNum = Number.parseFloat(String(scheduled || "0"));
+    return (balanceNum - scheduledNum).toFixed(2);
+  };
+
   const categoryMap = new Map<string, Category>();
   categories.forEach((cat) => {
     categoryMap.set(cat.categoryName.toLowerCase(), cat);
@@ -84,6 +92,11 @@ export default function ContactCategoriesCard({
           </TableHeader>
           <TableBody>
             {sortedCategories.map((category) => {
+              const unscheduledAmount = calculateUnscheduled(
+                category.currentBalanceUsd,
+                category.currentBalanceUsd || "0"
+              );
+              
               return (
                 <TableRow key={category.categoryId}>
                   <TableCell className="font-medium">
@@ -109,12 +122,12 @@ export default function ContactCategoriesCard({
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-evenly">
-                                          $ {category.currentBalanceUsd}
+                      $ {category.currentBalanceUsd || "0.00"}
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-evenly">
-                                         $ {category.totalPledgedUsd}
+                      $ {unscheduledAmount}
                     </div>
                   </TableCell>
                 </TableRow>
