@@ -18,6 +18,11 @@ interface ContactCategoriesCardProps {
   categories: Category[];
 }
 
+// Extended interface for categories that includes scheduledUsd from the backend
+interface ExtendedCategory extends Category {
+  scheduledUsd?: number | string; // Allow both number and string from backend
+}
+
 export default function ContactCategoriesCard({
   categories,
 }: ContactCategoriesCardProps) {
@@ -25,48 +30,85 @@ export default function ContactCategoriesCard({
 
   const categoryOrder = ["Tuition", "Donation", "Miscellaneous"];
 
-  const createEmptyCategory = (name: string) => ({
-    categoryId: name.toLowerCase(),
+  const createEmptyCategory = (name: string): ExtendedCategory => ({
+    categoryId: name.toLowerCase() as unknown as Category['categoryId'],
     categoryName: name,
     categoryDescription: "",
-    totalPledgedUsd: "0.00",
-    totalPaidUsd: "0.00",
-    currentBalanceUsd: "0.00",
-    scheduledUsd: "0.00", // Add this field to your Category type
+    totalPledgedUsd: 0,
+    totalPaidUsd: 0,
+    currentBalanceUsd: 0,
     pledgeCount: 0,
-    pledges: []
+    scheduledUsd: 0,
   });
- 
-  const formatCurrency = (amount: string, currency: string = "USD") => {
+
+  const formatCurrency = (amount: string | number, currency: string = "USD") => {
+    const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
     const formatted = new Intl.NumberFormat("en-US", {
       style: "currency",
       currency,
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(Number.parseFloat(amount));
+    }).format(numericAmount);
 
-    // Extract currency symbol and amount
     const currencySymbol = formatted.replace(/[\d,.\s]/g, "");
-    const numericAmount = formatted.replace(/[^\d,.\s]/g, "").trim();
+    const numericPart = formatted.replace(/[^\d,.\s]/g, "").trim();
 
-    return { symbol: currencySymbol, amount: numericAmount };
+    return { symbol: currencySymbol, amount: numericPart };
+  };
+
+  const getScheduledAmount = (category: ExtendedCategory) => {
+    // Handle all possible types and convert to number
+    let scheduled = category.scheduledUsd;
+
+    // Convert to number regardless of input type
+    if (typeof scheduled === 'string') {
+      scheduled = parseFloat(scheduled);
+    } else if (scheduled === null || scheduled === undefined) {
+      scheduled = 0;
+    }
+
+    // Final safety check - ensure it's a valid number
+    const validScheduled = (typeof scheduled === 'number' && !isNaN(scheduled)) ? scheduled : 0;
+
+    console.log(`💰 Scheduled amount for ${category.categoryName}: $${validScheduled.toFixed(2)} (from backend)`);
+    console.log(`🔍 Original scheduledUsd:`, category.scheduledUsd, 'Type:', typeof category.scheduledUsd);
+
+    return validScheduled.toFixed(2);
   };
 
   const calculateUnscheduled = (balance: string | number, scheduled: string | number) => {
-    const balanceNum = Number.parseFloat(String(balance));
-    const scheduledNum = Number.parseFloat(String(scheduled || "0"));
-    return (balanceNum - scheduledNum).toFixed(2);
+    // Handle balance conversion
+    let balanceNum = balance;
+    if (typeof balanceNum === 'string') {
+      balanceNum = parseFloat(balanceNum);
+    }
+    const validBalance = (typeof balanceNum === 'number' && !isNaN(balanceNum)) ? balanceNum : 0;
+
+    // Handle scheduled conversion
+    let scheduledNum = scheduled;
+    if (typeof scheduledNum === 'string') {
+      scheduledNum = parseFloat(scheduledNum);
+    }
+    const validScheduled = (typeof scheduledNum === 'number' && !isNaN(scheduledNum)) ? scheduledNum : 0;
+
+    const unscheduled = (validBalance - validScheduled).toFixed(2);
+
+    console.log(`📊 Unscheduled calculation: Balance($${validBalance}) - Scheduled($${validScheduled}) = $${unscheduled}`);
+    return unscheduled;
   };
 
-  const categoryMap = new Map<string, Category>();
+  const categoryMap = new Map<string, ExtendedCategory>();
   categories.forEach((cat) => {
-    categoryMap.set(cat.categoryName.toLowerCase(), cat);
+    categoryMap.set(cat.categoryName.toLowerCase(), cat as ExtendedCategory);
   });
 
   const sortedCategories = categoryOrder.map((categoryName) => {
     const existing = categoryMap.get(categoryName.toLowerCase());
     return existing || createEmptyCategory(categoryName);
   });
+
+  // Debug log to see the data structure from backend
+  console.log('\n🔍 Categories with scheduled amounts from backend:', sortedCategories);
 
   return (
     <Card className="w-full lg:col-span-2">
@@ -92,11 +134,15 @@ export default function ContactCategoriesCard({
           </TableHeader>
           <TableBody>
             {sortedCategories.map((category) => {
+              // Debug log for each category
+              console.log(`🔍 Category ${category.categoryName} scheduledUsd:`, category.scheduledUsd, typeof category.scheduledUsd);
+
+              const scheduledAmount = getScheduledAmount(category);
               const unscheduledAmount = calculateUnscheduled(
                 category.currentBalanceUsd,
-                category.currentBalanceUsd || "0"
+                scheduledAmount
               );
-              
+
               return (
                 <TableRow key={category.categoryId}>
                   <TableCell className="font-medium">
@@ -109,20 +155,20 @@ export default function ContactCategoriesCard({
                   </TableCell>
                   <TableCell>{category.categoryDescription || "N/A"}</TableCell>
                   <TableCell className="text-right">
-                    $ {category.totalPledgedUsd}
+                    $ {typeof category.totalPledgedUsd === 'number' ? category.totalPledgedUsd.toFixed(2) : category.totalPledgedUsd}
                   </TableCell>
                   <TableCell className="text-right">
-                    $ {category.totalPaidUsd}
+                    $ {typeof category.totalPaidUsd === 'number' ? category.totalPaidUsd.toFixed(2) : category.totalPaidUsd}
                   </TableCell>
                   <TableCell className="text-right">
-                    $ {category.currentBalanceUsd}
+                    $ {typeof category.currentBalanceUsd === 'number' ? category.currentBalanceUsd.toFixed(2) : category.currentBalanceUsd}
                   </TableCell>
                   <TableCell className="text-right">
                     {category.pledgeCount}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-evenly">
-                      $ {category.currentBalanceUsd || "0.00"}
+                      $ {scheduledAmount}
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
