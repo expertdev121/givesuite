@@ -91,7 +91,8 @@ export default function ContactCategoriesCard({
     }
     const validScheduled = (typeof scheduledNum === 'number' && !isNaN(scheduledNum)) ? scheduledNum : 0;
 
-    const unscheduled = (validBalance - validScheduled).toFixed(2);
+    // Ensure unscheduled is never negative - use Math.max to set minimum to 0
+    const unscheduled = Math.max(0, validBalance - validScheduled).toFixed(2);
 
     console.log(`📊 Unscheduled calculation: Balance($${validBalance}) - Scheduled($${validScheduled}) = $${unscheduled}`);
     return unscheduled;
