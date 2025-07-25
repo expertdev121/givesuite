@@ -1,7 +1,7 @@
 {
   "build": {
     "env": {
-      "NPM_CONFIG_OPTIONAL": "false"
+      "NPM_CONFIG_OPTIONAL": "true"
     }
   }
 }
