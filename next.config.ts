@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+   experimental: {
+    optimizeCss: false, //  disables lightningcss to avoid .node binary error
+  },
 };
-
+module.exports = nextConfig;
 export default nextConfig;
