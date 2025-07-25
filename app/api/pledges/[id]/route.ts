@@ -44,7 +44,7 @@ export async function GET(
     }
 
     const pledgeDetailsQuery = db
-      .select({
+      .select({ 
         id: pledge.id,
         pledgeDate: pledge.pledgeDate,
         description: pledge.description,
