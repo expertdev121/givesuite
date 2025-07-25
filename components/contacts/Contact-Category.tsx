@@ -31,7 +31,7 @@ export default function ContactCategoriesCard({
   const categoryOrder = ["Tuition", "Donation", "Miscellaneous"];
 
   const createEmptyCategory = (name: string): ExtendedCategory => ({
-    categoryId: name.toLowerCase() as any,
+    categoryId: name.toLowerCase() as unknown as Category['categoryId'],
     categoryName: name,
     categoryDescription: "",
     totalPledgedUsd: 0,
@@ -59,20 +59,20 @@ export default function ContactCategoriesCard({
   const getScheduledAmount = (category: ExtendedCategory) => {
     // Handle all possible types and convert to number
     let scheduled = category.scheduledUsd;
-    
+
     // Convert to number regardless of input type
     if (typeof scheduled === 'string') {
       scheduled = parseFloat(scheduled);
     } else if (scheduled === null || scheduled === undefined) {
       scheduled = 0;
     }
-    
+
     // Final safety check - ensure it's a valid number
     const validScheduled = (typeof scheduled === 'number' && !isNaN(scheduled)) ? scheduled : 0;
-    
+
     console.log(`💰 Scheduled amount for ${category.categoryName}: $${validScheduled.toFixed(2)} (from backend)`);
     console.log(`🔍 Original scheduledUsd:`, category.scheduledUsd, 'Type:', typeof category.scheduledUsd);
-    
+
     return validScheduled.toFixed(2);
   };
 
@@ -83,16 +83,16 @@ export default function ContactCategoriesCard({
       balanceNum = parseFloat(balanceNum);
     }
     const validBalance = (typeof balanceNum === 'number' && !isNaN(balanceNum)) ? balanceNum : 0;
-    
+
     // Handle scheduled conversion
     let scheduledNum = scheduled;
     if (typeof scheduledNum === 'string') {
       scheduledNum = parseFloat(scheduledNum);
     }
     const validScheduled = (typeof scheduledNum === 'number' && !isNaN(scheduledNum)) ? scheduledNum : 0;
-    
+
     const unscheduled = (validBalance - validScheduled).toFixed(2);
-    
+
     console.log(`📊 Unscheduled calculation: Balance($${validBalance}) - Scheduled($${validScheduled}) = $${unscheduled}`);
     return unscheduled;
   };
@@ -136,13 +136,13 @@ export default function ContactCategoriesCard({
             {sortedCategories.map((category) => {
               // Debug log for each category
               console.log(`🔍 Category ${category.categoryName} scheduledUsd:`, category.scheduledUsd, typeof category.scheduledUsd);
-              
+
               const scheduledAmount = getScheduledAmount(category);
               const unscheduledAmount = calculateUnscheduled(
                 category.currentBalanceUsd,
                 scheduledAmount
               );
-              
+
               return (
                 <TableRow key={category.categoryId}>
                   <TableCell className="font-medium">
