@@ -356,11 +356,11 @@ export default function PledgeDialog({
           resetForm();
           setOpen(false);
 
-          if (onPledgeCreated) {
+          if (onPledgeCreated) { 
             onPledgeCreated(result.pledge.id);
           }
         }
-      }
+      }  
       
       console.log("=== FORM SUBMISSION SUCCESS ===");
     } catch (error) {
