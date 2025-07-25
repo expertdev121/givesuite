@@ -1,9 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-   experimental: {
-    optimizeCss: false, //  disables lightningcss to avoid .node binary error
+  experimental: {
+    optimizeCss: false, // ✅ disables lightningcss and fixes Vercel build error
   },
 };
-module.exports = nextConfig;
+
 export default nextConfig;
