@@ -410,14 +410,14 @@ const generatePreviewInstallments = (
 ): PreviewInstallment[] => {
   const installments: PreviewInstallment[] = [];
   const start = new Date(startDate);
-  
+
   // Calculate installment amount with proper distribution
   const baseInstallmentAmount = roundToPrecision(totalAmount / numberOfInstallments, 2);
   const remainder = roundToPrecision(totalAmount - (baseInstallmentAmount * numberOfInstallments), 2);
-  
+
   for (let i = 0; i < numberOfInstallments; i++) {
     const installmentDate = new Date(start);
-    
+
     switch (frequency) {
       case "weekly":
         installmentDate.setDate(start.getDate() + i * 7);
@@ -440,13 +440,13 @@ const generatePreviewInstallments = (
       default:
         installmentDate.setMonth(start.getMonth() + i);
     }
-    
+
     // Add remainder to last installment to ensure total matches exactly
     let installmentAmount = baseInstallmentAmount;
     if (i === numberOfInstallments - 1 && remainder !== 0) {
       installmentAmount = roundToPrecision(baseInstallmentAmount + remainder, 2);
     }
-    
+
     installments.push({
       installmentNumber: i + 1,
       date: installmentDate.toISOString().split("T")[0],
@@ -456,10 +456,10 @@ const generatePreviewInstallments = (
       isPaid: false,
       notes: null,
     });
-    
+
     if (frequency === "one_time") break;
   }
-  
+
   return installments;
 };
 
@@ -875,7 +875,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
           paidDate: undefined,
           paidAmount: undefined,
         }));
-        
+
         form.setValue("customInstallments", generatedInstallments);
       }
     }
@@ -997,18 +997,18 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
       if (totalAmount && installments > 0) {
         // Calculate base installment amount
         const baseAmount = roundToPrecision(totalAmount / installments, 2);
-        
+
         // Calculate what the total would be with this amount
         const calculatedTotal = baseAmount * installments;
         const difference = roundToPrecision(totalAmount - calculatedTotal, 2);
-        
+
         // If there's a significant difference, adjust the installment amount slightly
         let finalAmount = baseAmount;
         if (Math.abs(difference) > 0.01) {
           // Add the difference to the base amount to maintain total
           finalAmount = roundToPrecision(baseAmount + (difference / installments), 2);
         }
-        
+
         form.setValue("installmentAmount", finalAmount);
       }
     }
@@ -1153,12 +1153,22 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
         finalData.numberOfInstallments = data.customInstallments?.length || 0;
       }
 
+      // Ensure currency is properly set
+      if (!finalData.currency) {
+        finalData.currency = "USD";
+      }
+
+      // Transform custom installments for API
       const submissionData = {
         ...finalData,
         paymentMethod: finalData.paymentMethod || undefined,
-        methodDetail: finalData.methodDetail || undefined, 
-        customInstallments: finalData.distributionType === 'custom'
-          ? finalData.customInstallments
+        methodDetail: finalData.methodDetail || undefined,
+        customInstallments: finalData.distributionType === 'custom' && finalData.customInstallments
+          ? finalData.customInstallments.map(inst => ({
+            date: inst.date,
+            amount: inst.amount, // Keep as number, API will transform
+            notes: inst.notes || "",
+          }))
           : undefined,
       };
 
@@ -1167,18 +1177,14 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
           id: paymentPlanId,
           data: submissionData,
         });
-        setOpen(false);
-        onSuccess?.();
       } else {
         await createPaymentPlanMutation.mutateAsync(submissionData);
-        onSuccess?.();
-        setOpen(false);
       }
+
+      setOpen(false);
+      onSuccess?.();
     } catch (error) {
-      console.error(
-        `Error ${isEditMode ? "updating" : "creating"} payment plan:`,
-        error
-      );
+      console.error(`Error ${isEditMode ? "updating" : "creating"} payment plan:`, error);
     }
   };
 
@@ -1261,7 +1267,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
         const baseAmount = roundToPrecision(totalAmount / installments, 2);
         const calculatedTotal = baseAmount * installments;
         const difference = roundToPrecision(totalAmount - calculatedTotal, 2);
-        
+
         let finalAmount = baseAmount;
         if (Math.abs(difference) > 0.01) {
           finalAmount = roundToPrecision(baseAmount + (difference / installments), 2);
@@ -1306,7 +1312,6 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
       </div>
     );
   }
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>{trigger || defaultTrigger}</DialogTrigger>
@@ -1668,8 +1673,8 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h4 className="text-sm font-medium">
-                        {isEditMode && form.watch("distributionType") === "fixed" 
-                          ? "Edit Installments (will convert to custom plan)" 
+                        {isEditMode && form.watch("distributionType") === "fixed"
+                          ? "Edit Installments (will convert to custom plan)"
                           : "Custom Installments"}
                       </h4>
                       <Button
@@ -1714,9 +1719,9 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                             <FormItem>
                               <FormLabel>Date</FormLabel>
                               <FormControl>
-                                <Input 
-                                  type="date" 
-                                  {...field} 
+                                <Input
+                                  type="date"
+                                  {...field}
                                   onChange={(e) => {
                                     field.onChange(e);
                                     if (isEditMode && form.watch("distributionType") === "fixed") {
@@ -2094,7 +2099,7 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                     <div>
                       Distribution: {
                         (form.watch("distributionType") === "custom" || (isEditMode && form.watch("customInstallments")))
-                          ? "Custom Schedule" 
+                          ? "Custom Schedule"
                           : "Fixed Amount"
                       }
                     </div>
