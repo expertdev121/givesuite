@@ -10,8 +10,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:pull": "drizzle-kit pull",
-    "postinstall": "npx lightningcss --version || true"
+    "db:pull": "drizzle-kit pull"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.0",
