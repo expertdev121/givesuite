@@ -14,9 +14,9 @@ import { StatementsSection } from "@/components/dashboard/statements-section";
 import { BonusReport } from "@/components/dashboard/bonus-report";
 import { DonorContributionReport } from "@/components/dashboard/donor-contribution-report";
 import { CampaignFundraisingReport } from "@/components/dashboard/campaign-fundraising-report";
-// import { DonorSegmentationReport } from "@/components/dashboard/donor-segmentation-report";
-// import { FinancialAccountingReport } from "@/components/dashboard/financial-accounting-report";
-// import { LybuntSybuntReport } from "@/components/dashboard/lybunt-sybunt-report";
+import { DonorSegmentationReport } from "@/components/dashboard/donor-segmentation-report";
+import { FinancialAccountingReport } from "@/components/dashboard/financial-accounting-report";
+import { LybuntSybuntReport } from "@/components/dashboard/lybunt-sybunt-report";
 
 interface DashboardData {
   summary: {
@@ -452,15 +452,15 @@ export default function DashboardPage() {
             </TabsContent>
 
             <TabsContent value="donor-segmentation" className="space-y-6">
-              <div>Donor Segmentation Report - Coming Soon</div>
+              <DonorSegmentationReport contactId={selectedContact} />
             </TabsContent>
 
             <TabsContent value="financial-accounting" className="space-y-6">
-              <div>Financial & Accounting Report - Coming Soon</div>
+              <FinancialAccountingReport contactId={selectedContact} />
             </TabsContent>
 
             <TabsContent value="lybunt-sybunt" className="space-y-6">
-              <div>LYBUNT & SYBUNT Report - Coming Soon</div>
+              <LybuntSybuntReport contactId={selectedContact} />
             </TabsContent>
           </Tabs>
         </TabsContent>
