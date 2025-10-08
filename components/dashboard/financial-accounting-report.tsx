@@ -60,6 +60,11 @@ const monthNames = [
 export function FinancialAccountingReport({ contactId }: FinancialAccountingReportProps) {
   const [data, setData] = useState<FinancialAccountingData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [yearlyPage, setYearlyPage] = useState(1);
+  const [monthlyPage, setMonthlyPage] = useState(1);
+  const [methodsPage, setMethodsPage] = useState(1);
+  const [currenciesPage, setCurrenciesPage] = useState(1);
+  const itemsPerPage = 20;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -120,6 +125,46 @@ export function FinancialAccountingReport({ contactId }: FinancialAccountingRepo
       </div>
     );
   }
+
+  // Pagination logic for yearly comparison
+  const totalYearly = data.yearlyComparison?.length || 0;
+  const totalYearlyPages = Math.ceil(totalYearly / itemsPerPage);
+  const yearlyStartIndex = (yearlyPage - 1) * itemsPerPage;
+  const yearlyEndIndex = yearlyStartIndex + itemsPerPage;
+  const currentYearly = data.yearlyComparison?.slice(yearlyStartIndex, yearlyEndIndex) || [];
+
+  // Pagination logic for monthly data
+  const totalMonthly = data.monthlyData?.length || 0;
+  const totalMonthlyPages = Math.ceil(totalMonthly / itemsPerPage);
+  const monthlyStartIndex = (monthlyPage - 1) * itemsPerPage;
+  const monthlyEndIndex = monthlyStartIndex + itemsPerPage;
+  const currentMonthly = data.monthlyData?.slice(monthlyStartIndex, monthlyEndIndex) || [];
+
+  // Pagination logic for payment methods
+  const totalMethods = data.paymentMethodData?.length || 0;
+  const totalMethodsPages = Math.ceil(totalMethods / itemsPerPage);
+  const methodsStartIndex = (methodsPage - 1) * itemsPerPage;
+  const methodsEndIndex = methodsStartIndex + itemsPerPage;
+  const currentMethods = data.paymentMethodData?.slice(methodsStartIndex, methodsEndIndex) || [];
+
+  // Pagination logic for currencies
+  const totalCurrencies = data.currencyData?.length || 0;
+  const totalCurrenciesPages = Math.ceil(totalCurrencies / itemsPerPage);
+  const currenciesStartIndex = (currenciesPage - 1) * itemsPerPage;
+  const currenciesEndIndex = currenciesStartIndex + itemsPerPage;
+  const currentCurrencies = data.currencyData?.slice(currenciesStartIndex, currenciesEndIndex) || [];
+
+  const handleYearlyPrevious = () => setYearlyPage(prev => Math.max(prev - 1, 1));
+  const handleYearlyNext = () => setYearlyPage(prev => Math.min(prev + 1, totalYearlyPages));
+
+  const handleMonthlyPrevious = () => setMonthlyPage(prev => Math.max(prev - 1, 1));
+  const handleMonthlyNext = () => setMonthlyPage(prev => Math.min(prev + 1, totalMonthlyPages));
+
+  const handleMethodsPrevious = () => setMethodsPage(prev => Math.max(prev - 1, 1));
+  const handleMethodsNext = () => setMethodsPage(prev => Math.min(prev + 1, totalMethodsPages));
+
+  const handleCurrenciesPrevious = () => setCurrenciesPage(prev => Math.max(prev - 1, 1));
+  const handleCurrenciesNext = () => setCurrenciesPage(prev => Math.min(prev + 1, totalCurrenciesPages));
 
   return (
     <div className="space-y-6">
@@ -239,7 +284,7 @@ export function FinancialAccountingReport({ contactId }: FinancialAccountingRepo
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.yearlyComparison.map((year) => (
+                  {currentYearly.map((year) => (
                     <TableRow key={year.year}>
                       <TableCell className="font-medium">{year.year}</TableCell>
                       <TableCell className="text-right font-medium">
@@ -253,6 +298,34 @@ export function FinancialAccountingReport({ contactId }: FinancialAccountingRepo
                   ))}
                 </TableBody>
               </Table>
+              {totalYearlyPages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {yearlyStartIndex + 1} to {Math.min(yearlyEndIndex, totalYearly)} of {totalYearly} years
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleYearlyPrevious}
+                      disabled={yearlyPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-sm">
+                      Page {yearlyPage} of {totalYearlyPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleYearlyNext}
+                      disabled={yearlyPage === totalYearlyPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -274,7 +347,7 @@ export function FinancialAccountingReport({ contactId }: FinancialAccountingRepo
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.monthlyData.map((month) => (
+                  {currentMonthly.map((month) => (
                     <TableRow key={month.month}>
                       <TableCell className="font-medium">
                         {monthNames[month.month - 1]} {month.year}
@@ -290,6 +363,34 @@ export function FinancialAccountingReport({ contactId }: FinancialAccountingRepo
                   ))}
                 </TableBody>
               </Table>
+              {totalMonthlyPages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {monthlyStartIndex + 1} to {Math.min(monthlyEndIndex, totalMonthly)} of {totalMonthly} months
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleMonthlyPrevious}
+                      disabled={monthlyPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-sm">
+                      Page {monthlyPage} of {totalMonthlyPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleMonthlyNext}
+                      disabled={monthlyPage === totalMonthlyPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -311,7 +412,7 @@ export function FinancialAccountingReport({ contactId }: FinancialAccountingRepo
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.paymentMethodData.map((method) => (
+                  {currentMethods.map((method) => (
                     <TableRow key={method.method}>
                       <TableCell className="font-medium">
                         <Badge variant="outline">{method.method}</Badge>
@@ -329,6 +430,34 @@ export function FinancialAccountingReport({ contactId }: FinancialAccountingRepo
                   ))}
                 </TableBody>
               </Table>
+              {totalMethodsPages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {methodsStartIndex + 1} to {Math.min(methodsEndIndex, totalMethods)} of {totalMethods} methods
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleMethodsPrevious}
+                      disabled={methodsPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-sm">
+                      Page {methodsPage} of {totalMethodsPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleMethodsNext}
+                      disabled={methodsPage === totalMethodsPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -350,7 +479,7 @@ export function FinancialAccountingReport({ contactId }: FinancialAccountingRepo
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.currencyData.map((currency) => (
+                  {currentCurrencies.map((currency) => (
                     <TableRow key={currency.currency}>
                       <TableCell className="font-medium">
                         <Badge variant="secondary">{currency.currency}</Badge>
@@ -368,6 +497,34 @@ export function FinancialAccountingReport({ contactId }: FinancialAccountingRepo
                   ))}
                 </TableBody>
               </Table>
+              {totalCurrenciesPages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {currenciesStartIndex + 1} to {Math.min(currenciesEndIndex, totalCurrencies)} of {totalCurrencies} currencies
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCurrenciesPrevious}
+                      disabled={currenciesPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-sm">
+                      Page {currenciesPage} of {totalCurrenciesPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCurrenciesNext}
+                      disabled={currenciesPage === totalCurrenciesPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

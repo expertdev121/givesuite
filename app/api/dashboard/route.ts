@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { sql, gte, desc } from "drizzle-orm";
+import { sql, gte, lte, desc } from "drizzle-orm";
 import {
   payment,
   pledge,
@@ -14,6 +14,18 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const contactId = searchParams.get('contactId');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+
+    // Build date filter condition for payments
+    let dateFilter = sql`1=1`;
+    if (startDate && endDate) {
+      dateFilter = sql`${payment.paymentDate} >= ${startDate} AND ${payment.paymentDate} <= ${endDate}`;
+    } else if (startDate) {
+      dateFilter = sql`${payment.paymentDate} >= ${startDate}`;
+    } else if (endDate) {
+      dateFilter = sql`${payment.paymentDate} <= ${endDate}`;
+    }
 
     // Total contacts
     const totalContacts = await db
@@ -29,7 +41,7 @@ export async function GET(request: NextRequest) {
         totalAmount: sql<number>`COALESCE(SUM(${payment.amountUsd}), 0)`,
       })
       .from(payment)
-      .where(sql`${payment.isThirdPartyPayment} = true AND ${payment.paymentStatus} = 'completed'`);
+      .where(sql`${payment.isThirdPartyPayment} = true AND ${payment.paymentStatus} = 'completed' AND ${dateFilter}`);
 
     // Total payments
     const totalPayments = await db
@@ -38,7 +50,7 @@ export async function GET(request: NextRequest) {
         totalAmount: sql<number>`COALESCE(SUM(${payment.amountUsd}), 0)`,
       })
       .from(payment)
-      .where(sql`${payment.paymentStatus} = 'completed'`);
+      .where(sql`${payment.paymentStatus} = 'completed' AND ${dateFilter}`);
 
     // Payments by method
     const paymentsByMethod = await db
@@ -48,7 +60,7 @@ export async function GET(request: NextRequest) {
         totalAmount: sql<number>`COALESCE(SUM(${payment.amountUsd}), 0)`,
       })
       .from(payment)
-      .where(sql`${payment.paymentStatus} = 'completed'`)
+      .where(sql`${payment.paymentStatus} = 'completed' AND ${dateFilter}`)
       .groupBy(payment.paymentMethod)
       .orderBy(desc(sql`COALESCE(SUM(${payment.amountUsd}), 0)`));
 
@@ -60,10 +72,21 @@ export async function GET(request: NextRequest) {
         totalAmount: sql<number>`COALESCE(SUM(${payment.amountUsd}), 0)`,
       })
       .from(payment)
+      .where(dateFilter)
       .groupBy(payment.paymentStatus)
       .orderBy(desc(sql`COUNT(*)`));
 
     // Total pledges
+    let pledgeWhere = sql`${pledge.isActive} = true`;
+    if (startDate || endDate) {
+      if (startDate && endDate) {
+        pledgeWhere = sql`${pledgeWhere} AND ${pledge.pledgeDate} >= ${startDate} AND ${pledge.pledgeDate} <= ${endDate}`;
+      } else if (startDate) {
+        pledgeWhere = sql`${pledgeWhere} AND ${pledge.pledgeDate} >= ${startDate}`;
+      } else if (endDate) {
+        pledgeWhere = sql`${pledgeWhere} AND ${pledge.pledgeDate} <= ${endDate}`;
+      }
+    }
     const totalPledges = await db
       .select({
         count: sql<number>`COUNT(*)`,
@@ -72,12 +95,22 @@ export async function GET(request: NextRequest) {
         totalBalance: sql<number>`COALESCE(SUM(${pledge.balanceUsd}), 0)`,
       })
       .from(pledge)
-      .where(sql`${pledge.isActive} = true`);
+      .where(pledgeWhere);
 
     // Upcoming scheduled payments (next 30 days)
     const thirtyDaysFromNow = new Date();
     thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
+    let upcomingWhere = sql`${installmentSchedule.status} = 'pending' AND ${installmentSchedule.installmentDate} <= ${thirtyDaysFromNow.toISOString().split('T')[0]}`;
+    if (startDate || endDate) {
+      if (startDate && endDate) {
+        upcomingWhere = sql`${upcomingWhere} AND ${pledge.pledgeDate} >= ${startDate} AND ${pledge.pledgeDate} <= ${endDate}`;
+      } else if (startDate) {
+        upcomingWhere = sql`${upcomingWhere} AND ${pledge.pledgeDate} >= ${startDate}`;
+      } else if (endDate) {
+        upcomingWhere = sql`${upcomingWhere} AND ${pledge.pledgeDate} <= ${endDate}`;
+      }
+    }
     const upcomingPayments = await db
       .select({
         id: installmentSchedule.id,
@@ -92,11 +125,21 @@ export async function GET(request: NextRequest) {
       .innerJoin(paymentPlan, sql`${installmentSchedule.paymentPlanId} = ${paymentPlan.id}`)
       .innerJoin(pledge, sql`${paymentPlan.pledgeId} = ${pledge.id}`)
       .innerJoin(contact, sql`${pledge.contactId} = ${contact.id}`)
-      .where(sql`${installmentSchedule.status} = 'pending' AND ${installmentSchedule.installmentDate} <= ${thirtyDaysFromNow.toISOString().split('T')[0]}`)
+      .where(upcomingWhere)
       .orderBy(installmentSchedule.installmentDate)
       .limit(20);
 
     // Top contacts by payments (total amount paid)
+    let topContactsWhere = sql`(${payment.paymentStatus} = 'completed' OR ${paymentAllocations.id} IS NOT NULL) AND ${dateFilter}`;
+    if (startDate || endDate) {
+      if (startDate && endDate) {
+        topContactsWhere = sql`${topContactsWhere} AND ${pledge.pledgeDate} >= ${startDate} AND ${pledge.pledgeDate} <= ${endDate}`;
+      } else if (startDate) {
+        topContactsWhere = sql`${topContactsWhere} AND ${pledge.pledgeDate} >= ${startDate}`;
+      } else if (endDate) {
+        topContactsWhere = sql`${topContactsWhere} AND ${pledge.pledgeDate} <= ${endDate}`;
+      }
+    }
     const topContacts = await db
       .select({
         contactId: contact.id,
@@ -108,7 +151,7 @@ export async function GET(request: NextRequest) {
       .leftJoin(pledge, sql`${contact.id} = ${pledge.contactId}`)
       .leftJoin(payment, sql`${pledge.id} = ${payment.pledgeId}`)
       .leftJoin(paymentAllocations, sql`${paymentAllocations.pledgeId} = ${pledge.id}`)
-      .where(sql`${payment.paymentStatus} = 'completed' OR ${paymentAllocations.id} IS NOT NULL`)
+      .where(topContactsWhere)
       .groupBy(contact.id, contact.firstName, contact.lastName)
       .orderBy(desc(sql`COALESCE(SUM(${payment.amountUsd}), 0)`))
       .limit(10);

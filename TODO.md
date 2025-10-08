@@ -1,3 +1,4 @@
-- [x] Fix 'any' type in app/dashboard/page.tsx line 84: Define ApiContact interface and replace (c: any) with (c: ApiContact)
-- [x] Fix 'any' types in components/dashboard/payment-method-chart.tsx: Define types for renderTooltip props and label function params
-- [ ] Run linting to verify errors are resolved
+- [x] Update app/api/contacts/route.ts: Change limit max from 100 to 10000
+- [x] Update app/dashboard/page.tsx: Change fetchContacts to include ?limit=10000
+- [x] Update app/dashboard/page.tsx: Replace Select with searchable Combobox using Popover and Command
+- [ ] Test the dropdown functionality

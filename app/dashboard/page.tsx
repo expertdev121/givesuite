@@ -6,8 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { DateRange } from "react-day-picker";
+import { CalendarIcon, ChevronsUpDown, XCircle } from "lucide-react";
 import { PaymentTrendsChart } from "@/components/dashboard/payment-trends-chart";
 import { PaymentMethodChart } from "@/components/dashboard/payment-method-chart";
 import { StatementsSection } from "@/components/dashboard/statements-section";
@@ -62,11 +67,21 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedContact, setSelectedContact] = useState<string>("all");
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [open, setOpen] = useState(false);
+
+  const clearDateRange = () => setDateRange(undefined);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const url = selectedContact && selectedContact !== "all" ? `/api/dashboard?contactId=${selectedContact}` : "/api/dashboard";
+        let url = selectedContact && selectedContact !== "all" ? `/api/dashboard?contactId=${selectedContact}` : "/api/dashboard";
+        if (dateRange?.from) {
+          url += `${url.includes('?') ? '&' : '?'}startDate=${dateRange.from.toISOString().split('T')[0]}`;
+        }
+        if (dateRange?.to) {
+          url += `${url.includes('?') ? '&' : '?'}endDate=${dateRange.to.toISOString().split('T')[0]}`;
+        }
         const response = await fetch(url);
         if (!response.ok) throw new Error("Failed to fetch dashboard data");
         const dashboardData = await response.json();
@@ -79,12 +94,12 @@ export default function DashboardPage() {
     };
 
     fetchDashboardData();
-  }, [selectedContact]);
+  }, [selectedContact, dateRange]);
 
   useEffect(() => {
     const fetchContacts = async () => {
       try {
-        const response = await fetch("/api/contacts");
+        const response = await fetch("/api/contacts?limit=50000");
         if (response.ok) {
           const contactsData = await response.json();
           setContacts(contactsData.contacts.map((c: ApiContact) => ({ id: c.id, name: `${c.firstName} ${c.lastName}` })));
@@ -116,9 +131,15 @@ export default function DashboardPage() {
   if (!data) return null;
 
   const handleExport = (format: string) => {
-    const url = selectedContact && selectedContact !== "all"
+    let url = selectedContact && selectedContact !== "all"
       ? `/api/dashboard/export?format=${format}&contactId=${selectedContact}`
       : `/api/dashboard/export?format=${format}`;
+    if (dateRange?.from) {
+      url += `&startDate=${dateRange.from.toISOString().split('T')[0]}`;
+    }
+    if (dateRange?.to) {
+      url += `&endDate=${dateRange.to.toISOString().split('T')[0]}`;
+    }
     window.open(url, '_blank');
   };
 
@@ -127,19 +148,53 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Dashboard</h1>
         <div className="flex items-center gap-4">
-          <Select value={selectedContact} onValueChange={setSelectedContact}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Filter by contact" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Contacts</SelectItem>
-              {contacts.map((contact) => (
-                <SelectItem key={contact.id} value={contact.id.toString()}>
-                  {contact.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={open}
+                className="w-[200px] justify-between"
+              >
+                {selectedContact === "all"
+                  ? "All Contacts"
+                  : contacts.find((contact) => contact.id.toString() === selectedContact)?.name || "Select contact..."}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[200px] p-0">
+              <Command>
+                <CommandInput placeholder="Search contacts..." />
+                <CommandList>
+                  <CommandEmpty>No contacts found.</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem
+                      key="all"
+                      value="all"
+                      onSelect={() => {
+                        setSelectedContact("all");
+                        setOpen(false);
+                      }}
+                    >
+                      All Contacts
+                    </CommandItem>
+                    {contacts.map((contact) => (
+                      <CommandItem
+                        key={contact.id}
+                        value={contact.name}
+                        onSelect={() => {
+                          setSelectedContact(contact.id.toString());
+                          setOpen(false);
+                        }}
+                      >
+                        {contact.name}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
           <Button variant="outline" onClick={() => handleExport('csv')}>
             Export CSV
           </Button>
@@ -159,6 +214,47 @@ export default function DashboardPage() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-[280px] justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    <span className="flex-1">
+                      {dateRange?.from ? (
+                        dateRange.to ? (
+                          `${formatDate(dateRange.from.toISOString().substring(0, 10))} - ${formatDate(dateRange.to.toISOString().substring(0, 10))}`
+                        ) : (
+                          formatDate(dateRange.from.toISOString().substring(0, 10))
+                        )
+                      ) : (
+                        "Select date range"
+                      )}
+                    </span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={dateRange?.from}
+                    selected={dateRange}
+                    onSelect={setDateRange}
+                    numberOfMonths={2}
+                  />
+                </PopoverContent>
+              </Popover>
+              {dateRange?.from && (
+                <div
+                  className="ml-2 h-4 w-4 opacity-70 hover:opacity-100 cursor-pointer flex items-center justify-center"
+                  onClick={clearDateRange}
+                >
+                  <XCircle className="h-4 w-4" />
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
             <Card>

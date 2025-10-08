@@ -55,6 +55,7 @@ export function StatementsSection({ contactId }: StatementsSectionProps) {
   const [data, setData] = useState<StatementsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [currentOutstandingPage, setCurrentOutstandingPage] = useState(1);
   const itemsPerPage = 20;
 
   useEffect(() => {
@@ -127,12 +128,19 @@ export function StatementsSection({ contactId }: StatementsSectionProps) {
     );
   }
 
-  // Pagination logic
+  // Pagination logic for payments
   const totalPayments = data.paymentBreakdown?.length || 0;
   const totalPages = Math.ceil(totalPayments / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const currentPayments = data.paymentBreakdown?.slice(startIndex, endIndex) || [];
+
+  // Pagination logic for outstanding balances
+  const totalOutstanding = data.outstandingBalances?.length || 0;
+  const totalOutstandingPages = Math.ceil(totalOutstanding / itemsPerPage);
+  const outstandingStartIndex = (currentOutstandingPage - 1) * itemsPerPage;
+  const outstandingEndIndex = outstandingStartIndex + itemsPerPage;
+  const currentOutstandingBalances = data.outstandingBalances?.slice(outstandingStartIndex, outstandingEndIndex) || [];
 
   const handlePreviousPage = () => {
     setCurrentPage(prev => Math.max(prev - 1, 1));
@@ -140,6 +148,14 @@ export function StatementsSection({ contactId }: StatementsSectionProps) {
 
   const handleNextPage = () => {
     setCurrentPage(prev => Math.min(prev + 1, totalPages));
+  };
+
+  const handleOutstandingPreviousPage = () => {
+    setCurrentOutstandingPage(prev => Math.max(prev - 1, 1));
+  };
+
+  const handleOutstandingNextPage = () => {
+    setCurrentOutstandingPage(prev => Math.min(prev + 1, totalOutstandingPages));
   };
 
   return (
@@ -209,7 +225,7 @@ export function StatementsSection({ contactId }: StatementsSectionProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.outstandingBalances?.map((balance) => (
+              {currentOutstandingBalances.map((balance) => (
                 <TableRow key={balance.pledgeId}>
                   <TableCell className="font-medium">{balance.contactName}</TableCell>
                   <TableCell>{balance.description}</TableCell>
@@ -221,9 +237,37 @@ export function StatementsSection({ contactId }: StatementsSectionProps) {
                     {formatCurrency(balance.balanceUsd)}
                   </TableCell>
                 </TableRow>
-              )) || []}
+              ))}
             </TableBody>
           </Table>
+          {totalOutstandingPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-muted-foreground">
+                Showing {outstandingStartIndex + 1} to {Math.min(outstandingEndIndex, totalOutstanding)} of {totalOutstanding} outstanding balances
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleOutstandingPreviousPage}
+                  disabled={currentOutstandingPage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm">
+                  Page {currentOutstandingPage} of {totalOutstandingPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleOutstandingNextPage}
+                  disabled={currentOutstandingPage === totalOutstandingPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

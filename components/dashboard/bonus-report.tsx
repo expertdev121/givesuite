@@ -54,6 +54,8 @@ export function BonusReport({ contactId }: BonusReportProps) {
   const [loading, setLoading] = useState(true);
   const [solicitorFilter, setSolicitorFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<{ start?: string; end?: string }>({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -128,6 +130,21 @@ export function BonusReport({ contactId }: BonusReportProps) {
       </div>
     );
   }
+
+  // Pagination logic
+  const totalCalculations = data.bonusCalculations?.length || 0;
+  const totalPages = Math.ceil(totalCalculations / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentCalculations = data.bonusCalculations?.slice(startIndex, endIndex) || [];
+
+  const handlePreviousPage = () => {
+    setCurrentPage(prev => Math.max(prev - 1, 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage(prev => Math.min(prev + 1, totalPages));
+  };
 
   return (
     <div className="space-y-6">
@@ -265,7 +282,7 @@ export function BonusReport({ contactId }: BonusReportProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.bonusCalculations.slice(0, 50).map((bonus) => (
+              {currentCalculations.map((bonus) => (
                 <TableRow key={bonus.id}>
                   <TableCell>{formatDate(bonus.calculatedAt)}</TableCell>
                   <TableCell className="font-medium">
@@ -286,7 +303,35 @@ export function BonusReport({ contactId }: BonusReportProps) {
               ))}
             </TableBody>
           </Table>
-          {data.bonusCalculations.length > 50 && (
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-muted-foreground">
+                Showing {startIndex + 1} to {Math.min(endIndex, totalCalculations)} of {totalCalculations} calculations
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePreviousPage}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+          {totalCalculations > 20 && (
             <div className="text-center mt-4">
               <Button variant="outline">
                 <Download className="w-4 h-4 mr-2" />

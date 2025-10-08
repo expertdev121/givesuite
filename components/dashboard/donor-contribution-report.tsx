@@ -37,6 +37,8 @@ interface DonorContributionReportProps {
 export function DonorContributionReport({ contactId }: DonorContributionReportProps) {
   const [data, setData] = useState<DonorContributionData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -97,6 +99,21 @@ export function DonorContributionReport({ contactId }: DonorContributionReportPr
       </div>
     );
   }
+
+  // Pagination logic
+  const totalDonors = data.donorContributions?.length || 0;
+  const totalPages = Math.ceil(totalDonors / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentDonors = data.donorContributions?.slice(startIndex, endIndex) || [];
+
+  const handlePreviousPage = () => {
+    setCurrentPage(prev => Math.max(prev - 1, 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage(prev => Math.min(prev + 1, totalPages));
+  };
 
   return (
     <div className="space-y-6">
@@ -177,7 +194,7 @@ export function DonorContributionReport({ contactId }: DonorContributionReportPr
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.donorContributions.map((donor) => (
+              {currentDonors.map((donor) => (
                 <TableRow key={donor.contactId}>
                   <TableCell className="font-medium">{donor.contactName}</TableCell>
                   <TableCell>{donor.email}</TableCell>
@@ -194,6 +211,34 @@ export function DonorContributionReport({ contactId }: DonorContributionReportPr
               ))}
             </TableBody>
           </Table>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-muted-foreground">
+                Showing {startIndex + 1} to {Math.min(endIndex, totalDonors)} of {totalDonors} donors
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePreviousPage}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -33,6 +33,8 @@ export function CampaignFundraisingReport({ contactId }: CampaignFundraisingRepo
   const [data, setData] = useState<CampaignFundraisingReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -78,6 +80,21 @@ export function CampaignFundraisingReport({ contactId }: CampaignFundraisingRepo
   }
 
   if (!data) return null;
+
+  // Pagination logic
+  const totalCampaigns = data.campaigns?.length || 0;
+  const totalPages = Math.ceil(totalCampaigns / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentCampaigns = data.campaigns?.slice(startIndex, endIndex) || [];
+
+  const handlePreviousPage = () => {
+    setCurrentPage(prev => Math.max(prev - 1, 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage(prev => Math.min(prev + 1, totalPages));
+  };
 
   return (
     <div className="space-y-6">
@@ -166,8 +183,8 @@ export function CampaignFundraisingReport({ contactId }: CampaignFundraisingRepo
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.campaigns.length > 0 ? (
-                data.campaigns.map((campaign) => (
+              {currentCampaigns.length > 0 ? (
+                currentCampaigns.map((campaign) => (
                   <TableRow key={campaign.campaignCode}>
                     <TableCell className="font-medium">{campaign.campaignCode}</TableCell>
                     <TableCell className="text-right">{campaign.totalPledges}</TableCell>
@@ -191,6 +208,34 @@ export function CampaignFundraisingReport({ contactId }: CampaignFundraisingRepo
               )}
             </TableBody>
           </Table>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-muted-foreground">
+                Showing {startIndex + 1} to {Math.min(endIndex, totalCampaigns)} of {totalCampaigns} campaigns
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePreviousPage}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
