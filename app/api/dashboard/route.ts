@@ -12,6 +12,25 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const contactId = searchParams.get('contactId');
+
+    // Total contacts
+    const totalContacts = await db
+      .select({
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(contact);
+
+    // Third-party payments count
+    const thirdPartyPayments = await db
+      .select({
+        count: sql<number>`COUNT(*)`,
+        totalAmount: sql<number>`COALESCE(SUM(${payment.amountUsd}), 0)`,
+      })
+      .from(payment)
+      .where(sql`${payment.isThirdPartyPayment} = true AND ${payment.paymentStatus} = 'completed'`);
+
     // Total payments
     const totalPayments = await db
       .select({
@@ -103,8 +122,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       summary: {
+        totalContacts: totalContacts[0]?.count || 0,
         totalPayments: totalPayments[0] || { count: 0, totalAmount: 0 },
         totalPledges: totalPledges[0] || { count: 0, totalPledged: 0, totalPaid: 0, totalBalance: 0 },
+        thirdPartyPayments: thirdPartyPayments[0] || { count: 0, totalAmount: 0 },
       },
       paymentsByMethod,
       paymentsByStatus,

@@ -4,12 +4,16 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 interface DashboardData {
   summary: {
+    totalContacts: number;
     totalPayments: { count: number; totalAmount: number };
     totalPledges: { count: number; totalPledged: number; totalPaid: number; totalBalance: number };
+    thirdPartyPayments: { count: number; totalAmount: number };
   };
   paymentsByMethod: Array<{ method: string; count: number; totalAmount: number }>;
   paymentsByStatus: Array<{ status: string; count: number; totalAmount: number }>;
@@ -31,15 +35,23 @@ interface DashboardData {
   paymentTypes: Array<{ type: string; count: number; amount: number }>;
 }
 
+interface Contact {
+  id: number;
+  name: string;
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedContact, setSelectedContact] = useState<string>("all");
+  const [contacts, setContacts] = useState<Contact[]>([]);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const response = await fetch("/api/dashboard");
+        const url = selectedContact && selectedContact !== "all" ? `/api/dashboard?contactId=${selectedContact}` : "/api/dashboard";
+        const response = await fetch(url);
         if (!response.ok) throw new Error("Failed to fetch dashboard data");
         const dashboardData = await response.json();
         setData(dashboardData);
@@ -51,6 +63,22 @@ export default function DashboardPage() {
     };
 
     fetchDashboardData();
+  }, [selectedContact]);
+
+  useEffect(() => {
+    const fetchContacts = async () => {
+      try {
+        const response = await fetch("/api/contacts");
+        if (response.ok) {
+          const contactsData = await response.json();
+          setContacts(contactsData.contacts.map((c: any) => ({ id: c.id, name: `${c.firstName} ${c.lastName}` })));
+        }
+      } catch (err) {
+        console.error("Failed to fetch contacts:", err);
+      }
+    };
+
+    fetchContacts();
   }, []);
 
   if (loading) {
@@ -71,14 +99,54 @@ export default function DashboardPage() {
 
   if (!data) return null;
 
+  const handleExport = (format: string) => {
+    const url = selectedContact && selectedContact !== "all"
+      ? `/api/dashboard/export?format=${format}&contactId=${selectedContact}`
+      : `/api/dashboard/export?format=${format}`;
+    window.open(url, '_blank');
+  };
+
   return (
     <div className="container mx-auto py-8 space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Dashboard</h1>
+        <div className="flex items-center gap-4">
+          <Select value={selectedContact} onValueChange={setSelectedContact}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Filter by contact" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Contacts</SelectItem>
+              {contacts.map((contact) => (
+                <SelectItem key={contact.id} value={contact.id.toString()}>
+                  {contact.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" onClick={() => handleExport('csv')}>
+            Export CSV
+          </Button>
+          <Button variant="outline" onClick={() => handleExport('pdf')}>
+            Export PDF
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Contacts</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.summary.totalContacts}</div>
+            <p className="text-xs text-muted-foreground">
+              registered contacts
+            </p>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Payments</CardTitle>
@@ -87,6 +155,18 @@ export default function DashboardPage() {
             <div className="text-2xl font-bold">{data.summary.totalPayments.count}</div>
             <p className="text-xs text-muted-foreground">
               {formatCurrency(data.summary.totalPayments.totalAmount)}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Third Party Payments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.summary.thirdPartyPayments.count}</div>
+            <p className="text-xs text-muted-foreground">
+              {formatCurrency(data.summary.thirdPartyPayments.totalAmount)}
             </p>
           </CardContent>
         </Card>
