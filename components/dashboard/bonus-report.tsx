@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, Download } from "lucide-react";
+import { DateRange } from "react-day-picker";
 
 interface BonusData {
   bonusCalculations: Array<{
@@ -47,13 +48,13 @@ interface BonusData {
 
 interface BonusReportProps {
   contactId?: string;
+  dateRange?: DateRange;
 }
 
-export function BonusReport({ contactId }: BonusReportProps) {
+export function BonusReport({ contactId, dateRange }: BonusReportProps) {
   const [data, setData] = useState<BonusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [solicitorFilter, setSolicitorFilter] = useState<string>("all");
-  const [dateRange, setDateRange] = useState<{ start?: string; end?: string }>({});
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
 
@@ -64,8 +65,8 @@ export function BonusReport({ contactId }: BonusReportProps) {
         if (solicitorFilter && solicitorFilter !== "all") {
           params.set('solicitorId', solicitorFilter);
         }
-        if (dateRange.start) params.set('startDate', dateRange.start);
-        if (dateRange.end) params.set('endDate', dateRange.end);
+        if (dateRange?.from) params.set('startDate', dateRange.from.toISOString().split('T')[0]);
+        if (dateRange?.to) params.set('endDate', dateRange.to.toISOString().split('T')[0]);
 
         const response = await fetch(`/api/dashboard/bonus-calculations?${params}`);
         const result = await response.json();

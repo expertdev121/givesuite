@@ -16,11 +16,22 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const contactId = searchParams.get('contactId');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
 
     // Base query conditions
-    const baseConditions = contactId && contactId !== "all"
+    let baseConditions = contactId && contactId !== "all"
       ? sql`${pledge.contactId} = ${contactId}`
       : sql`1=1`;
+
+    // Add date conditions for payments
+    let paymentDateConditions = sql`1=1`;
+    if (startDate) {
+      paymentDateConditions = sql`${paymentDateConditions} AND ${payment.paymentDate} >= ${startDate}`;
+    }
+    if (endDate) {
+      paymentDateConditions = sql`${paymentDateConditions} AND ${payment.paymentDate} <= ${endDate}`;
+    }
 
     // Detailed payment breakdown
     const paymentBreakdown = await db
@@ -42,7 +53,7 @@ export async function GET(request: NextRequest) {
       .innerJoin(contact, sql`${pledge.contactId} = ${contact.id}`)
       .leftJoin(solicitor, sql`${payment.solicitorId} = ${solicitor.id}`)
       .leftJoin(bonusCalculation, sql`${bonusCalculation.paymentId} = ${payment.id}`)
-      .where(sql`${payment.paymentStatus} = 'completed' AND ${baseConditions}`)
+      .where(sql`${payment.paymentStatus} = 'completed' AND ${baseConditions} AND ${paymentDateConditions}`)
       .orderBy(desc(payment.paymentDate));
 
     // Outstanding balances by pledge
@@ -73,7 +84,7 @@ export async function GET(request: NextRequest) {
       })
       .from(payment)
       .innerJoin(pledge, sql`${payment.pledgeId} = ${pledge.id}`)
-      .where(sql`${payment.paymentStatus} = 'completed' AND ${baseConditions}`)
+      .where(sql`${payment.paymentStatus} = 'completed' AND ${baseConditions} AND ${paymentDateConditions}`)
       .groupBy(sql`TO_CHAR(${payment.paymentDate}, 'YYYY-MM')`)
       .orderBy(asc(sql`TO_CHAR(${payment.paymentDate}, 'YYYY-MM')`));
 

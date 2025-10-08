@@ -25,11 +25,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (startDate) {
-      conditions = sql`${conditions} AND ${bonusCalculation.calculatedAt} >= ${startDate}`;
+      conditions = sql`${conditions} AND ${payment.paymentDate} >= ${startDate}`;
     }
 
     if (endDate) {
-      conditions = sql`${conditions} AND ${bonusCalculation.calculatedAt} <= ${endDate}`;
+      conditions = sql`${conditions} AND ${payment.paymentDate} <= ${endDate}`;
     }
 
     // Bonus calculations with details
@@ -75,7 +75,8 @@ export async function GET(request: NextRequest) {
       .from(solicitor)
       .innerJoin(contact, sql`${solicitor.contactId} = ${contact.id}`)
       .leftJoin(bonusCalculation, sql`${solicitor.id} = ${bonusCalculation.solicitorId}`)
-      .where(solicitorId && solicitorId !== "all" ? sql`${solicitor.id} = ${solicitorId}` : sql`1=1`)
+      .leftJoin(payment, sql`${bonusCalculation.paymentId} = ${payment.id}`)
+      .where(sql`${solicitorId && solicitorId !== "all" ? sql`${solicitor.id} = ${solicitorId}` : sql`1=1`} AND ${startDate ? sql`${payment.paymentDate} >= ${startDate}` : sql`1=1`} AND ${endDate ? sql`${payment.paymentDate} <= ${endDate}` : sql`1=1`}`)
       .groupBy(solicitor.id, contact.firstName, contact.lastName, solicitor.solicitorCode)
       .orderBy(desc(sql`COALESCE(SUM(${bonusCalculation.bonusAmount}), 0)`));
 

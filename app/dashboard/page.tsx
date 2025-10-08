@@ -522,11 +522,91 @@ export default function DashboardPage() {
         </TabsContent>
 
         <TabsContent value="statements" className="space-y-6">
-          <StatementsSection contactId={selectedContact} />
+          <div className="flex items-center gap-4">
+            <div className="flex items-center">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-[280px] justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    <span className="flex-1">
+                      {dateRange?.from ? (
+                        dateRange.to ? (
+                          `${formatDate(dateRange.from.toISOString().substring(0, 10))} - ${formatDate(dateRange.to.toISOString().substring(0, 10))}`
+                        ) : (
+                          formatDate(dateRange.from.toISOString().substring(0, 10))
+                        )
+                      ) : (
+                        "Select date range"
+                      )}
+                    </span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={dateRange?.from}
+                    selected={dateRange}
+                    onSelect={setDateRange}
+                    numberOfMonths={2}
+                  />
+                </PopoverContent>
+              </Popover>
+              {dateRange?.from && (
+                <div
+                  className="ml-2 h-4 w-4 opacity-70 hover:opacity-100 cursor-pointer flex items-center justify-center"
+                  onClick={clearDateRange}
+                >
+                  <XCircle className="h-4 w-4" />
+                </div>
+              )}
+            </div>
+          </div>
+          <StatementsSection contactId={selectedContact} dateRange={dateRange} />
         </TabsContent>
 
         <TabsContent value="bonuses" className="space-y-6">
-          <BonusReport contactId={selectedContact} />
+          <div className="flex items-center gap-4">
+            <div className="flex items-center">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-[280px] justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    <span className="flex-1">
+                      {dateRange?.from ? (
+                        dateRange.to ? (
+                          `${formatDate(dateRange.from.toISOString().substring(0, 10))} - ${formatDate(dateRange.to.toISOString().substring(0, 10))}`
+                        ) : (
+                          formatDate(dateRange.from.toISOString().substring(0, 10))
+                        )
+                      ) : (
+                        "Select date range"
+                      )}
+                    </span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={dateRange?.from}
+                    selected={dateRange}
+                    onSelect={setDateRange}
+                    numberOfMonths={2}
+                  />
+                </PopoverContent>
+              </Popover>
+              {dateRange?.from && (
+                <div
+                  className="ml-2 h-4 w-4 opacity-70 hover:opacity-100 cursor-pointer flex items-center justify-center"
+                  onClick={clearDateRange}
+                >
+                  <XCircle className="h-4 w-4" />
+                </div>
+              )}
+            </div>
+          </div>
+          <BonusReport contactId={selectedContact} dateRange={dateRange} />
         </TabsContent>
 
         <TabsContent value="reports" className="space-y-6">

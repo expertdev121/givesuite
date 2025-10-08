@@ -1,4 +1,0 @@
-- [x] Update app/api/contacts/route.ts: Change limit max from 100 to 10000
-- [x] Update app/dashboard/page.tsx: Change fetchContacts to include ?limit=10000
-- [x] Update app/dashboard/page.tsx: Replace Select with searchable Combobox using Popover and Command
-- [ ] Test the dropdown functionality

@@ -6,6 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
+import { DateRange } from "react-day-picker";
+import { MonthlyPaymentsChart } from "./monthly-payments-chart";
 
 interface StatementsData {
   summary: {
@@ -49,9 +51,10 @@ interface StatementsData {
 
 interface StatementsSectionProps {
   contactId?: string;
+  dateRange?: DateRange;
 }
 
-export function StatementsSection({ contactId }: StatementsSectionProps) {
+export function StatementsSection({ contactId, dateRange }: StatementsSectionProps) {
   const [data, setData] = useState<StatementsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -63,6 +66,12 @@ export function StatementsSection({ contactId }: StatementsSectionProps) {
       try {
         const params = new URLSearchParams();
         if (contactId) params.set('contactId', contactId);
+        if (dateRange?.from) {
+          params.set('startDate', dateRange.from.toISOString().split('T')[0]);
+        }
+        if (dateRange?.to) {
+          params.set('endDate', dateRange.to.toISOString().split('T')[0]);
+        }
 
         const response = await fetch(`/api/dashboard/statements?${params}`);
         const result = await response.json();
@@ -75,7 +84,7 @@ export function StatementsSection({ contactId }: StatementsSectionProps) {
     };
 
     fetchData();
-  }, [contactId]);
+  }, [contactId, dateRange]);
 
   const formatCurrency = (value: number, currency: string = 'USD') => {
     return new Intl.NumberFormat('en-US', {
@@ -206,6 +215,9 @@ export function StatementsSection({ contactId }: StatementsSectionProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Monthly Payments Chart */}
+      <MonthlyPaymentsChart contactId={contactId} dateRange={dateRange} />
 
       {/* Outstanding Balances */}
       <Card>
