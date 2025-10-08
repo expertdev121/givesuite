@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { sql } from "drizzle-orm";
+import { sql, desc } from "drizzle-orm";
 import {
   payment,
   pledge,
@@ -15,8 +15,68 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const format = searchParams.get('format') || 'csv';
     const contactId = searchParams.get('contactId');
+    const report = searchParams.get('report');
 
-    // Fetch all payments with related data
+    if (report === 'donor-contributions') {
+      // Export donor contributions data
+      const donorContributions = await db
+        .select({
+          contactId: contact.id,
+          contactName: sql<string>`CONCAT(${contact.firstName}, ' ', ${contact.lastName})`,
+          email: contact.email,
+          totalAmount: sql<number>`COALESCE(SUM(${payment.amountUsd}), 0)`,
+          paymentCount: sql<number>`COUNT(${payment.id})`,
+          averageAmount: sql<number>`COALESCE(AVG(${payment.amountUsd}), 0)`,
+          firstPaymentDate: sql<string>`MIN(${payment.paymentDate})`,
+          lastPaymentDate: sql<string>`MAX(${payment.paymentDate})`,
+          currency: sql<string>`COALESCE(MIN(${payment.currency}), 'USD')`,
+        })
+        .from(contact)
+        .leftJoin(pledge, sql`${contact.id} = ${pledge.contactId}`)
+        .leftJoin(payment, sql`${pledge.id} = ${payment.pledgeId}`)
+        .leftJoin(paymentAllocations, sql`${paymentAllocations.pledgeId} = ${pledge.id}`)
+        .where(sql`${payment.paymentStatus} = 'completed' OR ${paymentAllocations.id} IS NOT NULL`)
+        .groupBy(contact.id, contact.firstName, contact.lastName, contact.email)
+        .orderBy(desc(sql`COALESCE(SUM(${payment.amountUsd}), 0)`));
+
+      if (format === 'csv') {
+        const headers = [
+          'Contact ID',
+          'Contact Name',
+          'Email',
+          'Total Amount (USD)',
+          'Payment Count',
+          'Average Amount (USD)',
+          'First Payment Date',
+          'Last Payment Date',
+          'Currency'
+        ];
+
+        const csvContent = [
+          headers.join(','),
+          ...donorContributions.map(row => [
+            row.contactId,
+            `"${row.contactName}"`,
+            row.email,
+            row.totalAmount,
+            row.paymentCount,
+            row.averageAmount,
+            row.firstPaymentDate,
+            row.lastPaymentDate,
+            row.currency
+          ].join(','))
+        ].join('\n');
+
+        return new NextResponse(csvContent, {
+          headers: {
+            'Content-Type': 'text/csv',
+            'Content-Disposition': `attachment; filename="donor-contributions-export-${new Date().toISOString().split('T')[0]}.csv"`
+          }
+        });
+      }
+    }
+
+    // Default: Fetch all payments with related data
     const paymentsData = await db
       .select({
         paymentId: payment.id,
