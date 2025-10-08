@@ -15,7 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { DateRange } from "react-day-picker";
 
 interface MonthlyPaymentsData {
-  month: string;
+  period: string;
   totalAmount: number;
   paymentCount: number;
 }
@@ -82,16 +82,25 @@ export function MonthlyPaymentsChart({ contactId, dateRange }: MonthlyPaymentsCh
     }).format(value);
   };
 
-  const formatMonth = (monthStr: string) => {
-    const [year, month] = monthStr.split('-');
-    const date = new Date(parseInt(year), parseInt(month) - 1);
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+  const isDaily = data.length > 0 && data[0]?.period?.split('-').length === 3;
+  const dataKey = 'period';
+
+  const formatPeriod = (periodStr: string) => {
+    if (isDaily) {
+      const [year, month, day] = periodStr.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } else {
+      const [year, month] = periodStr.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1);
+      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+    }
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Monthly Payments</CardTitle>
+        <CardTitle>{isDaily ? 'Daily Payments' : 'Monthly Payments'}</CardTitle>
         <CardDescription>Payment amounts and transaction counts over time</CardDescription>
       </CardHeader>
       <CardContent>
@@ -99,8 +108,8 @@ export function MonthlyPaymentsChart({ contactId, dateRange }: MonthlyPaymentsCh
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
-              dataKey="month"
-              tickFormatter={formatMonth}
+              dataKey={dataKey}
+              tickFormatter={formatPeriod}
               fontSize={12}
             />
             <YAxis
@@ -121,7 +130,7 @@ export function MonthlyPaymentsChart({ contactId, dateRange }: MonthlyPaymentsCh
                 }
                 return [value, 'Payment Count'];
               }}
-              labelFormatter={(label) => formatMonth(label)}
+              labelFormatter={(label) => formatPeriod(label)}
             />
             <Legend />
             <Line
