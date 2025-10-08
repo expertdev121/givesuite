@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate');
 
     // Base query conditions
-    let baseConditions = contactId && contactId !== "all"
+    const baseConditions = contactId && contactId !== "all"
       ? sql`${pledge.contactId} = ${contactId}`
       : sql`1=1`;
 
