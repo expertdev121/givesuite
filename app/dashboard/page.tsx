@@ -10,7 +10,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, formatPaymentMethod } from "@/lib/utils";
 import { DateRange } from "react-day-picker";
 import { CalendarIcon, ChevronsUpDown, XCircle } from "lucide-react";
 import { PaymentTrendsChart } from "@/components/dashboard/payment-trends-chart";
@@ -354,7 +354,7 @@ export default function DashboardPage() {
                     {data.paymentsByMethod.map((item) => (
                       <TableRow key={item.method}>
                         <TableCell className="font-medium">
-                          <Badge variant="outline">{item.method}</Badge>
+                          <Badge variant="outline">{formatPaymentMethod(item.method)}</Badge>
                         </TableCell>
                         <TableCell className="text-right">{item.count}</TableCell>
                         <TableCell className="text-right">
@@ -501,7 +501,7 @@ export default function DashboardPage() {
                 {data.paymentTypes.map((type) => (
                   <div key={type.type} className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
-                      <div className="font-medium">{type.type}</div>
+                      <div className="font-medium">{formatPaymentMethod(type.type)}</div>
                       <div className="text-sm text-muted-foreground">{type.count} payments</div>
                     </div>
                     <div className="text-right">
