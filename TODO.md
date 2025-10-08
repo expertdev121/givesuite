@@ -1,4 +1,3 @@
-# Fix Campaign & Fundraising Report
-
-- [x] Update API route to exclude pledges without campaignCode and use coalesce for sums
-- [ ] Test the report to ensure no NaN and only campaigns with codes are shown
+- [x] Fix 'any' type in app/dashboard/page.tsx line 84: Define ApiContact interface and replace (c: any) with (c: ApiContact)
+- [x] Fix 'any' types in components/dashboard/payment-method-chart.tsx: Define types for renderTooltip props and label function params
+- [ ] Run linting to verify errors are resolved

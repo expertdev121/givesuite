@@ -8,6 +8,7 @@ import {
   ResponsiveContainer,
   Tooltip,
   Legend,
+  PieLabelRenderProps,
 } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -15,10 +16,19 @@ interface PaymentMethodData {
   method: string;
   totalAmount: number;
   count: number;
+  [key: string]: unknown;
 }
 
 interface PaymentMethodChartProps {
   contactId?: string;
+}
+
+interface TooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    payload: PaymentMethodData;
+    value: number;
+  }>;
 }
 
 const COLORS = [
@@ -83,7 +93,7 @@ export function PaymentMethodChart({ contactId }: PaymentMethodChartProps) {
     ).join(' ');
   };
 
-  const renderTooltip = (props: any) => {
+  const renderTooltip = (props: TooltipProps) => {
     if (props.active && props.payload && props.payload.length) {
       const data = props.payload[0].payload;
       return (
@@ -101,6 +111,14 @@ export function PaymentMethodChart({ contactId }: PaymentMethodChartProps) {
     return null;
   };
 
+  const renderLabel = (props: PieLabelRenderProps) => {
+    const { payload, percent } = props;
+    if (payload && typeof percent === 'number') {
+      return `${formatMethodName((payload as PaymentMethodData).method)} ${(percent * 100).toFixed(0)}%`;
+    }
+    return '';
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -115,9 +133,7 @@ export function PaymentMethodChart({ contactId }: PaymentMethodChartProps) {
               cx="50%"
               cy="50%"
               labelLine={false}
-              label={({ method, percent }: any) =>
-                `${formatMethodName(method)} ${(percent * 100).toFixed(0)}%`
-              }
+              label={renderLabel}
               outerRadius={80}
               fill="#8884d8"
               dataKey="totalAmount"

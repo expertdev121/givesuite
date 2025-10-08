@@ -50,6 +50,12 @@ interface Contact {
   name: string;
 }
 
+interface ApiContact {
+  id: number;
+  firstName: string;
+  lastName: string;
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,7 +87,7 @@ export default function DashboardPage() {
         const response = await fetch("/api/contacts");
         if (response.ok) {
           const contactsData = await response.json();
-          setContacts(contactsData.contacts.map((c: any) => ({ id: c.id, name: `${c.firstName} ${c.lastName}` })));
+          setContacts(contactsData.contacts.map((c: ApiContact) => ({ id: c.id, name: `${c.firstName} ${c.lastName}` })));
         }
       } catch (err) {
         console.error("Failed to fetch contacts:", err);
