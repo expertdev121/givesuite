@@ -49,3 +49,8 @@ export const formatDate = (dateString: string | null) => {
 
     return `${day}-${month}-${year}`;
   };
+
+export const formatPaymentMethod = (paymentMethod: string | null | undefined) => {
+  if (!paymentMethod || paymentMethod.trim() === "") return "Not Specified";
+  return paymentMethod.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+};

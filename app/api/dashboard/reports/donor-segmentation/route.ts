@@ -28,27 +28,35 @@ export async function GET(request: NextRequest) {
         END`,
       })
       .from(contact)
-      .leftJoin(pledge, sql`${contact.id} = ${pledge.contactId}`)
-      .leftJoin(payment, sql`${pledge.id} = ${payment.pledgeId}`)
-      .leftJoin(paymentAllocations, sql`${paymentAllocations.pledgeId} = ${pledge.id}`)
-      .where(sql`${payment.paymentStatus} = 'completed' OR ${paymentAllocations.id} IS NOT NULL`)
+      .innerJoin(pledge, sql`${contact.id} = ${pledge.contactId} AND ${pledge.isActive} = true`)
+      .innerJoin(payment, sql`${pledge.id} = ${payment.pledgeId} AND ${payment.paymentStatus} = 'completed'`)
+      .leftJoin(paymentAllocations, sql`${paymentAllocations.paymentId} = ${payment.id}`)
       .groupBy(contact.id, contact.firstName, contact.lastName, contact.email)
       .orderBy(desc(sql`COALESCE(SUM(${payment.amountUsd}), 0)`));
 
+    // Convert string values to numbers and segment donors
+    const processedDonorData = donorData.map(d => ({
+      ...d,
+      totalAmount: parseFloat(String(d.totalAmount)) || 0,
+      averageAmount: parseFloat(String(d.averageAmount)) || 0,
+      paymentCount: parseInt(String(d.paymentCount)) || 0,
+      yearsActive: parseInt(String(d.yearsActive)) || 0,
+    }));
+
     // Segment donors
     const segments = {
-      major: donorData.filter(d => d.totalAmount >= 10000),
-      significant: donorData.filter(d => d.totalAmount >= 1000 && d.totalAmount < 10000),
-      regular: donorData.filter(d => d.totalAmount >= 100 && d.totalAmount < 1000),
-      small: donorData.filter(d => d.totalAmount > 0 && d.totalAmount < 100),
+      major: processedDonorData.filter(d => d.totalAmount >= 10000),
+      significant: processedDonorData.filter(d => d.totalAmount >= 1000 && d.totalAmount < 10000),
+      regular: processedDonorData.filter(d => d.totalAmount >= 100 && d.totalAmount < 1000),
+      small: processedDonorData.filter(d => d.totalAmount > 0 && d.totalAmount < 100),
     };
 
     // Frequency segments
     const frequencySegments = {
-      monthly: donorData.filter(d => d.frequency === 'Monthly'),
-      quarterly: donorData.filter(d => d.frequency === 'Quarterly'),
-      occasional: donorData.filter(d => d.frequency === 'Occasional'),
-      onetime: donorData.filter(d => d.frequency === 'One-time'),
+      monthly: processedDonorData.filter(d => d.frequency === 'Monthly'),
+      quarterly: processedDonorData.filter(d => d.frequency === 'Quarterly'),
+      occasional: processedDonorData.filter(d => d.frequency === 'Occasional'),
+      onetime: processedDonorData.filter(d => d.frequency === 'One-time'),
     };
 
     // Summary statistics for each segment

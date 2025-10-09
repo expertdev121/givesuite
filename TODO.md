@@ -1,0 +1,8 @@
+- [x] Investigate $NaN issue in donor segmentation dashboard
+- [x] Read donor-segmentation-report.tsx component
+- [x] Read donor-segmentation API route
+- [x] Read formatCurrency function in lib/utils.ts
+- [x] Identify root cause: NaN values in totalAmount causing sum to be NaN
+- [x] Add isNaN checks in segmentSummaries and frequencySummaries reduce functions
+- [ ] Test the fix by refreshing the dashboard
+- [ ] If individual donor rows still show $NaN, add safeguard in component or API

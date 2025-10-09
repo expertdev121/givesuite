@@ -33,6 +33,9 @@ export async function GET(request: NextRequest) {
       paymentDateConditions = sql`${paymentDateConditions} AND ${payment.paymentDate} <= ${endDate}`;
     }
 
+    // Define endDate for balance calculations (use far future if no endDate)
+    const endDateParam = endDate || '9999-12-31';
+
     // Detailed payment breakdown
     const paymentBreakdown = await db
       .select({
@@ -64,40 +67,49 @@ export async function GET(request: NextRequest) {
         description: pledge.description,
         originalAmount: pledge.originalAmount,
         currency: pledge.currency,
-        totalPaid: pledge.totalPaid,
-        balance: pledge.balance,
+        totalPaid: sql<number>`COALESCE(SUM(CASE WHEN ${payment.paymentDate} <= ${endDateParam} THEN ${payment.amountUsd} ELSE 0 END), 0)`,
+        balance: sql<number>`${pledge.originalAmountUsd} - COALESCE(SUM(CASE WHEN ${payment.paymentDate} <= ${endDateParam} THEN ${payment.amountUsd} ELSE 0 END), 0)`,
         originalAmountUsd: pledge.originalAmountUsd,
-        totalPaidUsd: pledge.totalPaidUsd,
-        balanceUsd: pledge.balanceUsd,
+        totalPaidUsd: sql<number>`COALESCE(SUM(CASE WHEN ${payment.paymentDate} <= ${endDateParam} THEN ${payment.amountUsd} ELSE 0 END), 0)`,
+        balanceUsd: sql<number>`${pledge.originalAmountUsd} - COALESCE(SUM(CASE WHEN ${payment.paymentDate} <= ${endDateParam} THEN ${payment.amountUsd} ELSE 0 END), 0)`,
       })
       .from(pledge)
       .innerJoin(contact, sql`${pledge.contactId} = ${contact.id}`)
-      .where(sql`${pledge.isActive} = true AND ${pledge.balance} > 0 AND ${baseConditions}`)
-      .orderBy(desc(pledge.balanceUsd));
+      .leftJoin(payment, sql`${payment.pledgeId} = ${pledge.id} AND ${payment.paymentStatus} = 'completed'`)
+      .where(sql`${pledge.isActive} = true AND ${baseConditions}`)
+      .groupBy(pledge.id, contact.firstName, contact.lastName, pledge.description, pledge.originalAmount, pledge.currency, pledge.originalAmountUsd)
+      .having(sql`${pledge.originalAmountUsd} - COALESCE(SUM(CASE WHEN ${payment.paymentDate} <= ${endDateParam} THEN ${payment.amountUsd} ELSE 0 END), 0) > 0`)
+      .orderBy(desc(sql`${pledge.originalAmountUsd} - COALESCE(SUM(CASE WHEN ${payment.paymentDate} <= ${endDateParam} THEN ${payment.amountUsd} ELSE 0 END), 0)`));
 
-    // Payment summary by month
+    // Determine grouping: by day if range < 60 days, else by month
+    const isShortRange = startDate && endDate ? (new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24) < 60 : false;
+    const groupByExpr = isShortRange ? sql`DATE_TRUNC('day', ${payment.paymentDate})` : sql`DATE_TRUNC('month', ${payment.paymentDate})`;
+    const periodExpr = isShortRange ? sql`TO_CHAR(DATE_TRUNC('day', ${payment.paymentDate}), 'YYYY-MM-DD')` : sql`TO_CHAR(DATE_TRUNC('month', ${payment.paymentDate}), 'YYYY-MM')`;
+
+    // Payment summary by period (month or day)
     const monthlyPayments = await db
       .select({
-        month: sql<string>`TO_CHAR(${payment.paymentDate}, 'YYYY-MM')`,
+        period: periodExpr,
         totalAmount: sql<number>`COALESCE(SUM(${payment.amountUsd}), 0)`,
         paymentCount: sql<number>`COUNT(*)`,
       })
       .from(payment)
       .innerJoin(pledge, sql`${payment.pledgeId} = ${pledge.id}`)
       .where(sql`${payment.paymentStatus} = 'completed' AND ${baseConditions} AND ${paymentDateConditions}`)
-      .groupBy(sql`TO_CHAR(${payment.paymentDate}, 'YYYY-MM')`)
-      .orderBy(asc(sql`TO_CHAR(${payment.paymentDate}, 'YYYY-MM')`));
+      .groupBy(groupByExpr)
+      .orderBy(asc(groupByExpr));
 
     // Total owed vs paid summary
     const summary = await db
       .select({
         totalOwed: sql<number>`COALESCE(SUM(${pledge.originalAmountUsd}), 0)`,
-        totalPaid: sql<number>`COALESCE(SUM(${pledge.totalPaidUsd}), 0)`,
-        totalBalance: sql<number>`COALESCE(SUM(${pledge.balanceUsd}), 0)`,
+        totalPaid: sql<number>`COALESCE(SUM(CASE WHEN ${payment.paymentDate} <= ${endDateParam} THEN ${payment.amountUsd} ELSE 0 END), 0)`,
+        totalBalance: sql<number>`COALESCE(SUM(${pledge.originalAmountUsd}), 0) - COALESCE(SUM(CASE WHEN ${payment.paymentDate} <= ${endDateParam} THEN ${payment.amountUsd} ELSE 0 END), 0)`,
         totalPledges: sql<number>`COUNT(DISTINCT ${pledge.id})`,
         totalContacts: sql<number>`COUNT(DISTINCT ${pledge.contactId})`,
       })
       .from(pledge)
+      .leftJoin(payment, sql`${payment.pledgeId} = ${pledge.id} AND ${payment.paymentStatus} = 'completed'`)
       .where(sql`${pledge.isActive} = true AND ${baseConditions}`);
 
     return NextResponse.json({

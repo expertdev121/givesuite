@@ -167,6 +167,31 @@ export function StatementsSection({ contactId, dateRange }: StatementsSectionPro
     setCurrentOutstandingPage(prev => Math.min(prev + 1, totalOutstandingPages));
   };
 
+  const handleExport = () => {
+    if (!data || !data.paymentBreakdown) return;
+
+    const headers = ['Date', 'Contact', 'Description', 'Method', 'Amount', 'Currency', 'Status'];
+    const rows = data.paymentBreakdown.map(payment => [
+      formatDate(payment.paymentDate),
+      `"${payment.contactName}"`,
+      `"${payment.pledgeDescription}"`,
+      formatMethodName(payment.paymentMethod),
+      typeof payment.amountUsd === 'number' ? payment.amountUsd.toFixed(2) : payment.amountUsd,
+      payment.currency,
+      payment.paymentStatus
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `payment-history-export-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
@@ -354,7 +379,7 @@ export function StatementsSection({ contactId, dateRange }: StatementsSectionPro
           )}
           {totalPayments > 20 && (
             <div className="text-center mt-4">
-              <Button variant="outline">
+              <Button variant="outline" onClick={handleExport}>
                 <Download className="w-4 h-4 mr-2" />
                 Export Full History
               </Button>

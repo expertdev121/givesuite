@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Download } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { PieChart, Pie, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieLabelRenderProps } from "recharts";
 
 interface DonorData {
   contactId: number;
@@ -58,6 +59,40 @@ interface DonorSegmentationData {
 interface DonorSegmentationReportProps {
   contactId?: string;
 }
+
+const AMOUNT_COLORS = ['#8b5cf6', '#6366f1', '#3b82f6', '#0ea5e9'];
+const FREQUENCY_COLORS = ['#10b981', '#14b8a6', '#06b6d4', '#0891b2'];
+
+// Custom label renderer with proper typing for pie charts
+const renderCustomLabelLine = (props: PieLabelRenderProps) => {
+  const { cx, cy, midAngle, outerRadius, percent, name } = props;
+  
+  // Type guards to ensure we have the values we need
+  const centerX = typeof cx === 'number' ? cx : 0;
+  const centerY = typeof cy === 'number' ? cy : 0;
+  const angle = typeof midAngle === 'number' ? midAngle : 0;
+  const radius = typeof outerRadius === 'number' ? outerRadius : 0;
+  const pct = typeof percent === 'number' ? percent : 0;
+  const labelName = typeof name === 'string' ? name : '';
+  
+  const RADIAN = Math.PI / 180;
+  const labelRadius = radius + 30;
+  const x = centerX + labelRadius * Math.cos(-angle * RADIAN);
+  const y = centerY + labelRadius * Math.sin(-angle * RADIAN);
+
+  return (
+    <text 
+      x={x} 
+      y={y} 
+      fill="#6b7280" 
+      textAnchor={x > centerX ? 'start' : 'end'} 
+      dominantBaseline="central"
+      className="text-sm font-medium"
+    >
+      {`${labelName}: ${(pct * 100).toFixed(0)}%`}
+    </text>
+  );
+};
 
 export function DonorSegmentationReport({ contactId }: DonorSegmentationReportProps) {
   const [data, setData] = useState<DonorSegmentationData | null>(null);
@@ -131,6 +166,36 @@ export function DonorSegmentationReport({ contactId }: DonorSegmentationReportPr
       </div>
     );
   }
+
+  // Prepare chart data for amount-based segments
+  const amountPieData = [
+    { name: 'Major ($10k+)', value: data.segmentSummaries.major.count, amount: data.segmentSummaries.major.totalAmount },
+    { name: 'Significant ($1k-10k)', value: data.segmentSummaries.significant.count, amount: data.segmentSummaries.significant.totalAmount },
+    { name: 'Regular ($100-1k)', value: data.segmentSummaries.regular.count, amount: data.segmentSummaries.regular.totalAmount },
+    { name: 'Small (Under $100)', value: data.segmentSummaries.small.count, amount: data.segmentSummaries.small.totalAmount },
+  ];
+
+  const amountBarData = [
+    { name: 'Major', amount: data.segmentSummaries.major.totalAmount, count: data.segmentSummaries.major.count },
+    { name: 'Significant', amount: data.segmentSummaries.significant.totalAmount, count: data.segmentSummaries.significant.count },
+    { name: 'Regular', amount: data.segmentSummaries.regular.totalAmount, count: data.segmentSummaries.regular.count },
+    { name: 'Small', amount: data.segmentSummaries.small.totalAmount, count: data.segmentSummaries.small.count },
+  ];
+
+  // Prepare chart data for frequency-based segments
+  const frequencyPieData = [
+    { name: 'Monthly', value: data.frequencySummaries.monthly.count, amount: data.frequencySummaries.monthly.totalAmount },
+    { name: 'Quarterly', value: data.frequencySummaries.quarterly.count, amount: data.frequencySummaries.quarterly.totalAmount },
+    { name: 'Occasional', value: data.frequencySummaries.occasional.count, amount: data.frequencySummaries.occasional.totalAmount },
+    { name: 'One-time', value: data.frequencySummaries.onetime.count, amount: data.frequencySummaries.onetime.totalAmount },
+  ];
+
+  const frequencyBarData = [
+    { name: 'Monthly', amount: data.frequencySummaries.monthly.totalAmount, count: data.frequencySummaries.monthly.count },
+    { name: 'Quarterly', amount: data.frequencySummaries.quarterly.totalAmount, count: data.frequencySummaries.quarterly.count },
+    { name: 'Occasional', amount: data.frequencySummaries.occasional.totalAmount, count: data.frequencySummaries.occasional.count },
+    { name: 'One-time', amount: data.frequencySummaries.onetime.totalAmount, count: data.frequencySummaries.onetime.count },
+  ];
 
   // Pagination logic for major donors
   const totalMajor = data.segments.major?.length || 0;
@@ -212,7 +277,68 @@ export function DonorSegmentationReport({ contactId }: DonorSegmentationReportPr
   const handleOnetimePrevious = () => setOnetimePage(prev => Math.max(prev - 1, 1));
   const handleOnetimeNext = () => setOnetimePage(prev => Math.min(prev + 1, totalOnetimePages));
 
-  const renderDonorTable = (donors: DonorData[], title: string, exportType: string, currentPage: number, totalPages: number, startIndex: number, endIndex: number, totalItems: number, handlePrevious: () => void, handleNext: () => void) => {
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    name: string;
+    value: number;
+    payload: {
+      amount: number;
+    };
+  }>;
+}
+
+const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+          <p className="font-semibold">{payload[0].name}</p>
+          <p className="text-sm text-gray-600">Donors: {payload[0].value}</p>
+          {payload[0].payload.amount !== undefined && (
+            <p className="text-sm text-gray-600">Total: {formatCurrency(payload[0].payload.amount)}</p>
+          )}
+        </div>
+      );
+    }
+    return null;
+  };
+
+interface BarTooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    value: number;
+    payload: {
+      name: string;
+      count: number;
+    };
+  }>;
+}
+
+const BarTooltip = ({ active, payload }: BarTooltipProps) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+          <p className="font-semibold">{payload[0].payload.name}</p>
+          <p className="text-sm text-gray-600">Total: {formatCurrency(payload[0].value)}</p>
+          <p className="text-sm text-gray-600">Donors: {payload[0].payload.count}</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const renderDonorTable = (
+    donors: DonorData[], 
+    title: string, 
+    exportType: string, 
+    currentPage: number, 
+    totalPages: number, 
+    startIndex: number, 
+    endIndex: number, 
+    totalItems: number, 
+    handlePrevious: () => void, 
+    handleNext: () => void
+  ) => {
     return (
       <Card>
         <CardHeader>
@@ -248,7 +374,7 @@ export function DonorSegmentationReport({ contactId }: DonorSegmentationReportPr
                   <TableCell className="font-medium">{donor.contactName}</TableCell>
                   <TableCell>{donor.email}</TableCell>
                   <TableCell className="text-right font-medium">
-                    {formatCurrency(donor.totalAmount)}
+                    {formatCurrency(isNaN(donor.totalAmount) ? 0 : donor.totalAmount)}
                   </TableCell>
                   <TableCell className="text-right">{donor.paymentCount}</TableCell>
                   <TableCell className="text-right">
@@ -314,7 +440,7 @@ export function DonorSegmentationReport({ contactId }: DonorSegmentationReportPr
               <CardContent>
                 <div className="text-2xl font-bold">{data.segmentSummaries.major.count}</div>
                 <p className="text-xs text-muted-foreground">
-                  {formatCurrency(data.segmentSummaries.major.totalAmount)}
+                  {formatCurrency(isNaN(data.segmentSummaries.major.totalAmount) ? 0 : data.segmentSummaries.major.totalAmount)}
                 </p>
               </CardContent>
             </Card>
@@ -327,7 +453,7 @@ export function DonorSegmentationReport({ contactId }: DonorSegmentationReportPr
               <CardContent>
                 <div className="text-2xl font-bold">{data.segmentSummaries.significant.count}</div>
                 <p className="text-xs text-muted-foreground">
-                  {formatCurrency(data.segmentSummaries.significant.totalAmount)}
+                  {formatCurrency(isNaN(data.segmentSummaries.significant.totalAmount) ? 0 : data.segmentSummaries.significant.totalAmount)}
                 </p>
               </CardContent>
             </Card>
@@ -340,7 +466,7 @@ export function DonorSegmentationReport({ contactId }: DonorSegmentationReportPr
               <CardContent>
                 <div className="text-2xl font-bold">{data.segmentSummaries.regular.count}</div>
                 <p className="text-xs text-muted-foreground">
-                  {formatCurrency(data.segmentSummaries.regular.totalAmount)}
+                  {formatCurrency(isNaN(data.segmentSummaries.regular.totalAmount) ? 0 : data.segmentSummaries.regular.totalAmount)}
                 </p>
               </CardContent>
             </Card>
@@ -353,8 +479,95 @@ export function DonorSegmentationReport({ contactId }: DonorSegmentationReportPr
               <CardContent>
                 <div className="text-2xl font-bold">{data.segmentSummaries.small.count}</div>
                 <p className="text-xs text-muted-foreground">
-                  {formatCurrency(data.segmentSummaries.small.totalAmount)}
+                  {formatCurrency(isNaN(data.segmentSummaries.small.totalAmount) ? 0 : data.segmentSummaries.small.totalAmount)}
                 </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Amount-based Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Donor Distribution by Amount</CardTitle>
+                <CardDescription>Number of donors in each segment</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={350}>
+                  <PieChart>
+                    <Pie
+                      data={amountPieData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={true}
+                      label={renderCustomLabelLine}
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                      strokeWidth={2}
+                      stroke="#fff"
+                    >
+                      {amountPieData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={AMOUNT_COLORS[index % AMOUNT_COLORS.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Total Donations by Segment</CardTitle>
+                <CardDescription>Total amount contributed by each segment</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={350}>
+                  <BarChart data={amountBarData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="colorMajor" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.9}/>
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.7}/>
+                      </linearGradient>
+                      <linearGradient id="colorSignificant" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.9}/>
+                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0.7}/>
+                      </linearGradient>
+                      <linearGradient id="colorRegular" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.9}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.7}/>
+                      </linearGradient>
+                      <linearGradient id="colorSmall" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.9}/>
+                        <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.7}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis 
+                      dataKey="name" 
+                      tick={{ fill: '#6b7280' }}
+                      axisLine={{ stroke: '#d1d5db' }}
+                    />
+                    <YAxis 
+                      tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+                      tick={{ fill: '#6b7280' }}
+                      axisLine={{ stroke: '#d1d5db' }}
+                    />
+                    <Tooltip content={<BarTooltip />} cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }} />
+                    <Bar dataKey="amount" radius={[8, 8, 0, 0]}>
+                      {amountBarData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={`url(#color${entry.name})`}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               </CardContent>
             </Card>
           </div>
@@ -396,7 +609,7 @@ export function DonorSegmentationReport({ contactId }: DonorSegmentationReportPr
               <CardContent>
                 <div className="text-2xl font-bold">{data.frequencySummaries.monthly.count}</div>
                 <p className="text-xs text-muted-foreground">
-                  {formatCurrency(data.frequencySummaries.monthly.totalAmount)}
+                  {formatCurrency(isNaN(data.frequencySummaries.monthly.totalAmount) ? 0 : data.frequencySummaries.monthly.totalAmount)}
                 </p>
               </CardContent>
             </Card>
@@ -408,7 +621,7 @@ export function DonorSegmentationReport({ contactId }: DonorSegmentationReportPr
               <CardContent>
                 <div className="text-2xl font-bold">{data.frequencySummaries.quarterly.count}</div>
                 <p className="text-xs text-muted-foreground">
-                  {formatCurrency(data.frequencySummaries.quarterly.totalAmount)}
+                  {formatCurrency(isNaN(data.frequencySummaries.quarterly.totalAmount) ? 0 : data.frequencySummaries.quarterly.totalAmount)}
                 </p>
               </CardContent>
             </Card>
@@ -420,7 +633,7 @@ export function DonorSegmentationReport({ contactId }: DonorSegmentationReportPr
               <CardContent>
                 <div className="text-2xl font-bold">{data.frequencySummaries.occasional.count}</div>
                 <p className="text-xs text-muted-foreground">
-                  {formatCurrency(data.frequencySummaries.occasional.totalAmount)}
+                  {formatCurrency(isNaN(data.frequencySummaries.occasional.totalAmount) ? 0 : data.frequencySummaries.occasional.totalAmount)}
                 </p>
               </CardContent>
             </Card>
@@ -432,8 +645,95 @@ export function DonorSegmentationReport({ contactId }: DonorSegmentationReportPr
               <CardContent>
                 <div className="text-2xl font-bold">{data.frequencySummaries.onetime.count}</div>
                 <p className="text-xs text-muted-foreground">
-                  {formatCurrency(data.frequencySummaries.onetime.totalAmount)}
+                  {formatCurrency(isNaN(data.frequencySummaries.onetime.totalAmount) ? 0 : data.frequencySummaries.onetime.totalAmount)}
                 </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Frequency-based Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Donor Distribution by Frequency</CardTitle>
+                <CardDescription>Number of donors by giving frequency</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={350}>
+                  <PieChart>
+                    <Pie
+                      data={frequencyPieData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={true}
+                      label={renderCustomLabelLine}
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                      strokeWidth={2}
+                      stroke="#fff"
+                    >
+                      {frequencyPieData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={FREQUENCY_COLORS[index % FREQUENCY_COLORS.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Total Donations by Frequency</CardTitle>
+                <CardDescription>Total amount by giving frequency</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={350}>
+                  <BarChart data={frequencyBarData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="colorMonthly" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.9}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.7}/>
+                      </linearGradient>
+                      <linearGradient id="colorQuarterly" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.9}/>
+                        <stop offset="95%" stopColor="#14b8a6" stopOpacity={0.7}/>
+                      </linearGradient>
+                      <linearGradient id="colorOccasional" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.9}/>
+                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.7}/>
+                      </linearGradient>
+                      <linearGradient id="colorOne-time" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0891b2" stopOpacity={0.9}/>
+                        <stop offset="95%" stopColor="#0891b2" stopOpacity={0.7}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis 
+                      dataKey="name" 
+                      tick={{ fill: '#6b7280' }}
+                      axisLine={{ stroke: '#d1d5db' }}
+                    />
+                    <YAxis 
+                      tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+                      tick={{ fill: '#6b7280' }}
+                      axisLine={{ stroke: '#d1d5db' }}
+                    />
+                    <Tooltip content={<BarTooltip />} cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }} />
+                    <Bar dataKey="amount" radius={[8, 8, 0, 0]}>
+                      {frequencyBarData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={`url(#color${entry.name})`}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               </CardContent>
             </Card>
           </div>
