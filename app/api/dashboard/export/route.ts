@@ -12,6 +12,15 @@ import {
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+// Extend jsPDF type to include autoTable properties
+declare module 'jspdf' {
+  interface jsPDF {
+    lastAutoTable: {
+      finalY: number;
+    };
+  }
+}
+
 // Server-side currency formatter
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -66,7 +75,7 @@ export async function GET(request: NextRequest) {
 
         const csvContent = [
           headers.join(','),
-          ...donorContributions.map(row => [
+          ...donorContributions.map((row: { contactId: number; contactName: string; email: string | null; totalAmount: number; paymentCount: number; averageAmount: number; firstPaymentDate: string; lastPaymentDate: string; currency: string; }) => [
             row.contactId,
             `"${row.contactName}"`,
             row.email,
@@ -264,7 +273,7 @@ export async function GET(request: NextRequest) {
           headStyles: { fillColor: [66, 139, 202] }
         });
         
-        yPos = (doc as any).lastAutoTable.finalY + 15;
+        yPos = doc.lastAutoTable.finalY + 15;
 
         // Monthly Trends
         if (yPos > 250) {
@@ -290,7 +299,7 @@ export async function GET(request: NextRequest) {
           headStyles: { fillColor: [66, 139, 202] }
         });
         
-        yPos = (doc as any).lastAutoTable.finalY + 15;
+        yPos = doc.lastAutoTable.finalY + 15;
 
         // Payment Methods
         if (yPos > 250) {
@@ -318,7 +327,7 @@ export async function GET(request: NextRequest) {
           headStyles: { fillColor: [66, 139, 202] }
         });
         
-        yPos = (doc as any).lastAutoTable.finalY + 15;
+        yPos = doc.lastAutoTable.finalY + 15;
 
         // Currencies
         if (yPos > 250) {

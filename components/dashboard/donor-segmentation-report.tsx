@@ -277,7 +277,18 @@ export function DonorSegmentationReport({ contactId }: DonorSegmentationReportPr
   const handleOnetimePrevious = () => setOnetimePage(prev => Math.max(prev - 1, 1));
   const handleOnetimeNext = () => setOnetimePage(prev => Math.min(prev + 1, totalOnetimePages));
 
-  const CustomTooltip = ({ active, payload }: any) => {
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    name: string;
+    value: number;
+    payload: {
+      amount: number;
+    };
+  }>;
+}
+
+const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
@@ -292,7 +303,18 @@ export function DonorSegmentationReport({ contactId }: DonorSegmentationReportPr
     return null;
   };
 
-  const BarTooltip = ({ active, payload }: any) => {
+interface BarTooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    value: number;
+    payload: {
+      name: string;
+      count: number;
+    };
+  }>;
+}
+
+const BarTooltip = ({ active, payload }: BarTooltipProps) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
