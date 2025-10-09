@@ -501,7 +501,7 @@ export default function DashboardPage() {
                 {data.paymentTypes.map((type) => (
                   <div key={type.type} className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
-                      <div className="font-medium">{formatPaymentMethod(type.type)}</div>
+                      <div className="font-medium">{type.type}</div>
                       <div className="text-sm text-muted-foreground">{type.count} payments</div>
                     </div>
                     <div className="text-right">

@@ -1,14 +1,17 @@
-# Fix Dashboard Statements Date Range Issue
+# TODO: Add Charts and Date Range Selector to Reports Section
 
-## Problem
-In the dashboard's statement section, when entering a date range, Outstanding Balances and Payment History data are not being updated accordingly. The Outstanding Balances and summary (Total Owed, Total Paid, etc.) show all-time data instead of being filtered by the date range.
-
-## Solution
-Modify the API route to calculate balances and summaries as of the end date of the range, considering payments made up to that date.
-
-## Steps
-- [x] Update outstandingBalances query to calculate balance as of endDate
-- [x] Update summary query to calculate totals based on payments up to endDate
-- [x] Handle case when no date range is provided (use all-time data)
-- [x] Update monthly payments chart to show daily data when date range < 2 months
-- [x] Test the changes to ensure data updates correctly with date range
+## Tasks
+- [ ] Update app/dashboard/page.tsx: Add date range selector to reports tab and add "charts" sub-tab
+- [ ] Update components/dashboard/donor-contribution-report.tsx: Add dateRange prop and API params
+- [ ] Update components/dashboard/campaign-fundraising-report.tsx: Add dateRange prop and API params
+- [ ] Update components/dashboard/donor-segmentation-report.tsx: Add dateRange prop and API params
+- [ ] Update components/dashboard/financial-accounting-report.tsx: Add dateRange prop and API params
+- [ ] Update components/dashboard/lybunt-sybunt-report.tsx: Add dateRange prop and API params
+- [ ] Update app/api/dashboard/reports/donor-contributions/route.ts: Add date filtering
+- [ ] Update app/api/dashboard/reports/campaign-fundraising/route.ts: Add date filtering
+- [ ] Update app/api/dashboard/reports/donor-segmentation/route.ts: Add date filtering
+- [ ] Update app/api/dashboard/reports/financial-accounting/route.ts: Add date filtering
+- [ ] Update app/api/dashboard/reports/lybunt-sybunt/route.ts: Add date filtering
+- [ ] Test date range filtering in reports
+- [ ] Verify charts display correctly with date range
+- [ ] Ensure export functionality includes date range if applicable
