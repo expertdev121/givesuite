@@ -1,17 +1,8 @@
-# TODO: Add Charts and Date Range Selector to Reports Section
-
-## Tasks
-- [ ] Update app/dashboard/page.tsx: Add date range selector to reports tab and add "charts" sub-tab
-- [ ] Update components/dashboard/donor-contribution-report.tsx: Add dateRange prop and API params
-- [ ] Update components/dashboard/campaign-fundraising-report.tsx: Add dateRange prop and API params
-- [ ] Update components/dashboard/donor-segmentation-report.tsx: Add dateRange prop and API params
-- [ ] Update components/dashboard/financial-accounting-report.tsx: Add dateRange prop and API params
-- [ ] Update components/dashboard/lybunt-sybunt-report.tsx: Add dateRange prop and API params
-- [ ] Update app/api/dashboard/reports/donor-contributions/route.ts: Add date filtering
-- [ ] Update app/api/dashboard/reports/campaign-fundraising/route.ts: Add date filtering
-- [ ] Update app/api/dashboard/reports/donor-segmentation/route.ts: Add date filtering
-- [ ] Update app/api/dashboard/reports/financial-accounting/route.ts: Add date filtering
-- [ ] Update app/api/dashboard/reports/lybunt-sybunt/route.ts: Add date filtering
-- [ ] Test date range filtering in reports
-- [ ] Verify charts display correctly with date range
-- [ ] Ensure export functionality includes date range if applicable
+- [x] Investigate $NaN issue in donor segmentation dashboard
+- [x] Read donor-segmentation-report.tsx component
+- [x] Read donor-segmentation API route
+- [x] Read formatCurrency function in lib/utils.ts
+- [x] Identify root cause: NaN values in totalAmount causing sum to be NaN
+- [x] Add isNaN checks in segmentSummaries and frequencySummaries reduce functions
+- [ ] Test the fix by refreshing the dashboard
+- [ ] If individual donor rows still show $NaN, add safeguard in component or API

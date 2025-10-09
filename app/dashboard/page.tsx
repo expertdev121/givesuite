@@ -13,8 +13,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { formatCurrency, formatDate, formatPaymentMethod } from "@/lib/utils";
 import { DateRange } from "react-day-picker";
 import { CalendarIcon, ChevronsUpDown, XCircle } from "lucide-react";
-import { PaymentTrendsChart } from "@/components/dashboard/payment-trends-chart";
-import { PaymentMethodChart } from "@/components/dashboard/payment-method-chart";
 import { StatementsSection } from "@/components/dashboard/statements-section";
 import { BonusReport } from "@/components/dashboard/bonus-report";
 import { DonorContributionReport } from "@/components/dashboard/donor-contribution-report";
@@ -205,9 +203,8 @@ export default function DashboardPage() {
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="charts">Charts</TabsTrigger>
           <TabsTrigger value="statements">Statements</TabsTrigger>
           <TabsTrigger value="bonuses">Bonus Reports</TabsTrigger>
           <TabsTrigger value="reports">Reports</TabsTrigger>
@@ -512,13 +509,6 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="charts" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <PaymentTrendsChart contactId={selectedContact} />
-            <PaymentMethodChart contactId={selectedContact} />
-          </div>
         </TabsContent>
 
         <TabsContent value="statements" className="space-y-6">
