@@ -91,24 +91,24 @@ export async function GET(request: NextRequest) {
     // ✅ Looser search: split search into words, remove punctuation, match any term (OR logic)
     const terms = search
       ? search
-          .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, " ") // remove punctuation
-          .trim()
-          .split(/\s+/)
+        .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, " ") // remove punctuation
+        .trim()
+        .split(/\s+/)
       : [];
 
     const whereClause =
       terms.length > 0
         ? terms
-            .map((term) =>
-              or(
-                ilike(contact.firstName, `%${term}%`),
-                ilike(contact.lastName, `%${term}%`),
-                ilike(contact.displayName, `%${term}%`),
-                ilike(contact.email, `%${term}%`),
-                ilike(contact.phone, `%${term}%`)
-              )
+          .map((term) =>
+            or(
+              ilike(contact.firstName, `%${term}%`),
+              ilike(contact.lastName, `%${term}%`),
+              ilike(contact.displayName, `%${term}%`),
+              ilike(contact.email, `%${term}%`),
+              ilike(contact.phone, `%${term}%`)
             )
-            .reduce((acc, clause) => (acc ? or(acc, clause) : clause), undefined)
+          )
+          .reduce((acc, clause) => (acc ? or(acc, clause) : clause), undefined)
         : undefined;
 
     const selectedFields = {
@@ -193,6 +193,43 @@ export async function GET(request: NextRequest) {
     const totalCount = Number(totalCountResult[0]?.count || 0);
     const totalPages = Math.ceil(totalCount / limit);
 
+    // Calculate total pledged amount across all contacts
+    const totalPledgedQuery = db
+      .select({
+        totalPledgedUsd: sql<number>`COALESCE(SUM(${pledge.originalAmountUsd}), 0)`.as(
+          "totalPledgedUsd"
+        ),
+      })
+      .from(pledge);
+
+    const totalPledgedResult = await totalPledgedQuery.execute();
+    const totalPledgedAmount = Number(totalPledgedResult[0]?.totalPledgedUsd || 0);
+
+    // Calculate contacts with pledges
+    const contactsWithPledgesQuery = db
+      .select({
+        count: sql<number>`COUNT(DISTINCT ${pledge.contactId})`.as("count"),
+      })
+      .from(pledge)
+      .where(sql`${pledge.originalAmountUsd} > 0`);
+
+    const contactsWithPledgesResult = await contactsWithPledgesQuery.execute();
+    const contactsWithPledges = Number(contactsWithPledgesResult[0]?.count || 0);
+
+    // Calculate recent contacts (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const recentContactsQuery = db
+      .select({
+        count: sql<number>`COUNT(*)`.as("count"),
+      })
+      .from(contact)
+      .where(sql`${contact.createdAt} >= ${thirtyDaysAgo}`);
+
+    const recentContactsResult = await recentContactsQuery.execute();
+    const recentContacts = Number(recentContactsResult[0]?.count || 0);
+
     return NextResponse.json({
       contacts: contacts as ContactResponse[],
       pagination: {
@@ -203,17 +240,23 @@ export async function GET(request: NextRequest) {
         hasNextPage: page < totalPages,
         hasPreviousPage: page > 1,
       },
-    });
-  } catch (error) {
-    console.error("Error fetching contacts:", error);
-    return NextResponse.json(
-      {
-        error: "Failed to fetch contacts",
-        message: error instanceof Error ? error.message : "Unknown error",
+      summary: {
+        totalContacts: totalCount,
+        totalPledgedAmount,
+        contactsWithPledges,
+        recentContacts,
       },
-      { status: 500 }
-    );
-  }
+    });
+} catch (error) {
+  console.error("Error fetching contacts:", error);
+  return NextResponse.json(
+    {
+      error: "Failed to fetch contacts",
+      message: error instanceof Error ? error.message : "Unknown error",
+    },
+    { status: 500 }
+  );
+}
 }
 
 export async function POST(request: Request) {
