@@ -73,7 +73,8 @@ export function MonthlyPaymentsChart({ contactId, dateRange }: MonthlyPaymentsCh
     );
   }
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: number | undefined | null) => {
+    if (value == null || isNaN(value)) return '$0';
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',

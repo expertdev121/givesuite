@@ -86,7 +86,8 @@ export function StatementsSection({ contactId, dateRange }: StatementsSectionPro
     fetchData();
   }, [contactId, dateRange]);
 
-  const formatCurrency = (value: number, currency: string = 'USD') => {
+  const formatCurrency = (value: number | undefined | null, currency: string = 'USD') => {
+    if (value == null || isNaN(value)) return '0';
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency,
@@ -95,7 +96,8 @@ export function StatementsSection({ contactId, dateRange }: StatementsSectionPro
     }).format(value);
   };
 
-  const formatDate = (dateStr: string) => {
+  const formatDate = (dateStr: string | undefined | null) => {
+    if (!dateStr) return 'N/A';
     return new Date(dateStr).toLocaleDateString('en-US');
   };
 

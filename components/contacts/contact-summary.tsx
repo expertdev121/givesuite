@@ -30,7 +30,8 @@ export default function ContactsSummaryCards({
   recentHref,
   showViewAll = false,
 }: ContactsSummaryCardsProps) {
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | undefined | null) => {
+    if (amount == null || isNaN(amount)) return '$0';
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
