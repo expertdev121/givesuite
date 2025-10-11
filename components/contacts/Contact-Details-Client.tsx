@@ -5,8 +5,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle } from "lucide-react";
 
 import React from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useContactCategories } from "@/lib/query/useContactCategories";
 import ContactOverviewTab from "./Contact-Overview-Tab";
+import FinancialSummaryTab from "./Financial-Summary-Tab";
 import PledgesTable from "../pledges/Pledges-Client";
 import useContactId from "@/hooks/use-contact-id";
 
@@ -77,13 +79,24 @@ export default function ContactDetailsClient() {
   const { contact, financialSummary } = data;
 
   return (
-    <React.Fragment>
-      <ContactOverviewTab
-        contact={contact}
-        financialSummary={financialSummary}
-        categories={categories || []}
-      />
-      {/* <PledgesTable /> */}
-    </React.Fragment>
+    <Tabs defaultValue="overview" className="w-full">
+      <TabsList className="grid w-full grid-cols-2">
+        <TabsTrigger value="overview">Overview</TabsTrigger>
+        <TabsTrigger value="financial">Financial</TabsTrigger>
+      </TabsList>
+      <TabsContent value="overview">
+        <ContactOverviewTab
+          contact={contact}
+          financialSummary={financialSummary}
+          categories={categories || []}
+        />
+      </TabsContent>
+      <TabsContent value="financial">
+        <FinancialSummaryTab
+          financialSummary={financialSummary}
+          contactId={contact.id}
+        />
+      </TabsContent>
+    </Tabs>
   );
 }

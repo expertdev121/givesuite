@@ -1,6 +1,9 @@
-import { DollarSign, AlertCircle } from "lucide-react";
+import { DollarSign, AlertCircle, Download, Settings } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 interface FinancialSummary {
   totalPledgedUsd: number;
@@ -10,11 +13,14 @@ interface FinancialSummary {
 
 interface FinancialSummaryTabProps {
   financialSummary: FinancialSummary;
+  contactId: number;
 }
 
 const FinancialSummaryTab: React.FC<FinancialSummaryTabProps> = ({
   financialSummary,
+  contactId,
 }) => {
+  const router = useRouter();
   const paymentPercentage =
     financialSummary.totalPledgedUsd > 0
       ? Math.round(
@@ -23,8 +29,46 @@ const FinancialSummaryTab: React.FC<FinancialSummaryTabProps> = ({
         )
       : 0;
 
+  const generateInvoicePreview = async () => {
+    try {
+      const response = await fetch("/api/invoice/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactId }),
+      });
+
+      if (response.ok) {
+        const { pdfBase64 } = await response.json();
+        const pdfBlob = new Blob([Uint8Array.from(atob(pdfBase64), (c) => c.charCodeAt(0))], { type: 'application/pdf' });
+        const url = URL.createObjectURL(pdfBlob);
+        window.open(url, '_blank');
+        toast.success("Invoice preview opened in new tab");
+      } else {
+        toast.error("Failed to generate invoice");
+      }
+    } catch (error) {
+      toast.error("Error generating invoice preview");
+    }
+  };
+
+  const editTemplate = () => {
+    router.push('/settings/invoice-template');
+  };
+
   return (
     <div className="space-y-6">
+      {/* Invoice Actions */}
+      <div className="flex justify-end gap-2">
+        <Button onClick={generateInvoicePreview} variant="outline">
+          <Download className="h-4 w-4 mr-2" />
+          Generate Invoice Preview
+        </Button>
+        <Button onClick={editTemplate} variant="outline">
+          <Settings className="h-4 w-4 mr-2" />
+          Edit Template
+        </Button>
+      </div>
+
       {/* Financial Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>

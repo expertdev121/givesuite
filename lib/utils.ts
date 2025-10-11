@@ -18,6 +18,32 @@ export function formatCurrency(amount: number | undefined | null): string {
   }).format(amount);
 }
 
+export function formatCurrencyWithCode(amount: number | undefined | null, currency: string = 'USD'): string {
+  if (amount == null || isNaN(amount)) return `${currency} 0`;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+export function calculateConversion(amount: number, fromCurrency: string, toCurrency: string, exchangeRate: number): number {
+  if (fromCurrency === toCurrency) return amount;
+  // Assuming exchangeRate is fromCurrency to toCurrency
+  return amount * exchangeRate;
+}
+
+export function formatDateForInvoice(date: Date | string | null): string {
+  if (!date) return "N/A";
+  const d = new Date(date);
+  return d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
 export function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
 
