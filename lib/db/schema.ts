@@ -10,6 +10,7 @@
     numeric,
     uniqueIndex,
     pgEnum,
+    jsonb,
   } from "drizzle-orm/pg-core";
   import { relations } from "drizzle-orm";
 
@@ -946,24 +947,41 @@
   export type BonusCalculation = typeof bonusCalculation.$inferSelect;
   export type NewBonusCalculation = typeof bonusCalculation.$inferInsert;
 
-  export const auditLog = pgTable("audit_log", {
-    id: serial("id").primaryKey(),
-    tableName: text("table_name").notNull(),
-    recordId: integer("record_id").notNull(),
-    action: text("action").notNull(),
-    fieldName: text("field_name"),
-    oldValue: text("old_value"),
-    newValue: text("new_value"),
-    changedBy: integer("changed_by").references(() => contact.id, {
-      onDelete: "set null",
-    }),
-    changedAt: timestamp("changed_at").defaultNow().notNull(),
-    ipAddress: text("ip_address"),
-    userAgent: text("user_agent"),
-  });
+export const auditLog = pgTable("audit_log", {
+  id: serial("id").primaryKey(),
+  tableName: text("table_name").notNull(),
+  recordId: integer("record_id").notNull(),
+  action: text("action").notNull(),
+  fieldName: text("field_name"),
+  oldValue: text("old_value"),
+  newValue: text("new_value"),
+  changedBy: integer("changed_by").references(() => contact.id, {
+    onDelete: "set null",
+  }),
+  changedAt: timestamp("changed_at").defaultNow().notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+});
 
-  export type AuditLog = typeof auditLog.$inferSelect;
-  export type NewAuditLog = typeof auditLog.$inferInsert;
+export type AuditLog = typeof auditLog.$inferSelect;
+export type NewAuditLog = typeof auditLog.$inferInsert;
+
+export const invoiceTemplate = pgTable("invoice_template", {
+  id: serial("id").primaryKey(),
+  orgNameEn: text("org_name_en").notNull().default("YESHIVAT HESDER LEV HATORAH"),
+  orgNameHeb: text("org_name_heb").notNull().default("ישיבת הסדר לב התורה"),
+  logoUrl: text("logo_url"),
+  establishedYear: text("established_year").notNull().default("2002"),
+  headerNotes: text("header_notes"),
+  footerNotes: text("footer_notes").notNull().default("*All scheduled payments calculated using today\'s conversion rate. These payments will be calculated at the actual conversion rate when received. Note: All payments are subject to third-party payment processing fees."),
+  tableHeaders: jsonb("table_headers").default({}),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type InvoiceTemplate = typeof invoiceTemplate.$inferSelect;
+export type NewInvoiceTemplate = typeof invoiceTemplate.$inferInsert;
 
   // *** RELATIONS ***
 
