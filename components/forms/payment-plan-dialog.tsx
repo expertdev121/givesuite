@@ -3040,7 +3040,8 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
                       variant="outline"
                       onClick={() => {
                         if (isEditMode) {
-                          resetForm();
+                          // Close the entire dialog in edit mode
+                          handleOpenChange(false);
                         } else {
                           handleOpenChange(false);
                         }
