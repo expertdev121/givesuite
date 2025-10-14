@@ -1574,9 +1574,14 @@ export default function PaymentPlanDialog(props: PaymentPlanDialogProps) {
       return selectedThirdPartyContact?.id;
     } else {
       // For regular payments, use the pledge owner contact ID
+      // In edit mode, ensure we have the contact ID from the pledge data
+      if (isEditMode && pledgeData?.contact?.id) {
+        return pledgeData.contact.id;
+      }
       return pledgeOwnerContactId;
     }
-  }, [watchedIsThirdParty, selectedThirdPartyContact?.id, pledgeOwnerContactId]);
+  }, [watchedIsThirdParty, selectedThirdPartyContact?.id, pledgeOwnerContactId, isEditMode, pledgeData?.contact?.id]);
+  
   const { data: pledgesData, isLoading: isLoadingPledges } = usePledgesQuery({
     page: 1,
     limit: 100,
