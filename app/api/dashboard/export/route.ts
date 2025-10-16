@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       const donorContributions = await db
         .select({
           contactId: contact.id,
-          contactName: sql<string>`CONCAT(${contact.firstName}, ' ', ${contact.lastName})`,
+          contactName: contact.displayName,
           email: contact.email,
           totalAmount: sql<number>`COALESCE(SUM(${payment.amountUsd}), 0)`,
           paymentCount: sql<number>`COUNT(${payment.id})`,
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
         .leftJoin(payment, sql`${pledge.id} = ${payment.pledgeId}`)
         .leftJoin(paymentAllocations, sql`${paymentAllocations.pledgeId} = ${pledge.id}`)
         .where(sql`${payment.paymentStatus} = 'completed' OR ${paymentAllocations.id} IS NOT NULL`)
-        .groupBy(contact.id, contact.firstName, contact.lastName, contact.email)
+        .groupBy(contact.id, contact.displayName, contact.email)
         .orderBy(desc(sql`COALESCE(SUM(${payment.amountUsd}), 0)`));
 
       if (format === 'csv') {
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
 
         const csvContent = [
           headers.join(','),
-          ...donorContributions.map((row: { contactId: number; contactName: string; email: string | null; totalAmount: number; paymentCount: number; averageAmount: number; firstPaymentDate: string; lastPaymentDate: string; currency: string; }) => [
+          ...donorContributions.map((row: { contactId: number; contactName: string | null; email: string | null; totalAmount: number; paymentCount: number; averageAmount: number; firstPaymentDate: string; lastPaymentDate: string; currency: string; }) => [
             row.contactId,
             `"${row.contactName}"`,
             row.email,
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
         paymentMethod: payment.paymentMethod,
         paymentStatus: payment.paymentStatus,
         isThirdParty: payment.isThirdPartyPayment,
-        contactName: sql<string>`CONCAT(${contact.firstName}, ' ', ${contact.lastName})`,
+        contactName: contact.displayName,
         pledgeAmount: pledge.originalAmountUsd,
         pledgeBalance: pledge.balanceUsd,
       })
@@ -368,7 +368,7 @@ export async function GET(request: NextRequest) {
         const donorContributions = await db
           .select({
             contactId: contact.id,
-            contactName: sql<string>`CONCAT(${contact.firstName}, ' ', ${contact.lastName})`,
+            contactName: contact.displayName,
             email: contact.email,
             totalAmount: sql<number>`COALESCE(SUM(${payment.amountUsd}), 0)`,
             paymentCount: sql<number>`COUNT(${payment.id})`,
@@ -382,7 +382,7 @@ export async function GET(request: NextRequest) {
           .leftJoin(payment, sql`${pledge.id} = ${payment.pledgeId}`)
           .leftJoin(paymentAllocations, sql`${paymentAllocations.pledgeId} = ${pledge.id}`)
           .where(sql`${payment.paymentStatus} = 'completed' OR ${paymentAllocations.id} IS NOT NULL`)
-          .groupBy(contact.id, contact.firstName, contact.lastName, contact.email)
+          .groupBy(contact.id, contact.displayName, contact.email)
           .orderBy(desc(sql`COALESCE(SUM(${payment.amountUsd}), 0)`));
 
         const doc = new jsPDF('landscape');

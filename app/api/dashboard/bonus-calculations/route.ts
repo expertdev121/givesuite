@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
         calculatedAt: bonusCalculation.calculatedAt,
         isPaid: bonusCalculation.isPaid,
         paidAt: bonusCalculation.paidAt,
-        solicitorName: sql<string>`CONCAT(${contact.firstName}, ' ', ${contact.lastName})`,
+        solicitorName: contact.displayName,
         solicitorCode: solicitor.solicitorCode,
         ruleName: bonusRule.ruleName,
         paymentDate: payment.paymentDate,
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     const solicitorSummary = await db
       .select({
         solicitorId: solicitor.id,
-        solicitorName: sql<string>`CONCAT(${contact.firstName}, ' ', ${contact.lastName})`,
+        solicitorName: contact.displayName,
         solicitorCode: solicitor.solicitorCode,
         totalBonusAmount: sql<number>`COALESCE(SUM(${bonusCalculation.bonusAmount}), 0)`,
         totalPayments: sql<number>`COUNT(${bonusCalculation.id})`,
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
       .leftJoin(bonusCalculation, sql`${solicitor.id} = ${bonusCalculation.solicitorId}`)
       .leftJoin(payment, sql`${bonusCalculation.paymentId} = ${payment.id}`)
       .where(sql`${solicitorId && solicitorId !== "all" ? sql`${solicitor.id} = ${solicitorId}` : sql`1=1`} AND ${startDate ? sql`${payment.paymentDate} >= ${startDate}` : sql`1=1`} AND ${endDate ? sql`${payment.paymentDate} <= ${endDate}` : sql`1=1`}`)
-      .groupBy(solicitor.id, contact.firstName, contact.lastName, solicitor.solicitorCode)
+      .groupBy(solicitor.id, contact.displayName, solicitor.solicitorCode)
       .orderBy(desc(sql`COALESCE(SUM(${bonusCalculation.bonusAmount}), 0)`));
 
     // Overall summary

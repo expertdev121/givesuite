@@ -49,8 +49,7 @@ export async function GET(request: NextRequest) {
       .select({
         solicitorId: solicitor.id,
         solicitorCode: solicitor.solicitorCode,
-        firstName: contact.firstName,
-        lastName: contact.lastName,
+        displayName: contact.displayName,
         totalRaised: sql<number>`COALESCE(SUM(${payment.amountUsd}), 0)`,
         paymentsCount: sql<number>`COUNT(${payment.id})`,
         totalBonus: sql<number>`COALESCE(SUM(${payment.bonusAmount}), 0)`,
@@ -63,8 +62,7 @@ export async function GET(request: NextRequest) {
       .groupBy(
         solicitor.id,
         solicitor.solicitorCode,
-        contact.firstName,
-        contact.lastName
+        contact.displayName
       )
       .orderBy(sql`SUM(${payment.amountUsd}) DESC NULLS LAST`)
       .limit(limit);

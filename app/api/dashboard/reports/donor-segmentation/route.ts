@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const donorData = await db
       .select({
         contactId: contact.id,
-        contactName: sql<string>`CONCAT(${contact.firstName}, ' ', ${contact.lastName})`,
+        contactName: contact.displayName,
         email: contact.email,
         totalAmount: sql<number>`COALESCE(SUM(${payment.amountUsd}), 0)`,
         paymentCount: sql<number>`COUNT(${payment.id})`,
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       .innerJoin(pledge, sql`${contact.id} = ${pledge.contactId} AND ${pledge.isActive} = true`)
       .innerJoin(payment, sql`${pledge.id} = ${payment.pledgeId} AND ${payment.paymentStatus} = 'completed'`)
       .leftJoin(paymentAllocations, sql`${paymentAllocations.paymentId} = ${payment.id}`)
-      .groupBy(contact.id, contact.firstName, contact.lastName, contact.email)
+      .groupBy(contact.id, contact.displayName, contact.email)
       .orderBy(desc(sql`COALESCE(SUM(${payment.amountUsd}), 0)`));
 
     // Convert string values to numbers and segment donors

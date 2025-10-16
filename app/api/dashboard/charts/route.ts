@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     const topContributors = await db
       .select({
         contactId: contact.id,
-        contactName: sql<string>`CONCAT(${contact.firstName}, ' ', ${contact.lastName})`,
+        contactName: contact.displayName,
         totalPaid: sql<number>`COALESCE(SUM(${payment.amountUsd}), 0)`,
         paymentCount: sql<number>`COUNT(${payment.id})`,
       })
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
       .innerJoin(pledge, sql`${contact.id} = ${pledge.contactId}`)
       .innerJoin(payment, sql`${pledge.id} = ${payment.pledgeId}`)
       .where(sql`${payment.paymentStatus} = 'completed' AND ${baseConditions}`)
-      .groupBy(contact.id, contact.firstName, contact.lastName)
+      .groupBy(contact.id, contact.displayName)
       .orderBy(desc(sql`COALESCE(SUM(${payment.amountUsd}), 0)`))
       .limit(10);
 
