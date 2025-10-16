@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
         currency: installmentSchedule.currency,
         amountUsd: installmentSchedule.installmentAmountUsd,
         planName: paymentPlan.planName,
-        contactName: sql<string>`CONCAT(${contact.firstName}, ' ', ${contact.lastName})`,
+        contactName: contact.displayName,
       })
       .from(installmentSchedule)
       .innerJoin(paymentPlan, sql`${installmentSchedule.paymentPlanId} = ${paymentPlan.id}`)
@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
     const topContacts = await db
       .select({
         contactId: contact.id,
-        contactName: sql<string>`CONCAT(${contact.firstName}, ' ', ${contact.lastName})`,
+        contactName: contact.displayName,
         totalPaid: sql<number>`COALESCE(SUM(${payment.amountUsd}), 0)`,
         paymentCount: sql<number>`COUNT(${payment.id})`,
       })
@@ -152,7 +152,7 @@ export async function GET(request: NextRequest) {
       .leftJoin(payment, sql`${pledge.id} = ${payment.pledgeId}`)
       .leftJoin(paymentAllocations, sql`${paymentAllocations.pledgeId} = ${pledge.id}`)
       .where(topContactsWhere)
-      .groupBy(contact.id, contact.firstName, contact.lastName)
+      .groupBy(contact.id, contact.displayName)
       .orderBy(desc(sql`COALESCE(SUM(${payment.amountUsd}), 0)`))
       .limit(10);
 

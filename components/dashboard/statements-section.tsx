@@ -75,6 +75,25 @@ export function StatementsSection({ contactId, dateRange }: StatementsSectionPro
 
         const response = await fetch(`/api/dashboard/statements?${params}`);
         const result = await response.json();
+
+        // Sort payments descending by date
+        if (result.paymentBreakdown) {
+          const monthMap: { [key: string]: number } = {
+            'JAN': 0, 'FEB': 1, 'MAR': 2, 'APR': 3, 'MAY': 4, 'JUN': 5,
+            'JUL': 6, 'AUG': 7, 'SEP': 8, 'OCT': 9, 'NOV': 10, 'DEC': 11
+          };
+
+          result.paymentBreakdown.sort((a: { paymentDate: string }, b: { paymentDate: string }) => {
+            const parseDate = (dateStr: string) => {
+              const [day, month, year] = dateStr.split('-');
+              return new Date(parseInt(year), monthMap[month], parseInt(day));
+            };
+            const dateA = parseDate(a.paymentDate);
+            const dateB = parseDate(b.paymentDate);
+            return dateB.getTime() - dateA.getTime();
+          });
+        }
+
         setData(result);
       } catch (error) {
         console.error("Error fetching statements data:", error);
@@ -331,7 +350,7 @@ export function StatementsSection({ contactId, dateRange }: StatementsSectionPro
             <TableBody>
               {currentPayments.map((payment) => (
                 <TableRow key={payment.id}>
-                  <TableCell>{formatDate(payment.paymentDate)}</TableCell>
+                  <TableCell>{payment.paymentDate}</TableCell>
                   <TableCell className="font-medium">{payment.contactName}</TableCell>
                   <TableCell>{payment.pledgeDescription}</TableCell>
                   <TableCell>

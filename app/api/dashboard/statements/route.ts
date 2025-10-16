@@ -40,13 +40,13 @@ export async function GET(request: NextRequest) {
     const paymentBreakdown = await db
       .select({
         id: payment.id,
-        paymentDate: payment.paymentDate,
+        paymentDate: sql<string>`TO_CHAR(${payment.receivedDate}, 'DD-MON-YYYY')`,
         amount: payment.amount,
         currency: payment.currency,
         amountUsd: payment.amountUsd,
         paymentMethod: payment.paymentMethod,
         paymentStatus: payment.paymentStatus,
-        contactName: sql<string>`CONCAT(${contact.firstName}, ' ', ${contact.lastName})`,
+        contactName: contact.displayName,
         pledgeDescription: pledge.description,
         solicitorCode: solicitor.solicitorCode,
         bonusAmount: bonusCalculation.bonusAmount,
@@ -56,14 +56,15 @@ export async function GET(request: NextRequest) {
       .innerJoin(contact, sql`${pledge.contactId} = ${contact.id}`)
       .leftJoin(solicitor, sql`${payment.solicitorId} = ${solicitor.id}`)
       .leftJoin(bonusCalculation, sql`${bonusCalculation.paymentId} = ${payment.id}`)
-      .where(sql`${payment.paymentStatus} = 'completed' AND ${baseConditions} AND ${paymentDateConditions}`)
-      .orderBy(desc(payment.paymentDate));
+      .where(sql`${payment.paymentStatus} = 'completed' AND ${payment.receivedDate} IS NOT NULL AND ${baseConditions} AND ${paymentDateConditions}`)
+      .orderBy(desc(payment.receivedDate), desc(payment.id));
 
     // Outstanding balances by pledge
     const outstandingBalances = await db
       .select({
         pledgeId: pledge.id,
-        contactName: sql<string>`CONCAT(${contact.firstName}, ' ', ${contact.lastName})`,
+        pledgeDate: pledge.pledgeDate,
+        contactName: contact.displayName,
         description: pledge.description,
         originalAmount: pledge.originalAmount,
         currency: pledge.currency,
@@ -77,9 +78,9 @@ export async function GET(request: NextRequest) {
       .innerJoin(contact, sql`${pledge.contactId} = ${contact.id}`)
       .leftJoin(payment, sql`${payment.pledgeId} = ${pledge.id} AND ${payment.paymentStatus} = 'completed'`)
       .where(sql`${pledge.isActive} = true AND ${baseConditions}`)
-      .groupBy(pledge.id, contact.firstName, contact.lastName, pledge.description, pledge.originalAmount, pledge.currency, pledge.originalAmountUsd)
+      .groupBy(pledge.id, pledge.pledgeDate, contact.displayName, pledge.description, pledge.originalAmount, pledge.currency, pledge.originalAmountUsd)
       .having(sql`${pledge.originalAmountUsd} - COALESCE(SUM(CASE WHEN ${payment.paymentDate} <= ${endDateParam} THEN ${payment.amountUsd} ELSE 0 END), 0) > 0`)
-      .orderBy(desc(sql`${pledge.originalAmountUsd} - COALESCE(SUM(CASE WHEN ${payment.paymentDate} <= ${endDateParam} THEN ${payment.amountUsd} ELSE 0 END), 0)`));
+      .orderBy(desc(pledge.pledgeDate), desc(pledge.id));
 
     // Determine grouping: by day if range < 60 days, else by month
     const isShortRange = startDate && endDate ? (new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24) < 60 : false;
