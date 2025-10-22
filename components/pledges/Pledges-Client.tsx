@@ -37,7 +37,7 @@ import {
   Search,
   Edit,
 } from "lucide-react";
-import { usePledgesQuery } from "@/lib/query/usePledgeData";
+import { usePledgesQuery, PledgeResponse, Tag } from "@/lib/query/usePledgeData";
 import { LinkButton } from "../ui/next-link";
 import PledgeDialog from "../forms/pledge-form";
 import PaymentDialogClient from "../forms/payment-dialog";
@@ -70,11 +70,15 @@ const QueryParamsSchema = z.object({
 
 type StatusType = "fullyPaid" | "partiallyPaid" | "unpaid";
 
-// Define the form data shape that includes exchangeRate
-interface PledgeFormData {
-  id?: number;
+interface EditingPledge {
+  id: number;
   contactId: number;
-  categoryId?: number;
+  categoryId?: number | null;
+  category?: {
+    id: number;
+    name: string | null;
+    description: string | null;
+  };
   description: string;
   pledgeDate: string;
   currency: string;
@@ -83,51 +87,7 @@ interface PledgeFormData {
   exchangeRate: number;
   campaignCode?: string;
   notes?: string;
-}
-
-// Updated interface without relationship data
-interface PledgeApiResponse {
-  id: number;
-  categoryId?: number;
-  description?: string | null;
-  pledgeDate: string;
-  currency: string;
-  originalAmount: string;
-  originalAmountUsd?: string | null;
-  campaignCode?: string | null;
-  notes?: string | null;
-  categoryName?: string | null;
-  categoryDescription?: string | null;
-  totalPaidUsd?: string | null;
-  totalPaid: string;
-  balanceUsd?: string | null;
-  balance: string;
-  scheduledAmount?: string | null;
-  unscheduledAmount?: string | null;
-  paymentPlan?: {
-    planName?: string | null;
-    frequency?: string;
-    distributionType?: string;
-    totalPlannedAmount?: string;
-    installmentAmount?: string;
-    numberOfInstallments?: number;
-    installmentsPaid?: number;
-    nextPaymentDate?: string | null;
-    planStatus?: string;
-    autoRenew?: boolean;
-    notes?: string | null;
-    startDate?: string;
-    endDate?: string | null;
-    installmentSchedule?: {
-      id: number;
-      installmentDate: string;
-      installmentAmount: string;
-      currency: string;
-      status: string;
-      paidDate?: string | null;
-      notes?: string | null;
-    }[];
-  } | null;
+  tags: Tag[];
 }
 
 export default function PledgesTable() {
@@ -138,7 +98,7 @@ export default function PledgesTable() {
     description: string;
   } | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editingPledge, setEditingPledge] = useState<PledgeFormData | null>(null);
+  const [editingPledge, setEditingPledge] = useState<EditingPledge | null>(null);
 
   const { mutate: deletePledge, isPending: isDeleting } = useDeletePledge();
 
@@ -209,6 +169,16 @@ export default function PledgesTable() {
     if (data?.pledges) {
       console.log("=== PLEDGES TABLE DEBUG ===");
       console.log("Total pledges received:", data.pledges.length);
+      if (data.pledges.length > 0) {
+        console.log("First pledge sample:", {
+          id: data.pledges[0].id,
+          categoryId: data.pledges[0].categoryId,
+          categoryName: data.pledges[0].categoryName,
+          description: data.pledges[0].description,
+          hasTags: !!data.pledges[0].tags,
+          tagCount: data.pledges[0].tags?.length || 0
+        });
+      }
     }
   }, [data]);
 
@@ -276,8 +246,56 @@ export default function PledgesTable() {
     setPledgeToDelete(null);
   };
 
-  const handleEditClick = (pledgeData: PledgeFormData) => {
-    setEditingPledge(pledgeData);
+  const handleEditClick = (pledge: PledgeResponse) => {
+    console.log("=== EDIT CLICK - TABLE DEBUG ===");
+    console.log("Pledge from table:", {
+      id: pledge.id,
+      categoryId: pledge.categoryId,
+      categoryFromObject: pledge.category?.id,
+      categoryName: pledge.categoryName,
+      categoryNameFromObject: pledge.category?.name,
+      categoryDescription: pledge.categoryDescription,
+      description: pledge.description,
+      contactId: pledge.contactId,
+      tags: pledge.tags,
+      fullPledge: pledge
+    });
+
+    // Transform the pledge data to match what PledgeDialog expects
+    // Priority: use category object if available, then fall back to flat fields
+    const categoryId = pledge.category?.id || pledge.categoryId;
+    const categoryName = pledge.category?.name || pledge.categoryName;
+    const categoryDescription = pledge.category?.description || pledge.categoryDescription;
+
+    const pledgeForDialog = {
+      id: pledge.id,
+      contactId: pledge.contactId,
+      // Include both direct categoryId AND nested category object for compatibility
+      categoryId: categoryId,
+      category: categoryId ? {
+        id: categoryId,
+        name: categoryName,
+        description: categoryDescription,
+      } : undefined,
+      description: pledge.description || "",
+      pledgeDate: pledge.pledgeDate,
+      currency: pledge.currency,
+      originalAmount: Number.parseFloat(pledge.originalAmount),
+      originalAmountUsd: Number.parseFloat(pledge.originalAmountUsd || "0"),
+      exchangeRate: Number.parseFloat(pledge.exchangeRate || "1"),
+      campaignCode: pledge.campaignCode || undefined,
+      notes: pledge.notes || undefined,
+      tags: pledge.tags || [],
+    };
+
+    console.log("Transformed pledge for dialog:", {
+      ...pledgeForDialog,
+      categoryInfo: {
+        categoryId: pledgeForDialog.categoryId,
+      }
+    });
+
+    setEditingPledge(pledgeForDialog);
     setEditDialogOpen(true);
   };
 
@@ -300,21 +318,12 @@ export default function PledgesTable() {
     refetch();
   };
 
-  const calculateExchangeRate = (originalAmount: string, originalAmountUsd: string | null | undefined): number => {
-    const amount = Number.parseFloat(originalAmount);
-    const amountUsd = Number.parseFloat(originalAmountUsd || "0");
-
-    if (amount === 0 || !amountUsd) return 1;
-
-    return amountUsd / amount;
-  };
-
   const getPaymentPlanStatus = (scheduledAmount: string | null | undefined) => {
     const scheduled = Number.parseFloat(scheduledAmount || "0");
     return scheduled > 0 ? "Yes" : "No";
   };
 
-  const getInstallmentInfo = (pledge: PledgeApiResponse) => {
+  const getInstallmentInfo = (pledge: PledgeResponse) => {
     const hasScheduled = Number.parseFloat(pledge.scheduledAmount || "0") > 0;
 
     if (!hasScheduled) {
@@ -336,30 +345,13 @@ export default function PledgesTable() {
     return { first: "TBD", last: "TBD" };
   };
 
-  const mapPledgeToFormData = (pledge: PledgeApiResponse, contactId: number): PledgeFormData => {
-    return {
-      id: pledge.id,
-      contactId: contactId,
-      categoryId: pledge.categoryId,
-      description: pledge.description || "",
-      pledgeDate: pledge.pledgeDate,
-      currency: pledge.currency,
-      originalAmount: Number.parseFloat(pledge.originalAmount),
-      originalAmountUsd: Number.parseFloat(pledge.originalAmountUsd || "0"),
-      exchangeRate: calculateExchangeRate(pledge.originalAmount, pledge.originalAmountUsd),
-      campaignCode: pledge.campaignCode || undefined,
-      notes: pledge.notes || undefined,
-    };
-  };
-
-  // NEW: Compute balance (overpayment shows as negative)
-  const calculateBalance = (pledge: PledgeApiResponse) => {
+  const calculateBalance = (pledge: PledgeResponse) => {
     const pledged = Number.parseFloat(pledge.originalAmount) || 0;
     const paid = Number.parseFloat(pledge.totalPaid) || 0;
     return pledged - paid;
   };
 
-  const calculateBalanceUsd = (pledge: PledgeApiResponse) => {
+  const calculateBalanceUsd = (pledge: PledgeResponse) => {
     const pledgedUsd = Number.parseFloat(pledge.originalAmountUsd || "0") || 0;
     const paidUsd = Number.parseFloat(pledge.totalPaidUsd || "0") || 0;
     return pledgedUsd - paidUsd;
@@ -377,7 +369,6 @@ export default function PledgesTable() {
 
   return (
     <div className="space-y-6 py-4">
-      {/* Filters */}
       <Card>
         <CardHeader>
           <CardTitle>Pledges</CardTitle>
@@ -422,7 +413,6 @@ export default function PledgesTable() {
             />
           </div>
 
-          {/* Table */}
           <div className="border rounded-lg overflow-hidden">
             <Table>
               <TableHeader>
@@ -490,8 +480,7 @@ export default function PledgesTable() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  data?.pledges.map((pledge: PledgeApiResponse) => {
-                    const pledgeData = mapPledgeToFormData(pledge, contactId as number);
+                  data?.pledges.map((pledge: PledgeResponse) => {
                     const installmentInfo = getInstallmentInfo(pledge);
 
                     return (
@@ -614,12 +603,10 @@ export default function PledgesTable() {
                           </TableCell>
                         </TableRow>
 
-                        {/* Expanded Row Content */}
                         {expandedRows.has(pledge.id) && (
                           <TableRow>
                             <TableCell colSpan={13} className="bg-gray-50 p-6">
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                {/* Column 1 */}
                                 <div className="space-y-3">
                                   <h4 className="font-semibold text-gray-900">
                                     Pledge Details
@@ -661,7 +648,6 @@ export default function PledgesTable() {
                                   </div>
                                 </div>
 
-                                {/* Column 2 */}
                                 <div className="space-y-3">
                                   <h4 className="font-semibold text-gray-900">USD Amounts</h4>
                                   <div className="space-y-2 text-sm">
@@ -686,7 +672,6 @@ export default function PledgesTable() {
                                   </div>
                                 </div>
 
-                                {/* Column 3 */}
                                 <div className="space-y-3">
                                   <h4 className="font-semibold text-gray-900">Payment Plan</h4>
                                   <div className="space-y-2 text-sm">
@@ -723,7 +708,6 @@ export default function PledgesTable() {
                                 </div>
                               </div>
 
-                              {/* Action Buttons */}
                               <div className="mt-6 pt-4 flex gap-2 border-t justify-between">
                                 <div className="flex gap-2">
                                   <PaymentDialogClient
@@ -747,7 +731,7 @@ export default function PledgesTable() {
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => handleEditClick(pledgeData)}
+                                    onClick={() => handleEditClick(pledge)}
                                   >
                                     <Edit className="mr-2 h-4 w-4" />
                                     Edit Pledge
@@ -765,7 +749,6 @@ export default function PledgesTable() {
             </Table>
           </div>
 
-          {/* Pagination */}
           {data && data.pledges.length > 0 && (
             <div className="flex items-center justify-between mt-6">
               <div className="text-sm text-gray-600">
@@ -799,7 +782,6 @@ export default function PledgesTable() {
         </CardContent>
       </Card>
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -821,7 +803,6 @@ export default function PledgesTable() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Edit Dialog */}
       {editingPledge && (
         <PledgeDialog
           mode="edit"
