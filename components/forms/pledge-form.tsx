@@ -187,11 +187,11 @@ export default function PledgeDialog({
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
 }: PledgeDialogProps) {
-  
+
   // ENHANCED: Normalize pledge data structure
   const pledgeData = React.useMemo(() => {
     if (!rawPledgeData) return null;
-    
+
     // Handle full API response structure (has pledge, tags, category at root)
     if (rawPledgeData.pledge && rawPledgeData.tags !== undefined) {
       return {
@@ -200,11 +200,11 @@ export default function PledgeDialog({
         tags: rawPledgeData.tags || [],
       };
     }
-    
+
     // Handle direct pledge data structure
     return rawPledgeData;
   }, [rawPledgeData]);
-  
+
   const [internalOpen, setInternalOpen] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [createdPledge, setCreatedPledge] = useState<any>(null);
@@ -213,7 +213,7 @@ export default function PledgeDialog({
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
   const [itemSelectionPopoverOpen, setItemSelectionPopoverOpen] = useState(false);
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
-  
+
   // State for category items
   const [categoryItems, setCategoryItems] = useState<string[]>([]);
   const [loadingCategoryItems, setLoadingCategoryItems] = useState(false);
@@ -242,7 +242,7 @@ export default function PledgeDialog({
   const getDefaultValues = useCallback((): PledgeFormData => {
     if (isEditMode && pledgeData) {
       const extractedTagIds = pledgeData.tags?.map((tag: { id: number; name: string }) => tag.id) || [];
-      
+
       const values = {
         contactId: pledgeData.contactId || contactId,
         categoryId: pledgeData.category?.id,
@@ -257,7 +257,7 @@ export default function PledgeDialog({
         notes: pledgeData.notes || "",
         tagIds: extractedTagIds,
       };
-      
+
       return values;
     }
 
@@ -275,7 +275,7 @@ export default function PledgeDialog({
       notes: "",
       tagIds: [],
     };
-    
+
     return defaultValues;
   }, [isEditMode, pledgeData, contactId, defaultCategoryId]);
 
@@ -295,18 +295,18 @@ export default function PledgeDialog({
   // ENHANCED Selected tags objects with better fallback logic
   const selectedTags = (() => {
     // First try to get tags from available tags (normal flow)
-    const tagsFromAvailable = availableTags.filter((tag: Tag) => 
+    const tagsFromAvailable = availableTags.filter((tag: Tag) =>
       (watchedTagIds?.includes(tag.id) || selectedTagIds.includes(tag.id))
     );
-    
+
     // If no tags found in available tags but we have pledge data tags, use those
     if (tagsFromAvailable.length === 0 && isEditMode && pledgeData?.tags) {
-      const tagsFromPledge = pledgeData.tags.filter((pledgeTag: any) => 
+      const tagsFromPledge = pledgeData.tags.filter((pledgeTag: any) =>
         (watchedTagIds?.includes(pledgeTag.id) || selectedTagIds.includes(pledgeTag.id))
       );
       return tagsFromPledge;
     }
-    
+
     return tagsFromAvailable;
   })();
 
@@ -337,58 +337,78 @@ export default function PledgeDialog({
     }
   };
 
-  // SIMPLIFIED initialization - force it to run
   useEffect(() => {
     if (open && isEditMode && pledgeData && !isFormInitialized) {
       // Force initialization regardless of tag loading state
       setTimeout(async () => {
         try {
-          const categoryId = pledgeData.category?.id || defaultCategoryId;
+          // IMPORTANT: Use pledge's actual category, NOT defaultCategoryId
+          const categoryId = pledgeData.category?.id;
           const pledgeTagIds = pledgeData.tags?.map((tag: any) => tag.id) || [];
-          
-          // Set component state
-          setSelectedCategoryId(categoryId);
-          setSelectedTagIds(pledgeTagIds);
-          
-          // Get default values and reset form
-          const values = getDefaultValues();
-          form.reset(values);
-          
-          // Wait a bit then force set the values
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-          // Force set category
+
+          console.log("=== PLEDGE DIALOG INIT DEBUG ===", {
+            pledgeId: pledgeData.id,
+            categoryId,
+            categoryName: pledgeData.category?.name,
+            pledgeTagIds,
+            fullPledgeData: pledgeData
+          });
+
+          // Fetch category items FIRST before setting form values
           if (categoryId) {
-            form.setValue("categoryId", categoryId, { shouldValidate: true, shouldDirty: true });
+            setSelectedCategoryId(categoryId);
             await fetchCategoryItems(categoryId);
           }
-          
-          // Force set tags
-          if (pledgeTagIds.length > 0) {
-            form.setValue("tagIds", pledgeTagIds, { shouldValidate: true, shouldDirty: true });
+
+          setSelectedTagIds(pledgeTagIds);
+
+          // Get default values (which should now have correct category)
+          const values = getDefaultValues();
+
+          console.log("=== FORM DEFAULT VALUES ===", values);
+
+          // Reset form with values
+          form.reset(values);
+
+          // Wait a bit then verify values were set
+          await new Promise(resolve => setTimeout(resolve, 150));
+
+          // Double-check category is set correctly
+          const currentCategoryId = form.getValues("categoryId");
+          if (categoryId && currentCategoryId !== categoryId) {
+            console.log("=== CATEGORY MISMATCH - FORCING SET ===", {
+              expected: categoryId,
+              current: currentCategoryId
+            });
+            form.setValue("categoryId", categoryId, { shouldValidate: true, shouldDirty: false });
           }
-          
+
+          // Ensure tags are set
+          if (pledgeTagIds.length > 0) {
+            form.setValue("tagIds", pledgeTagIds, { shouldValidate: true, shouldDirty: false });
+          }
+
           // Trigger validation
           await form.trigger();
-          
+
           setIsFormInitialized(true);
-          
+
         } catch (error) {
           console.error("Initialization error:", error);
         }
       }, 200);
-      
+
     } else if (open && !isEditMode) {
-      // Create mode
+      // Create mode - use default category
       const defaultValues = getDefaultValues();
       form.reset(defaultValues);
       setSelectedCategoryId(defaultCategoryId);
       setSelectedTagIds([]);
-      
+
       if (defaultCategoryId) {
         fetchCategoryItems(defaultCategoryId);
       }
-      
+
     } else if (!open) {
       // Dialog closed
       setIsFormInitialized(false);
@@ -398,7 +418,7 @@ export default function PledgeDialog({
         setSelectedTagIds([]);
       }
     }
-  }, [open, isEditMode, pledgeData?.id, isFormInitialized]);
+  }, [open, isEditMode, pledgeData?.id, isFormInitialized]);  
 
   // Watch for category changes and fetch items
   useEffect(() => {
@@ -502,7 +522,7 @@ export default function PledgeDialog({
     const newTagIds = currentTagIds.includes(tagId)
       ? currentTagIds.filter((id: number) => id !== tagId)
       : [...currentTagIds, tagId];
-    
+
     form.setValue("tagIds", newTagIds, { shouldValidate: true });
     setSelectedTagIds(newTagIds);
   };
@@ -510,7 +530,7 @@ export default function PledgeDialog({
   const handleTagRemove = (tagId: number) => {
     const currentTagIds = form.getValues("tagIds") || [];
     const newTagIds = currentTagIds.filter((id: number) => id !== tagId);
-    
+
     form.setValue("tagIds", newTagIds, { shouldValidate: true });
     setSelectedTagIds(newTagIds);
   };
@@ -632,16 +652,16 @@ export default function PledgeDialog({
   // Get contact name for dialog description
   const getContactDisplayName = () => {
     if (contactName) return contactName;
-    
+
     // If we have pledge data with contact information, extract the name
     if (isEditMode && rawPledgeData?.contact?.fullName) {
       return rawPledgeData.contact.fullName;
     }
-    
+
     if (isEditMode && rawPledgeData?.contact?.firstName && rawPledgeData?.contact?.lastName) {
       return `${rawPledgeData.contact.firstName} ${rawPledgeData.contact.lastName}`;
     }
-    
+
     return `contact ID ${contactId}`;
   };
 

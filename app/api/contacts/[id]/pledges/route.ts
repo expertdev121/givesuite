@@ -7,7 +7,9 @@ import {
   installmentSchedule,
   relationships,
   payment,
-  paymentAllocations
+  paymentAllocations,
+  pledgeTags,
+  tag,
 } from "@/lib/db/schema";
 import { sql, eq, and, or, gte, lte, ilike, SQL, not, isNull } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
@@ -21,11 +23,15 @@ interface ScheduledItem {
 
 interface PledgeRow {
   id: number;
+  contactId: number;
+  categoryId: number | null;
   pledgeDate: string;
   description: string | null;
   originalAmount: string;
   currency: string;
   originalAmountUsd: string | null;
+  exchangeRate: string | null;
+  campaignCode: string | null;
   totalPaid: string;
   totalPaidUsd: string | null;
   balance: string;
@@ -43,6 +49,16 @@ interface PledgeRow {
   relatedContactLastName: string | null;
   relatedContactEmail: string | null;
   relatedContactPhone: string | null;
+}
+
+interface PledgeTagResult {
+  pledgeId: number;
+  tagId: number;
+  tagName: string;
+  tagDescription: string | null;
+  showOnPayment: boolean;
+  showOnPledge: boolean;
+  isActive: boolean;
 }
 
 // Define types for payment plan data
@@ -333,11 +349,15 @@ export async function GET(
     let query = db
       .select({
         id: pledge.id,
+        contactId: pledge.contactId,
+        categoryId: pledge.categoryId,
         pledgeDate: pledge.pledgeDate,
         description: pledge.description,
         originalAmount: pledge.originalAmount,
         currency: pledge.currency,
         originalAmountUsd: pledge.originalAmountUsd,
+        exchangeRate: pledge.exchangeRate,
+        campaignCode: pledge.campaignCode,
         totalPaid: pledge.totalPaid,
         totalPaidUsd: pledge.totalPaidUsd,
         balance: pledge.balance,
@@ -386,8 +406,11 @@ export async function GET(
     // Debug first pledge relationship data
     if (pledgesData.length > 0) {
       const firstPledge = pledgesData[0];
-      console.log("=== PLEDGES API DEBUG: First pledge relationship data ===", {
+      console.log("=== PLEDGES API DEBUG: First pledge data ===", {
         pledgeId: firstPledge.id,
+        contactId: firstPledge.contactId,
+        categoryId: firstPledge.categoryId,
+        categoryName: firstPledge.categoryName,
         relationshipId: firstPledge.relationshipId,
         relationshipType: firstPledge.relationshipType,
         relatedContactId: firstPledge.relatedContactId,
@@ -395,7 +418,58 @@ export async function GET(
       });
     }
 
-    // Post-process the results to add payment plan information and relationship data
+    // Get tags for all pledges
+    const pledgeTagsMap = new Map<number, Array<{
+      id: number;
+      name: string;
+      description: string | null;
+      showOnPayment: boolean;
+      showOnPledge: boolean;
+      isActive: boolean;
+    }>>();
+
+    try {
+      const pledgeIds = pledgesData.map(p => p.id);
+      
+      if (pledgeIds.length > 0) {
+        const pledgeTagsQuery = await db
+          .select({
+            pledgeId: pledgeTags.pledgeId,
+            tagId: tag.id,
+            tagName: tag.name,
+            tagDescription: tag.description,
+            showOnPayment: tag.showOnPayment,
+            showOnPledge: tag.showOnPledge,
+            isActive: tag.isActive,
+          })
+          .from(pledgeTags)
+          .innerJoin(tag, eq(pledgeTags.tagId, tag.id))
+          .where(
+            and(
+              sql`${pledgeTags.pledgeId} = ANY(${pledgeIds})`,
+              eq(tag.isActive, true)
+            )
+          );
+
+        pledgeTagsQuery.forEach((tagResult: PledgeTagResult) => {
+          if (!pledgeTagsMap.has(tagResult.pledgeId)) {
+            pledgeTagsMap.set(tagResult.pledgeId, []);
+          }
+          pledgeTagsMap.get(tagResult.pledgeId)!.push({
+            id: tagResult.tagId,
+            name: tagResult.tagName,
+            description: tagResult.tagDescription,
+            showOnPayment: tagResult.showOnPayment,
+            showOnPledge: tagResult.showOnPledge,
+            isActive: tagResult.isActive,
+          });
+        });
+      }
+    } catch (tagError) {
+      console.warn('Warning: Could not fetch pledge tags:', tagError);
+    }
+
+    // Post-process the results to add payment plan information, relationship data, and tags
     const pledges = pledgesData.map((pledge: PledgeRow) => {
       // Calculate scheduled amounts from payments (new logic)
       const scheduledPaymentAmount = parseFloat(scheduledPaymentsMap.get(pledge.id) || "0");
@@ -432,8 +506,22 @@ export async function GET(
         label: `${pledge.relationshipType || ""} - ${pledge.relatedContactFirstName || ""} ${pledge.relatedContactLastName || ""}`.trim(),
       } : null;
 
+      // Get tags for this pledge
+      const tags = pledgeTagsMap.get(pledge.id) || [];
+
+      // Structure category data
+      const category = pledge.categoryId ? {
+        id: pledge.categoryId,
+        name: pledge.categoryName,
+        description: pledge.categoryDescription,
+      } : null;
+
       return {
         ...pledge,
+        // Structured category
+        category,
+        // Tags
+        tags,
         // Payment plan related fields (existing functionality)
         scheduledAmount,
         unscheduledAmount,
@@ -445,14 +533,16 @@ export async function GET(
           (scheduledAmountNum / balanceNum) * 100 : 0,
         // Detailed payment plan information (existing functionality)
         paymentPlan: detailedPlan || null,
-        // NEW: Relationship data for frontend
+        // Relationship data for frontend
         relationship,
       };
     });
 
-    // Count pledges with relationships for debugging
+    // Count pledges with relationships and tags for debugging
     const pledgesWithRelationships = pledges.filter(p => p.relationship);
+    const pledgesWithTags = pledges.filter(p => p.tags.length > 0);
     console.log(`=== PLEDGES API DEBUG: ${pledgesWithRelationships.length} out of ${pledges.length} pledges have relationships ===`);
+    console.log(`=== PLEDGES API DEBUG: ${pledgesWithTags.length} out of ${pledges.length} pledges have tags ===`);
 
     // Get total count for pagination
     const totalCountQuery = db
