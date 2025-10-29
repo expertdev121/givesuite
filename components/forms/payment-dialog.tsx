@@ -116,6 +116,7 @@ interface MultiContactAllocation {
   receiptNumber?: string | null;
   receiptType?: string | null;
   receiptIssued?: boolean;
+  contactSearch?: string;
 }
 
 interface ContactOption {
@@ -333,6 +334,7 @@ const paymentSchema = z.object({
   thirdPartyContactId: z.number().optional().nullable(),
 
   isSplitPayment: z.boolean().optional(),
+  isThirdPartySplitPayment: z.boolean().optional(),
   isMultiContactPayment: z.boolean().optional(),
   allocations: z.array(allocationSchema).optional(),
 
@@ -430,6 +432,7 @@ export default function PaymentFormDialog({
   const watchedIsMultiContactPayment = form.watch("isMultiContactPayment");
   const watchedMainPledgeId = form.watch("pledgeId");
   const watchedIsThirdParty = form.watch("isThirdPartyPayment");
+  const watchedIsThirdPartySplitPayment = form.watch("isThirdPartySplitPayment");
   // ADD TAG WATCHES
   const watchedTagIds = form.watch('tagIds');
 
@@ -465,6 +468,7 @@ export default function PaymentFormDialog({
       receiptNumber: null,
       receiptType: null,
       receiptIssued: false,
+      contactSearch: "",
     }]);
   };
 
@@ -1259,6 +1263,55 @@ export default function PaymentFormDialog({
                           </div>
                         </div>
                       )}
+
+                      {/* Third-Party Split Payment Toggle */}
+                      <div className="border-t pt-4">
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="isThirdPartySplitPayment"
+                            checked={watchedIsThirdPartySplitPayment}
+                            onCheckedChange={(checked) => {
+                              form.setValue("isThirdPartySplitPayment", checked);
+                              if (checked) {
+                                // When enabling third-party split, also enable split payment
+                                form.setValue("isSplitPayment", true);
+                                form.setValue("pledgeId", null);
+                                form.setValue("allocations", [
+                                  {
+                                    pledgeId: 0,
+                                    allocatedAmount: 0,
+                                    installmentScheduleId: null,
+                                    notes: null,
+                                    receiptNumber: null,
+                                    receiptType: null,
+                                    receiptIssued: false,
+                                  },
+                                ]);
+                              } else {
+                                // When disabling third-party split, disable split payment and reset allocations
+                                form.setValue("isSplitPayment", false);
+                                form.setValue("allocations", [
+                                  {
+                                    pledgeId: initialPledgeId || 0,
+                                    allocatedAmount: 0,
+                                    installmentScheduleId: null,
+                                    notes: null,
+                                    receiptNumber: null,
+                                    receiptType: null,
+                                    receiptIssued: false,
+                                  },
+                                ]);
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor="isThirdPartySplitPayment"
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                          >
+                            Third-Party Split Payment (Split payment across multiple pledges of the same contact)
+                          </label>
+                        </div>
+                      </div>
 
                       {/* Multi-Contact Toggle */}
                       <div className="border-t pt-4">
