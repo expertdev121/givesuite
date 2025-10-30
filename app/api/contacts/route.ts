@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { eq, sql, desc, asc, or, ilike } from "drizzle-orm";
+import { eq, sql, desc, asc, or, ilike, and } from "drizzle-orm";
 import type {
   Column,
   ColumnBaseConfig,
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
         .split(/\s+/)
       : [];
 
-    const whereClause =
+    const searchCondition =
       terms.length > 0
         ? terms
           .map((term) =>
@@ -110,6 +110,14 @@ export async function GET(request: NextRequest) {
           )
           .reduce((acc, clause) => (acc ? or(acc, clause) : clause), undefined)
         : undefined;
+
+    // Exclude contacts created on 2025-10-29
+    const dateFilter = sql`DATE(${contact.createdAt}) != '2025-10-29'`;
+
+    // Combine search condition with date filter
+    const whereClause = searchCondition 
+      ? and(searchCondition, dateFilter)
+      : dateFilter;
 
     const selectedFields = {
       id: contact.id,
@@ -205,18 +213,24 @@ export async function GET(request: NextRequest) {
     const totalPledgedResult = await totalPledgedQuery.execute();
     const totalPledgedAmount = Number(totalPledgedResult[0]?.totalPledgedUsd || 0);
 
-    // Calculate contacts with pledges
+    // Calculate contacts with pledges (excluding 2025-10-29 contacts)
     const contactsWithPledgesQuery = db
       .select({
         count: sql<number>`COUNT(DISTINCT ${pledge.contactId})`.as("count"),
       })
       .from(pledge)
-      .where(sql`${pledge.originalAmountUsd} > 0`);
+      .innerJoin(contact, eq(pledge.contactId, contact.id))
+      .where(
+        and(
+          sql`${pledge.originalAmountUsd} > 0`,
+          sql`DATE(${contact.createdAt}) != '2025-10-29'`
+        )
+      );
 
     const contactsWithPledgesResult = await contactsWithPledgesQuery.execute();
     const contactsWithPledges = Number(contactsWithPledgesResult[0]?.count || 0);
 
-    // Calculate recent contacts (last 30 days)
+    // Calculate recent contacts (last 30 days, excluding 2025-10-29)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -225,7 +239,12 @@ export async function GET(request: NextRequest) {
         count: sql<number>`COUNT(*)`.as("count"),
       })
       .from(contact)
-      .where(sql`${contact.createdAt} >= ${thirtyDaysAgo}`);
+      .where(
+        and(
+          sql`${contact.createdAt} >= ${thirtyDaysAgo}`,
+          sql`DATE(${contact.createdAt}) != '2025-10-29'`
+        )
+      );
 
     const recentContactsResult = await recentContactsQuery.execute();
     const recentContacts = Number(recentContactsResult[0]?.count || 0);

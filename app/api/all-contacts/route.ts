@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { sql, desc, asc, or, ilike, and, eq } from "drizzle-orm";
+import { sql, desc, asc, or, ilike, and, eq, not, gte, lt } from "drizzle-orm";
 import { z } from "zod";
 import { unstable_cache } from "next/cache";
 import { contact } from "@/lib/db/schema";
@@ -61,6 +61,11 @@ export async function GET(request: NextRequest) {
     const cachedQuery = unstable_cache(
       async () => {
         const conditions = [];
+
+        // Exclude contacts created on 2025-10-29 (any time)
+        conditions.push(
+          sql`DATE(${contact.createdAt}) != '2025-10-29'`
+        );
 
         if (search) {
           conditions.push(
