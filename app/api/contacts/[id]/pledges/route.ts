@@ -11,7 +11,7 @@ import {
   pledgeTags,
   tag,
 } from "@/lib/db/schema";
-import { sql, eq, and, or, gte, lte, ilike, SQL, not, isNull } from "drizzle-orm";
+import { sql, eq, and, or, gte, lte, ilike, SQL, not, isNull, inArray } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { alias } from "drizzle-orm/pg-core";
 
@@ -446,7 +446,7 @@ export async function GET(
           .innerJoin(tag, eq(pledgeTags.tagId, tag.id))
           .where(
             and(
-              sql`${pledgeTags.pledgeId} = ANY(${pledgeIds})`,
+              inArray(pledgeTags.pledgeId, pledgeIds),
               eq(tag.isActive, true)
             )
           );
